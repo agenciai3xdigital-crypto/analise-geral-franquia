@@ -1,0 +1,1 @@
+# analise-geral-franquia
