@@ -1,0 +1,49 @@
+# Backup diário do banco do Painel de Compras (Supabase) via GitHub Actions.
+# Coloque este arquivo em: .github/workflows/backup-supabase.yml
+# O dump fica salvo como "artifact" do workflow (privado, retido por 90 dias),
+# NÃO é commitado no repositório — importante se o repositório for público.
+
+name: Backup Supabase
+
+on:
+  schedule:
+    - cron: "0 6 * * *"      # todo dia às 06:00 UTC = 03:00 em Brasília
+  workflow_dispatch:         # permite rodar manualmente em Actions > Backup Supabase > Run workflow
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar cliente PostgreSQL 17
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Gerar dump das tabelas do painel
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          DATA=$(date -u +%Y-%m-%d)
+          pg_dump "$DB_URL" \
+            --no-owner --no-privileges \
+            --schema=public \
+            --table=public.lojas \
+            --table=public.entradas \
+            --table=public.vendas \
+            --table=public.acordos \
+            --table=public.produtos_mestre \
+            --format=custom \
+            --file="painel_pop_${DATA}.dump"
+          gzip -9 "painel_pop_${DATA}.dump"
+          ls -la *.gz
+
+      - name: Guardar como artifact (privado, 90 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-supabase-${{ github.run_id }}
+          path: painel_pop_*.dump.gz
+          retention-days: 90
