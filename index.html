@@ -89,6 +89,7 @@ header{padding-right:76px!important}
 #ordemList li .ord button{background:#fff;border:1px solid var(--ln);border-radius:5px;width:22px;height:18px;font-size:10px;cursor:pointer;line-height:1;color:var(--mu)}
 #drawer .foot{padding:12px 18px;border-top:1px solid var(--ln);font-size:12px;color:var(--mu);display:flex;justify-content:space-between;align-items:center}
 nav{display:none}
+body.deslogado main,body.deslogado .filters,body.deslogado #btnMenu{visibility:hidden}
 </style>
 </head>
 <body>
@@ -321,7 +322,7 @@ function csvParaLinhas(text,uni){
 
 /* ---------- conexão Supabase ---------- */
 // ===== CONFIGURAÇÃO DO PROJETO (edite aqui) =====
-const CFG={url:'https://ltfsujeoliovesvtmrey.supabase.co',key:'COLE_AQUI_A_CHAVE_ANON'};
+const CFG={url:'https://ltfsujeoliovesvtmrey.supabase.co',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0ZnN1amVvbGlvdmVzdnRtcmV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3ODg5OTYsImV4cCI6MjEwMzM2NDk5Nn0.ENF_DUG-Jt3XGhwvmPa0YgHyHQYOrBDiEkMuPza82lQ'};
 // ================================================
 const FIXO=CFG.url&&CFG.key&&CFG.key!=='COLE_AQUI_A_CHAVE_ANON';
 if(!FIXO){try{Object.assign(CFG,JSON.parse(localStorage.getItem('pop_sb_cfg')||'{}'))}catch(e){}}
@@ -329,11 +330,11 @@ let sb=null,USER=null,LOJAS=[],LJ={},LJID={};
 const lojaDe=u=>LJ[u]||{fra:'',nome:u,consultor:'',cidade:'',uf:'',status:''};
 const idade=l=>l.inaug?((Date.now()-new Date(l.inaug))/31557600000):null;
 const chaveLoja=l=>(l.fra&&l.fra!=='20x'?l.fra+' · ':'')+l.nome;
-function showLogin(msg){$('#login').style.display='flex';$('#lMsg').textContent=msg||'';$('#lUrl').value=CFG.url;$('#lKey').value=CFG.key;
+function showLogin(msg){$('#login').style.display='flex';document.body.classList.add('deslogado');$('#lMsg').textContent=msg||'';$('#lUrl').value=CFG.url;$('#lKey').value=CFG.key;
   document.querySelectorAll('.cfgField').forEach(e=>e.style.display=FIXO?'none':'');
   try{const em=localStorage.getItem('pop_email');if(em&&!$('#lEmail').value)$('#lEmail').value=em}catch(e){}
   setTimeout(()=>($('#lEmail').value?$('#lSenha'):$('#lEmail')).focus(),50)}
-function hideLogin(){$('#login').style.display='none'}
+function hideLogin(){$('#login').style.display='none';document.body.classList.remove('deslogado')}
 const temLib=()=>{if(window.supabase&&window.supabase.createClient)return true;showLogin('Não foi possível carregar a biblioteca do Supabase (verifique a conexão com a internet ou bloqueio de rede) e recarregue a página.');$('#lEntrar').disabled=true;return false};
 async function conectar(){if(!temLib())return false;
   if(!CFG.url||!CFG.key){showLogin('Informe a URL e a chave anon do projeto Supabase (Settings > API).');return false}
@@ -354,7 +355,10 @@ $('#lEntrar').onclick=async()=>{try{
   try{localStorage.setItem('pop_email',$('#lEmail').value.trim())}catch(x){}USER=data.user;hideLogin();await carregarTudo();
  }catch(e){console.error(e);$('#lMsg').textContent='Erro: '+(e.message||e)+(/fetch/i.test(e.message||'')?' — confira a URL do projeto.':'')}};
 ['#lEmail','#lSenha','#lUrl','#lKey'].forEach(s=>$(s).addEventListener('keydown',e=>{if(e.key==='Enter')$('#lEntrar').click()}));
-$('#btnSair').onclick=async()=>{if(sb)await sb.auth.signOut();USER=null;UNIDADES={};recompor();montarFiltros();render();showLogin('Sessão encerrada.')};
+function limparTudo(){UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
+  Object.assign(F,{de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''});$('#fBusca').value='';$('#hUser').textContent='—';$('#status').textContent='';
+  montarFiltros();renderAcordos();render();document.body.classList.add('deslogado')}
+$('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
 const sbErr=(e,ctx)=>{console.error(ctx,e);alert((ctx?ctx+': ':'')+(e.message||e))};
 
 async function carregarLojas(){
