@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Painel de Compras — Rede Pop Pet Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.49.4/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{--vd:#00573F;--v:#009150;--vc:#A8D3C4;--la:#FF6B15;--am:#FDAE25;--az:#71C5E8;--ro:#F1BDC8;--bg:#F3F7F5;--tx:#1C2A25;--mu:#5E6F69;--ln:#DCE6E1;--card:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -221,10 +221,10 @@ const categoria=n=>{n=String(n).toUpperCase();for(const [c,r] of CATRE)if(r.test
 
 /* ---------- parser CSV ---------- */
 function parseCSV(text){
-  text=text.replace(/^\ufeff/,'');const rows=[];let row=[],cell='',q=false;
+  text=text.replace(/^\ufeff/,'');const h1=text.split(/\r?\n/)[0];const cnt=c=>(h1.match(new RegExp('\\'+c,'g'))||[]).length;const SEP=cnt(';')>cnt(',')?';':cnt('\t')>cnt(',')?'\t':',';const rows=[];let row=[],cell='',q=false;
   for(let i=0;i<text.length;i++){const ch=text[i];
     if(q){if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch}
-    else if(ch==='"')q=true;else if(ch===','||ch===';'){row.push(cell);cell=''}
+    else if(ch==='"')q=true;else if(ch===SEP){row.push(cell);cell=''}
     else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(c=>c.trim()))rows.push(row);row=[];cell=''}
     else cell+=ch}
   row.push(cell);if(row.some(c=>c.trim()))rows.push(row);
@@ -234,8 +234,8 @@ const money=s=>{s=String(s).replace(/[R$\s]/g,'');if(s.includes(','))s=s.replace
 const norm=s=>s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');
 function csvParaLinhas(text,uni){
   const rows=parseCSV(text);if(rows.length<2)throw new Error('arquivo vazio');
-  const hd=rows[0].map(norm);const ix=(...alts)=>{for(const a of alts){const i=hd.findIndex(h=>h.includes(norm(a)));if(i>=0)return i}return -1};
-  const I={d:ix('data'),nf:ix('numeroda','nf'),fo:ix('fornecedor'),fa:ix('fabricante'),ean:ix('codbarra','ean'),cod:ix('codproduto','cdproduto','codigo'),p:ix('produto'),q:ix('quantidade','qtd'),c:ix('custofinal','custo')};
+  const hd=rows[0].map(norm);const ix=(...alts)=>{for(const a of alts){const i=hd.findIndex(h=>h===norm(a));if(i>=0)return i}for(const a of alts){const i=hd.findIndex(h=>h.includes(norm(a)));if(i>=0)return i}return -1};
+  const I={d:ix('data'),nf:ix('numeroda','nf'),fo:ix('fornecedor'),fa:ix('fabricante'),ean:ix('codbarra','ean'),cod:ix('codproduto','cdproduto','codigo'),p:ix('produto','descricao','descrição'),q:ix('quantidade','qtd'),c:ix('custofinal','custo')};
   const falt=Object.entries(I).filter(([k,v])=>v<0&&!['ean','fa'].includes(k)).map(([k])=>k);
   if(falt.length)throw new Error('colunas não encontradas: '+falt.join(', '));
   const out=[];for(const r of rows.slice(1)){
@@ -254,22 +254,25 @@ const idade=l=>l.inaug?((Date.now()-new Date(l.inaug))/31557600000):null;
 const chaveLoja=l=>(l.fra&&l.fra!=='20x'?l.fra+' · ':'')+l.nome;
 function showLogin(msg){$('#login').style.display='flex';$('#lMsg').textContent=msg||'';$('#lUrl').value=CFG.url;$('#lKey').value=CFG.key}
 function hideLogin(){$('#login').style.display='none'}
-async function conectar(){
+const temLib=()=>{if(window.supabase&&window.supabase.createClient)return true;showLogin('Não foi possível carregar a biblioteca do Supabase (verifique a conexão com a internet ou bloqueio de rede) e recarregue a página.');$('#lEntrar').disabled=true;return false};
+async function conectar(){if(!temLib())return false;
   if(!CFG.url||!CFG.key){showLogin('Informe a URL e a chave anon do projeto Supabase (Settings > API).');return false}
   sb=supabase.createClient(CFG.url,CFG.key);
   const {data:{session}}=await sb.auth.getSession();
   if(!session){showLogin('');return false}
   USER=session.user;return true;
 }
-$('#lEntrar').onclick=async()=>{
+$('#lEntrar').onclick=async()=>{try{
+  if(!temLib())return;
   CFG.url=$('#lUrl').value.trim().replace(/\/$/,'');CFG.key=$('#lKey').value.trim();
-  if(!CFG.url||!CFG.key){$('#lMsg').textContent='Preencha URL e chave.';return}
+  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(CFG.url)){$('#lMsg').textContent='URL inválida. Formato esperado: https://xxxxxxxx.supabase.co';return}
+  if(!CFG.key){$('#lMsg').textContent='Cole a chave anon (public) do projeto.';return}
   try{localStorage.setItem('pop_sb_cfg',JSON.stringify(CFG))}catch(e){}
   sb=supabase.createClient(CFG.url,CFG.key);$('#lMsg').textContent='Entrando…';
   const {data,error}=await sb.auth.signInWithPassword({email:$('#lEmail').value.trim(),password:$('#lSenha').value});
-  if(error){$('#lMsg').textContent='Falha no login: '+error.message;return}
+  if(error){const m=error.message||'';$('#lMsg').textContent='Falha no login: '+(/Invalid login/i.test(m)?'e-mail ou senha incorretos.':/not confirmed/i.test(m)?'e-mail não confirmado. No Supabase, em Authentication > Users, confirme o usuário ou recrie com "Auto Confirm User".':/Invalid API key|JWT/i.test(m)?'chave anon inválida. Copie de novo em Settings > API (ou Integrations > Data API).':m);return}
   USER=data.user;hideLogin();await carregarTudo();
-};
+ }catch(e){console.error(e);$('#lMsg').textContent='Erro: '+(e.message||e)+(/fetch/i.test(e.message||'')?' — confira a URL do projeto.':'')}};
 $('#btnSair').onclick=async()=>{if(sb)await sb.auth.signOut();USER=null;UNIDADES={};recompor();montarFiltros();render();showLogin('Sessão encerrada.')};
 const sbErr=(e,ctx)=>{console.error(ctx,e);alert((ctx?ctx+': ':'')+(e.message||e))};
 
@@ -320,7 +323,7 @@ let UNIDADES={};   // nome -> {u, rows}
 let DATA=[],MESES=[],FABS=[],FORS=[],CATS=[],UNIS=[];
 function recompor(){
   DATA=[];UNIS=Object.keys(UNIDADES).sort();UNIS.forEach(u=>DATA.push(...UNIDADES[u].rows));
-  DATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+  DATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
   MESES=[...new Set(DATA.map(r=>r.m))].sort();FABS=[...new Set(DATA.map(r=>r.fa))].sort();FORS=[...new Set(DATA.map(r=>r.fo))].sort();CATS=[...new Set(DATA.map(r=>r.cat))].sort();
 }
 /* ---------- filtros ---------- */
@@ -432,12 +435,14 @@ function render(){
   renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderItens(D);renderCarga();
 }
 
+const mesesEntre=(a,b)=>{const out=[];if(!a||!b)return out;let [y,m]=a.split('-').map(Number);const [y2,m2]=b.split('-').map(Number);while(y<y2||(y===y2&&m<=m2)){out.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}return out};
 function renderRebate(){
-  const rows=FABS.map(fa=>{const ac=acordoDe(fa);
+  const hoje=new Date().toISOString().slice(0,7);
+  const rows=FABS.filter(fa=>!F.fa||fa===F.fa).map(fa=>{const ac=acordoDe(fa);
     const base=DATA.filter(r=>r.fa===fa&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fo||r.fo===F.fo)&&(!F.cat||r.cat===F.cat));
-    const ini=ac?.ini||F.de,fim=ac?.fim||F.ate;const vig=MESES.filter(m=>m>=ini&&m<=fim);const mesesVig=vig.length||1;
+    const ini=ac?.ini||F.de,fim=ac?.fim||F.ate;const vig=mesesEntre(ini,fim);const mesesVig=vig.length||1;
     const per=base.filter(r=>r.m>=ini&&r.m<=fim);const comp=sum(per,r=>r.t);
-    const ultimoMes=MESES[MESES.length-1];const decorridos=vig.filter(m=>m<=ultimoMes).length||1;
+    const ultimoMes=MESES[MESES.length-1]<hoje?MESES[MESES.length-1]:hoje;const decorridos=Math.max(1,vig.filter(m=>m<=ultimoMes).length);
     const proj=comp/decorridos*mesesVig;const meta=+ac?.meta||0;
     const faixa=v=>{if(!ac)return null;const fs=[[+ac.f3,+ac.p3],[+ac.f2,+ac.p2],[+ac.f1,+ac.p1]].filter(f=>f[0]>0);for(const [p,r] of fs)if(v>=p)return r;return 0};
     return{fa,ac,comp,proj,meta,mesesVig,decorridos,ating:meta?comp/meta*100:null,atingP:meta?proj/meta*100:null,reb:faixa(comp),rebP:faixa(proj),falta:meta?Math.max(0,meta-comp):null};
@@ -575,7 +580,7 @@ $('#cImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileR
   if(j.acordos){ACORDOS=j.acordos;await salvarAcordos()}await carregarTudo();alert('Backup importado: '+tot+' itens novos gravados.')}catch(x){$('#status').textContent='';sbErr(x,'Erro ao importar')}};r.readAsText(f);e.target.value=''};
 $('#cLimpar').onclick=async()=>{if(!confirm('Apagar TODAS as entradas de TODAS as lojas no banco central? Esta ação não pode ser desfeita.'))return;if(prompt('Digite APAGAR para confirmar')!=='APAGAR')return;try{const {error}=await sb.from('entradas').delete().gte('id',0);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao apagar')}};
 /* ---------- inicialização ---------- */
-(async()=>{montarFiltros();render();if(await conectar())await carregarTudo()})();
+window.addEventListener('load',async()=>{montarFiltros();render();if(await conectar())await carregarTudo()});
 window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(render,200)});
 </script>
 </body>
