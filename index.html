@@ -90,6 +90,30 @@ header{padding-right:76px!important}
 #drawer .foot{padding:12px 18px;border-top:1px solid var(--ln);font-size:12px;color:var(--mu);display:flex;justify-content:space-between;align-items:center}
 nav{display:none}
 body.deslogado main,body.deslogado .filters,body.deslogado #btnMenu{visibility:hidden}
+
+/* ---- painel executivo (TV) ---- */
+.tvbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.tvwrap{background:var(--vd);border-radius:18px;padding:22px;color:#fff;min-height:600px}
+.tvkpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px}
+.tvk{background:rgba(255,255,255,.08);border-radius:14px;padding:16px 18px;border-left:6px solid var(--v)}
+.tvk.o{border-color:var(--la)}.tvk.a{border-color:var(--am)}.tvk.z{border-color:var(--az)}
+.tvk span{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#cfe3da}
+.tvk b{display:block;font-size:40px;line-height:1.1;margin:6px 0 4px;font-weight:700}
+.tvk i{font-style:normal;font-size:13px;color:#cfe3da}
+.tvd{display:inline-block;padding:1px 8px;border-radius:12px;font-weight:700;font-size:12px}
+.tvd.up{background:rgba(0,145,80,.5);color:#dff5e8}.tvd.dn{background:rgba(192,57,43,.6);color:#ffe3df}.tvd.nt{background:rgba(255,255,255,.15);color:#fff}
+.tvgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tvc{background:rgba(255,255,255,.08);border-radius:14px;padding:16px 18px}.tvc.wide{grid-column:span 2}
+.tvc h3{font-size:15px;color:#fff;margin-bottom:10px;display:flex;justify-content:space-between}.tvc h3 small{font-weight:500;color:#cfe3da;font-size:12px}.tvc h3 small i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle}
+.tvrow{display:grid;grid-template-columns:1fr 110px 90px;gap:10px;align-items:center;font-size:14px;padding:5px 0}
+.tvrow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tvrow b{text-align:right;font-variant-numeric:tabular-nums}
+.tvrow .bar{background:rgba(255,255,255,.15)}.tvrow .bar i{background:var(--vc)}.tvrow .bar i.o{background:var(--la)}.tvrow .bar i.a{background:var(--am)}
+.tval{padding:9px 12px;border-radius:9px;margin-bottom:7px;font-weight:700;font-size:14px}.tval.up{background:rgba(0,145,80,.35)}.tval.dn{background:rgba(192,57,43,.45)}
+.tvfoot{margin-top:14px;font-size:12px;color:#cfe3da;text-align:center}
+body.tv header,body.tv .filters,body.tv #btnMenu,body.tv .tvbar,body.tv #status{display:none!important}
+body.tv main{padding:0;max-width:none}body.tv .tvwrap{border-radius:0;min-height:100vh;padding:28px 36px}
+body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font-size:18px}body.tv .tval{font-size:17px}
+@media(max-width:1100px){.tvkpis{grid-template-columns:repeat(2,1fr)}.tvgrid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -114,6 +138,7 @@ body.deslogado main,body.deslogado .filters,body.deslogado #btnMenu{visibility:h
 <button class="btn o" id="lEntrar">Entrar</button><div id="lMsg" class="note" style="color:#B34A0B"></div></div></div>
 <nav>
   <button class="on" data-t="visao">Visão geral</button>
+  <button data-t="tv">📺 Painel executivo (TV)</button>
   <button data-t="rebate">Rebate por indústria</button>
   <button data-t="fornec">Acordos comerciais</button>
   <button data-t="precos">Evolução de preços</button>
@@ -147,6 +172,12 @@ body.deslogado main,body.deslogado .filters,body.deslogado #btnMenu{visibility:h
     <div class="card"><h3>Por categoria <small>inferida pelo nome do produto</small></h3><div id="tbCat"></div></div>
     <div class="card"><h3>Curva ABC de produtos <small>concentração do gasto</small></h3><div id="abc"></div></div>
   </div>
+</section>
+
+
+<section class="tab" id="t-tv">
+  <div class="tvbar"><div><b>Painel executivo</b> <small>visão da rede inteira, sem filtros · para exibição em TV</small></div><div><button class="btn o" id="tvFull">⛶ Modo TV (tela cheia)</button> <button class="btn g" id="tvSair">Sair do modo TV</button></div></div>
+  <div id="tvGrid" class="tvwrap"></div>
 </section>
 
 <section class="tab" id="t-rebate">
@@ -498,7 +529,7 @@ $('#acImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new File
 
 /* ---------- render principal ---------- */
 function render(){
-  if(!DATA.length&&!VDATA.length){$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();renderLojas();return}
+  if(!DATA.length&&!VDATA.length){$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();renderLojas();renderTV();return}
   const D=filtrado();const tot=sum(D,r=>r.t);const nm=nMeses();
   $('#hUni').textContent=F.u?F.u:UNIS.length+' carregada(s)';$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';$('#hTotal').textContent=fmt0(tot);
   /* visão geral */
@@ -517,7 +548,7 @@ function render(){
    <tr><td><span class="tag at">B</span> 80–95%</td><td class="n">${b}</td><td class="n">${(b/ps.length*100||0).toFixed(1)}%</td><td class="n">15%</td></tr>
    <tr><td><span class="tag nt">C</span> últimos 5%</td><td class="n">${cN}</td><td class="n">${(cN/ps.length*100||0).toFixed(1)}%</td><td class="n">5%</td></tr></tbody></table>
    <p class="note">${a} produto(s) concentram 80% do valor comprado. É neles que a negociação de preço e rebate tem mais efeito.</p>`;
-  renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderMercado();renderItens(D);renderCarga();renderLojas();
+  renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderMercado();renderItens(D);renderCarga();renderLojas();renderTV();
 }
 
 const mesesEntre=(a,b)=>{const out=[];if(!a||!b)return out;let [y,m]=a.split('-').map(Number);const [y2,m2]=b.split('-').map(Number);while(y<y2||(y===y2&&m<=m2)){out.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}return out};
@@ -838,6 +869,87 @@ $('#lRemoverCons').onclick=async()=>{const de=$('#lDe').value;if(!de){alert('Sel
   try{const {error}=await sb.from('lojas').update({consultor:null}).eq('consultor',de);if(error)throw error;await recarregarLojas()}catch(e){sbErr(e,'Erro ao remover consultor')}};
 $('#lNova').onclick=async()=>{const nome=prompt('Nome da nova loja (ex.: POP PET NOVA CIDADE):');if(!nome)return;const fra=prompt('Número FRA (deixe vazio se ainda não tiver):')||null;
   try{const {error}=await sb.from('lojas').insert({nome:nome.trim().toUpperCase(),fra,status:'Ativa'});if(error)throw error;await recarregarLojas();$('#lBusca').value=nome;renderLojas()}catch(e){sbErr(e,'Erro ao criar loja')}};
+
+/* ======================= PAINEL EXECUTIVO (TV) ======================= */
+const TV={timer:null,minutos:15};
+const mesAnt=m=>{let [y,mo]=m.split('-').map(Number);mo--;if(mo<1){mo=12;y--}return `${y}-${String(mo).padStart(2,'0')}`};
+const mesAnoAnt=m=>String(+m.slice(0,4)-1)+m.slice(4);
+const mesNome=m=>{const [y,mo]=m.split('-');return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+mo-1]+' '+y};
+const delta=(a,b)=>b?`<span class="tvd ${a>=b?'up':'dn'}">${a>=b?'▲':'▼'} ${pct(Math.abs(a/b*100-100)).replace('+','')}</span>`:'<span class="tvd nt">—</span>';
+const fmtK=n=>n>=1e6?'R$ '+(n/1e6).toFixed(2).replace('.',',')+' mi':n>=1e3?'R$ '+Math.round(n/1e3).toLocaleString('pt-BR')+' mil':fmt0(n);
+
+function renderTV(){
+  const el=$('#tvGrid');if(!el)return;
+  const V=VDATA.filter(r=>!r.inst);const P=V.filter(r=>r.tipo==='Produto');
+  const mesesV=[...new Set(VDATA.map(r=>r.m))].sort(),mesesC=[...new Set(DATA.map(r=>r.m))].sort();
+  const mv=mesesV[mesesV.length-1],mc=mesesC[mesesC.length-1];
+  const hojeDia=new Date().getDate();const mesAtual=new Date().toISOString().slice(0,7);
+  if(!mv&&!mc){el.innerHTML='<div class="empty" style="color:#fff;font-size:22px">Sem dados carregados.</div>';return}
+  // ---- vendas mês
+  const vm=r=>r.m===mv, va=r=>r.m===mesAnt(mv), vy=r=>r.m===mesAnoAnt(mv);
+  const vendaMes=sum(V.filter(vm),r=>r.t),vendaAnt=sum(V.filter(va),r=>r.t),vendaAno=sum(V.filter(vy),r=>r.t);
+  const Pm=P.filter(vm);const Pc=Pm.filter(r=>r.cf!=='sem custo');const margem=Pc.length?sum(Pc,r=>r.le)/sum(Pc,r=>r.t)*100:null;
+  const Pa=P.filter(va).filter(r=>r.cf!=='sem custo');const margemAnt=Pa.length?sum(Pa,r=>r.le)/sum(Pa,r=>r.t)*100:null;
+  const pedMes=new Set(V.filter(vm).map(r=>r.u+'|'+r.ped)).size,pedAnt=new Set(V.filter(va).map(r=>r.u+'|'+r.ped)).size;
+  const ticket=pedMes?vendaMes/pedMes:0,ticketAnt=pedAnt?vendaAnt/pedAnt:0;
+  const servMes=sum(V.filter(vm).filter(r=>r.tipo!=='Produto'),r=>r.t);
+  // ---- compras mês
+  const compMes=sum(DATA.filter(r=>r.m===mc),r=>r.t),compAnt=sum(DATA.filter(r=>r.m===mesAnt(mc)),r=>r.t);
+  const lojasV=new Set(V.filter(vm).map(r=>r.u)).size,lojasC=new Set(DATA.filter(r=>r.m===mc).map(r=>r.u)).size;
+  // ---- 12 meses
+  const ult12=mesesV.slice(-12);const serieV=ult12.map(m=>sum(V.filter(r=>r.m===m),r=>r.t));const serieC=ult12.map(m=>sum(DATA.filter(r=>r.m===m),r=>r.t));
+  // ---- top fabricantes (venda mês) e compra
+  const topV=[...by(Pm,r=>r.fa,r=>r.t).entries()].filter(([k])=>k!=='DIVERSOS').sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topC=[...by(DATA.filter(r=>r.m===mc),r=>MAPA[r.ean]?.fab||normFab(r.fa),r=>r.t).entries()].sort((a,b)=>b[1]-a[1]).slice(0,6);
+  // ---- segmento ração
+  const R=Pm.filter(r=>r.seg);const segTot=sum(R,r=>r.t);const segs=SEGS.map(s=>[s,sum(R.filter(r=>r.seg===s),r=>r.t)]);
+  // ---- rebate
+  const hoje=new Date().toISOString().slice(0,7);let reb={ok:0,ritmo:0,risco:0,est:0,proj:0};
+  ACORDOS.filter(a=>a.fab&&+a.meta).forEach(a=>{const vig=mesesEntre(a.ini,a.fim);const base=DATA.filter(r=>normFab(r.fa)===normFab(a.fab)&&r.m>=a.ini&&r.m<=a.fim);const comp=sum(base,r=>r.t);const ult=MESES[MESES.length-1]<hoje?MESES[MESES.length-1]:hoje;const dec=Math.max(1,vig.filter(m=>m<=ult).length);const proj=comp/dec*(vig.length||1);
+    const faixa=v=>{const fs=[[+a.f3,+a.p3],[+a.f2,+a.p2],[+a.f1,+a.p1]].filter(f=>f[0]>0);for(const [p,r] of fs)if(v>=p)return r;return 0};reb.est+=comp*faixa(comp)/100;reb.proj+=proj*faixa(proj)/100;
+    if(comp>=+a.meta)reb.ok++;else if(proj>=+a.meta)reb.ritmo++;else reb.risco++});
+  // ---- alertas
+  const ativas=LOJAS.filter(l=>l.status==='Ativa').length;const comCompras=LOJAS.filter(l=>UNIDADES[l.key]).length,comVendas=LOJAS.filter(l=>VENDAS[l.key]).length;
+  const semMarcaPct=Pm.length?sum(Pm.filter(r=>r.fa==='DIVERSOS'),r=>r.t)/sum(Pm,r=>r.t)*100:0;
+  const reaj=(()=>{const ms=new Map();DATA.forEach(r=>{if(!ms.has(r.cod))ms.set(r.cod,[]);ms.get(r.cod).push(r)});let n=0;ms.forEach(h=>{if(h.length<2)return;const ult=h[h.length-1];if(ult.m!==mc)return;const ant=[...h].reverse().find(x=>x.m<mc);if(ant&&ult.c/ant.c-1>=.10)n++});return n})();
+  // ---- UF
+  const ufV=[...by(V.filter(vm),r=>lojaDe(r.u).uf||'?',r=>r.t).entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const card=(cls,label,val,sub)=>`<div class="tvk ${cls}"><span>${label}</span><b>${val}</b><i>${sub||''}</i></div>`;
+  const bars=(arr,cor)=>{const mx=Math.max(...arr.map(x=>x[1]),1);return arr.map(([k,v])=>`<div class="tvrow"><span>${esc(k)}</span><div class="bar"><i class="${cor}" style="width:${v/mx*100}%"></i></div><b>${fmtK(v)}</b></div>`).join('')};
+  const W=760,H=190,pl=8,mx=Math.max(...serieV,...serieC,1);const bw=(W-pl*2)/Math.max(ult12.length,1);
+  const chart=`<svg viewBox="0 0 ${W} ${H}" width="100%">${ult12.map((m,i)=>{const hv=(H-40)*serieV[i]/mx,hc=(H-40)*serieC[i]/mx;const x=pl+i*bw;return `<rect x="${x+bw*.12}" y="${H-30-hv}" width="${bw*.36}" height="${hv}" rx="3" fill="#FF6B15"/><rect x="${x+bw*.52}" y="${H-30-hc}" width="${bw*.36}" height="${hc}" rx="3" fill="#A8D3C4"/><text x="${x+bw/2}" y="${H-12}" font-size="12" text-anchor="middle" fill="#cfe3da">${mesLabel(m)}</text><text x="${x+bw*.3}" y="${H-34-hv}" font-size="10" text-anchor="middle" fill="#fff">${Math.round(serieV[i]/1000)}k</text>`}).join('')}</svg>`;
+
+  el.innerHTML=`
+   <div class="tvkpis">
+    ${card('o','Vendas · '+(mv?mesNome(mv):'—'),fmtK(vendaMes),`${delta(vendaMes,vendaAnt)} vs mês anterior &nbsp; ${delta(vendaMes,vendaAno)} vs ${mv?mesLabel(mesAnoAnt(mv)):''} · ${lojasV} loja(s)`)}
+    ${card('','Compras · '+(mc?mesNome(mc):'—'),fmtK(compMes),`${delta(compMes,compAnt)} vs mês anterior · ${lojasC} loja(s)`)}
+    ${card('a','Margem verificável (produtos)',margem!=null?pctS(margem):'—',margemAnt!=null?`${delta(margem,margemAnt)} vs mês anterior`:'')}
+    ${card('z','Ticket médio',fmt0(ticket),`${delta(ticket,ticketAnt)} · ${pedMes.toLocaleString('pt-BR')} pedidos · serviços ${fmtK(servMes)}`)}
+    ${card('','Rebate estimado',fmtK(reb.est),`projetado ${fmtK(reb.proj)} · <span class="tvd up">${reb.ok} batidas</span> <span class="tvd nt">${reb.ritmo} no ritmo</span> <span class="tvd dn">${reb.risco} em risco</span>`)}
+   </div>
+   <div class="tvgrid">
+    <div class="tvc wide"><h3>Vendas × compras · últimos 12 meses <small><i style="background:#FF6B15"></i> vendas &nbsp; <i style="background:#A8D3C4"></i> compras</small></h3>${chart}</div>
+    <div class="tvc"><h3>Top marcas em venda · mês</h3>${bars(topV,'o')}</div>
+    <div class="tvc"><h3>Top indústrias em compra · mês</h3>${bars(topC,'')}</div>
+    <div class="tvc"><h3>Mix de ração · mês</h3>${segs.map(([s,v])=>`<div class="tvrow"><span>${s}</span><div class="bar"><i class="a" style="width:${segTot?v/segTot*100:0}%"></i></div><b>${segTot?pctS(v/segTot*100):'—'}</b></div>`).join('')}</div>
+    <div class="tvc"><h3>Vendas por UF · mês</h3>${bars(ufV,'')}</div>
+    <div class="tvc"><h3>Cobertura da rede</h3>
+      <div class="tvrow"><span>Lojas com compras</span><div class="bar"><i style="width:${comCompras/ativas*100}%"></i></div><b>${comCompras}/${ativas}</b></div>
+      <div class="tvrow"><span>Lojas com vendas</span><div class="bar"><i class="o" style="width:${comVendas/ativas*100}%"></i></div><b>${comVendas}/${ativas}</b></div>
+      <div class="tvrow"><span>Acordos cadastrados</span><div class="bar"><i class="a" style="width:${Math.min(100,ACORDOS.length*10)}%"></i></div><b>${ACORDOS.length}</b></div></div>
+    <div class="tvc"><h3>Alertas</h3>
+      <div class="tval ${reaj?'dn':'up'}">${reaj} produto(s) com reajuste ≥10% em ${mc?mesLabel(mc):'—'}</div>
+      <div class="tval ${semMarcaPct>5?'dn':'up'}">${pctS(semMarcaPct)} da venda sem marca identificada</div>
+      <div class="tval ${reb.risco?'dn':'up'}">${reb.risco} acordo(s) de rebate em risco</div>
+      <div class="tval ${mv&&mv<mesAnt(mesAtual)?'dn':'up'}">Último mês de vendas carregado: ${mv?mesLabel(mv):'—'}</div></div>
+   </div>
+   <div class="tvfoot">Rede Pop Pet Center · atualizado ${new Date().toLocaleString('pt-BR')} · vendas excluem lançamentos institucionais (50+ un.) · próxima atualização automática em ${TV.minutos} min</div>`;
+}
+function tvFull(on){document.body.classList.toggle('tv',on);if(on){document.documentElement.requestFullscreen?.().catch(()=>{});TV.timer=setInterval(async()=>{try{await carregarTudo()}catch(e){}renderTV()},TV.minutos*60000)}else{clearInterval(TV.timer);if(document.fullscreenElement)document.exitFullscreen?.()}}
+$('#tvFull').onclick=()=>tvFull(true);$('#tvSair').onclick=()=>tvFull(false);
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('tv'))tvFull(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('tv'))tvFull(false)});
 
 /* ---------- menu lateral com reordenação ---------- */
 (function(){
