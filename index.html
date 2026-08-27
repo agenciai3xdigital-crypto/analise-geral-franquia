@@ -81,9 +81,9 @@ svg text{font-family:inherit}
   <div class="hdr-stat">Total comprado<b id="hTotal">—</b></div>
 </header>
 <div id="status"></div>
-<div id="login"><div class="box"><h2>Painel de Compras · Rede Pop</h2><p class="note">Conectado ao banco central (Supabase). Use o e-mail e senha criados pelo administrador.</p>
-<label class="note">URL do projeto</label><input id="lUrl" placeholder="https://xxxx.supabase.co">
-<label class="note">Chave anon (public)</label><input id="lKey" placeholder="eyJ…">
+<div id="login"><div class="box"><h2>Painel de Compras · Rede Pop</h2><p class="note">Entre com o e-mail e senha criados pelo administrador. Você só precisa fazer isso uma vez por navegador.</p>
+<div class="cfgField"><label class="note">URL do projeto</label><input id="lUrl" placeholder="https://xxxx.supabase.co"></div>
+<div class="cfgField"><label class="note">Chave anon (public)</label><input id="lKey" placeholder="eyJ…"></div>
 <label class="note">E-mail</label><input id="lEmail" type="email" autocomplete="username">
 <label class="note">Senha</label><input id="lSenha" type="password" autocomplete="current-password">
 <button class="btn o" id="lEntrar">Entrar</button><div id="lMsg" class="note" style="color:#B34A0B"></div></div></div>
@@ -93,6 +93,7 @@ svg text{font-family:inherit}
   <button data-t="fornec">Acordos comerciais</button>
   <button data-t="precos">Evolução de preços</button>
   <button data-t="unid">Comparativo de unidades</button>
+  <button data-t="mercado">Vendas: mercado por região</button>
   <button data-t="itens">Explorar itens</button>
   <button data-t="acordos">⚙ Cadastro de acordos</button>
   <button data-t="carga">📂 Unidades e carga de dados</button>
@@ -149,6 +150,27 @@ svg text{font-family:inherit}
   </div>
 </section>
 
+
+<section class="tab" id="t-mercado">
+  <div class="kpis" id="kpisVen"></div>
+  <div class="filters" style="padding:0 0 14px;border:none;background:none">
+    <div><label>Agrupar região por</label><select id="vReg"><option value="uf">UF</option><option value="cidade">Cidade</option><option value="consultor">Consultor</option><option value="loja">Loja</option></select></div>
+    <div><label>Grupo de produto</label><select id="vGrupo"><option value="">Todos os produtos</option><option value="RACAO" selected>Ração (ensacada + granel + alimentos)</option><option value="MEDICAMENTOS">Medicamentos</option><option value="ANTIPARASITARIOS">Antiparasitários</option><option value="VERMIFUGOS">Vermífugos</option><option value="ACESSORIOS">Acessórios</option><option value="HIGIENE E COSMETICOS PET">Higiene e cosméticos</option></select></div>
+    <div><label>Top marcas</label><input type="number" id="vTop" value="25" style="min-width:80px"></div>
+    <div><label>Vendas institucionais</label><select id="vInst"><option value="0">Excluir (só varejo)</option><option value="1">Incluir</option><option value="2">Só institucionais</option></select></div>
+  </div>
+  <div class="grid">
+    <div class="card full"><h3>Marca × região <small>venda, share da marca no grupo e penetração (lojas que vendem / lojas da região)</small></h3><div class="tw" id="tbMarcaReg"></div></div>
+    <div class="card full"><h3>Mix de segmento de ração por região <small>onde há espaço para upgrade de Standard/Premium para Super Premium</small></h3><div class="tw" id="tbSegReg"></div></div>
+    <div class="card full"><h3>Compra × venda × margem por fabricante <small>argumento de mesa: quanto a rede compra, quanto vende e quanto ganha com cada indústria</small></h3><div class="tw" id="tbCruz"></div>
+      <p class="note">Venda ÷ compra abaixo de 1× indica estoque acumulando ou compra fora do período; margem verificável considera só linhas com custo (do sistema, do arquivo de entradas ou do vínculo de granel).</p></div>
+    <div class="card full"><h3>Pendências de cadastro <small id="pendCount"></small></h3>
+      <p class="note">Produtos vendidos como DIVERSOS ou sem custo, do maior valor para o menor. A classificação feita aqui vale para todas as lojas da rede. Para granel, informe o EAN do saco de origem e o peso — o custo por kg passa a vir da compra do saco.</p>
+      <datalist id="dlMarcas"></datalist><datalist id="dlSacos"></datalist>
+      <div class="tw" id="tbPend"></div></div>
+  </div>
+</section>
+
 <section class="tab" id="t-itens">
   <div class="card"><h3>Itens de entrada <small id="itensCount"></small></h3><div class="tw" id="tbItens"></div><div class="pg" id="pgItens"></div>
   <p class="note"><button class="btn g" id="btnCsv">Exportar seleção (CSV)</button></p></div>
@@ -193,6 +215,16 @@ svg text{font-family:inherit}
         <div id="cLog" class="note"></div>
       </div>
       <p class="note">Formato esperado: o relatório de entradas do sistema (colunas Data, Número da NF, Fornecedor, Fabricante, Cod. Barra, Cód. Produto, Produto, Quantidade, Custo final). Linhas repetidas (mesma unidade, NF, produto e data) são ignoradas, então pode recarregar um período sem duplicar. Os dados são gravados no banco central da rede e ficam disponíveis para todos os usuários do painel.</p>
+    </div>
+    
+    <div class="card"><h3>Carregar vendas (BI Global)</h3>
+      <div style="display:grid;gap:10px">
+        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase">Loja</label><select id="vUni" style="width:100%"></select></div>
+        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase">Arquivos do BI Global (pode selecionar os 12 meses)</label><input type="file" id="vArq" accept=".csv,.txt" multiple style="width:100%"></div>
+        <div><button class="btn o" id="vCarregar">Carregar vendas</button></div>
+        <div id="vLog" class="note"></div>
+      </div>
+      <p class="note">A loja é identificada pela coluna <b>Filial</b> do arquivo ("FR 158 - ..."); só escolha manualmente se o arquivo não trouxer. Linhas repetidas de um mesmo pedido (ex.: três banhos) são preservadas; recarregar o mesmo arquivo não duplica.</p>
     </div>
     <div class="card"><h3>Cobertura do cadastro <small id="cResumo"></small></h3><div class="kpis" id="kpisCarga" style="margin-bottom:10px"></div><div class="filters" style="padding:0 0 10px;border:none;background:none"><div><label>Mostrar</label><select id="cVis"><option value="all">Todas as lojas</option><option value="com">Só com dados</option><option value="sem">Só sem dados</option></select></div></div><div class="tw" id="tbCarga"></div>
       <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn g" id="cExp">Exportar backup completo</button><label class="btn g" style="cursor:pointer">Importar backup<input type="file" id="cImp" accept=".json" style="display:none"></label><button class="btn g" id="cLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar tudo</button></p></div>
@@ -247,12 +279,19 @@ function csvParaLinhas(text,uni){
 }
 
 /* ---------- conexão Supabase ---------- */
-const CFG={url:'',key:''};try{Object.assign(CFG,JSON.parse(localStorage.getItem('pop_sb_cfg')||'{}'))}catch(e){}
+// ===== CONFIGURAÇÃO DO PROJETO (edite aqui) =====
+const CFG={url:'https://ltfsujeoliovesvtmrey.supabase.co',key:'COLE_AQUI_A_CHAVE_ANON'};
+// ================================================
+const FIXO=CFG.url&&CFG.key&&CFG.key!=='COLE_AQUI_A_CHAVE_ANON';
+if(!FIXO){try{Object.assign(CFG,JSON.parse(localStorage.getItem('pop_sb_cfg')||'{}'))}catch(e){}}
 let sb=null,USER=null,LOJAS=[],LJ={},LJID={};
 const lojaDe=u=>LJ[u]||{fra:'',nome:u,consultor:'',cidade:'',uf:'',status:''};
 const idade=l=>l.inaug?((Date.now()-new Date(l.inaug))/31557600000):null;
 const chaveLoja=l=>(l.fra&&l.fra!=='20x'?l.fra+' · ':'')+l.nome;
-function showLogin(msg){$('#login').style.display='flex';$('#lMsg').textContent=msg||'';$('#lUrl').value=CFG.url;$('#lKey').value=CFG.key}
+function showLogin(msg){$('#login').style.display='flex';$('#lMsg').textContent=msg||'';$('#lUrl').value=CFG.url;$('#lKey').value=CFG.key;
+  document.querySelectorAll('.cfgField').forEach(e=>e.style.display=FIXO?'none':'');
+  try{const em=localStorage.getItem('pop_email');if(em&&!$('#lEmail').value)$('#lEmail').value=em}catch(e){}
+  setTimeout(()=>($('#lEmail').value?$('#lSenha'):$('#lEmail')).focus(),50)}
 function hideLogin(){$('#login').style.display='none'}
 const temLib=()=>{if(window.supabase&&window.supabase.createClient)return true;showLogin('Não foi possível carregar a biblioteca do Supabase (verifique a conexão com a internet ou bloqueio de rede) e recarregue a página.');$('#lEntrar').disabled=true;return false};
 async function conectar(){if(!temLib())return false;
@@ -264,15 +303,16 @@ async function conectar(){if(!temLib())return false;
 }
 $('#lEntrar').onclick=async()=>{try{
   if(!temLib())return;
-  CFG.url=$('#lUrl').value.trim().replace(/\/$/,'');CFG.key=$('#lKey').value.trim();
+  if(!FIXO){CFG.url=$('#lUrl').value.trim().replace(/\/$/,'');CFG.key=$('#lKey').value.trim()}
   if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(CFG.url)){$('#lMsg').textContent='URL inválida. Formato esperado: https://xxxxxxxx.supabase.co';return}
   if(!CFG.key){$('#lMsg').textContent='Cole a chave anon (public) do projeto.';return}
   try{localStorage.setItem('pop_sb_cfg',JSON.stringify(CFG))}catch(e){}
   sb=supabase.createClient(CFG.url,CFG.key);$('#lMsg').textContent='Entrando…';
   const {data,error}=await sb.auth.signInWithPassword({email:$('#lEmail').value.trim(),password:$('#lSenha').value});
   if(error){const m=error.message||'';$('#lMsg').textContent='Falha no login: '+(/Invalid login/i.test(m)?'e-mail ou senha incorretos.':/not confirmed/i.test(m)?'e-mail não confirmado. No Supabase, em Authentication > Users, confirme o usuário ou recrie com "Auto Confirm User".':/Invalid API key|JWT/i.test(m)?'chave anon inválida. Copie de novo em Settings > API (ou Integrations > Data API).':m);return}
-  USER=data.user;hideLogin();await carregarTudo();
+  try{localStorage.setItem('pop_email',$('#lEmail').value.trim())}catch(x){}USER=data.user;hideLogin();await carregarTudo();
  }catch(e){console.error(e);$('#lMsg').textContent='Erro: '+(e.message||e)+(/fetch/i.test(e.message||'')?' — confira a URL do projeto.':'')}};
+['#lEmail','#lSenha','#lUrl','#lKey'].forEach(s=>$(s).addEventListener('keydown',e=>{if(e.key==='Enter')$('#lEntrar').click()}));
 $('#btnSair').onclick=async()=>{if(sb)await sb.auth.signOut();USER=null;UNIDADES={};recompor();montarFiltros();render();showLogin('Sessão encerrada.')};
 const sbErr=(e,ctx)=>{console.error(ctx,e);alert((ctx?ctx+': ':'')+(e.message||e))};
 
@@ -308,7 +348,7 @@ async function carregarTudo(){
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
     for(const l of comDados){i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l)}
-    $('#status').textContent='';recompor();montarFiltros();renderAcordos();render();
+    await carregarVendasTodas();$('#status').textContent='';recompor();recomporVendas();montarFiltros();renderAcordos();render();
   }catch(e){$('#status').textContent='';sbErr(e,'Erro ao carregar do Supabase')}
 }
 async function enviarEntradas(loja,linhas,arquivo){
@@ -324,7 +364,7 @@ let DATA=[],MESES=[],FABS=[],FORS=[],CATS=[],UNIS=[];
 function recompor(){
   DATA=[];UNIS=Object.keys(UNIDADES).sort();UNIS.forEach(u=>DATA.push(...UNIDADES[u].rows));
   DATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
-  MESES=[...new Set(DATA.map(r=>r.m))].sort();FABS=[...new Set(DATA.map(r=>r.fa))].sort();FORS=[...new Set(DATA.map(r=>r.fo))].sort();CATS=[...new Set(DATA.map(r=>r.cat))].sort();
+  MESES=[...new Set([...DATA.map(r=>r.m),...VDATA.map(r=>r.m)])].sort();FABS=[...new Set([...DATA.map(r=>r.fa),...VDATA.map(r=>r.fa).filter(f=>f&&f!=='DIVERSOS')])].sort();UNIS=[...new Set([...UNIS,...Object.keys(VENDAS)])].sort();FORS=[...new Set(DATA.map(r=>r.fo))].sort();CATS=[...new Set(DATA.map(r=>r.cat))].sort();
 }
 /* ---------- filtros ---------- */
 const F={de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''};
@@ -413,7 +453,7 @@ $('#acImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new File
 
 /* ---------- render principal ---------- */
 function render(){
-  if(!DATA.length){$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();return}
+  if(!DATA.length&&!VDATA.length){$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();return}
   const D=filtrado();const tot=sum(D,r=>r.t);const nm=nMeses();
   $('#hUni').textContent=F.u?F.u:UNIS.length+' carregada(s)';$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';$('#hTotal').textContent=fmt0(tot);
   /* visão geral */
@@ -432,7 +472,7 @@ function render(){
    <tr><td><span class="tag at">B</span> 80–95%</td><td class="n">${b}</td><td class="n">${(b/ps.length*100||0).toFixed(1)}%</td><td class="n">15%</td></tr>
    <tr><td><span class="tag nt">C</span> últimos 5%</td><td class="n">${cN}</td><td class="n">${(cN/ps.length*100||0).toFixed(1)}%</td><td class="n">5%</td></tr></tbody></table>
    <p class="note">${a} produto(s) concentram 80% do valor comprado. É neles que a negociação de preço e rebate tem mais efeito.</p>`;
-  renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderItens(D);renderCarga();
+  renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderMercado();renderItens(D);renderCarga();
 }
 
 const mesesEntre=(a,b)=>{const out=[];if(!a||!b)return out;let [y,m]=a.split('-').map(Number);const [y2,m2]=b.split('-').map(Number);while(y<y2||(y===y2&&m<=m2)){out.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}return out};
@@ -547,19 +587,19 @@ function montarSelecaoLoja(){const q=norm($('#cBusca').value||'');const s=$('#cU
   if([...s.options].some(o=>o.value===cur))s.value=cur;}
 $('#cBusca').oninput=montarSelecaoLoja;
 function renderCarga(){
-  montarSelecaoLoja();
+  montarSelecaoLoja();montarSelecaoLojaV();
   const ativas=LOJAS.filter(l=>l.status==='Ativa');const com=ativas.filter(l=>UNIDADES[l.key]).length;const fora=UNIS.filter(u=>!LJ[u]).length;
   $('#cResumo').textContent=`${UNIS.length} unidade(s) com dados · ${DATA.length.toLocaleString('pt-BR')} itens`;
-  $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas no cadastro</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com dados carregados</span><b>${com}</b><i>${(com/ativas.length*100).toFixed(0)}% de cobertura</i></div><div class="kpi a"><span>Sem dados</span><b>${ativas.length-com}</b></div>${fora?`<div class="kpi z"><span>Fora do cadastro</span><b>${fora}</b><i>renomeie para uma loja da lista</i></div>`:''}`;
+  $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas no cadastro</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com dados carregados</span><b>${com}</b><i>${(com/ativas.length*100).toFixed(0)}% de cobertura</i></div><div class="kpi a"><span>Sem dados</span><b>${ativas.length-com}</b></div><div class="kpi z"><span>Com vendas carregadas</span><b>${ativas.filter(l=>VENDAS[l.key]).length}</b><i>BI Global</i></div>${fora?`<div class="kpi z"><span>Fora do cadastro</span><b>${fora}</b><i>renomeie para uma loja da lista</i></div>`:''}`;
   const vis=$('#cVis').value;
   const rows=[...LOJAS.map(l=>{const o=UNIDADES[l.key];const d=o?o.rows:[];const ms=[...new Set(d.map(r=>r.m))].sort();return{u:l.key,L:l,tem:!!o,n:d.length,ini:ms[0],fim:ms[ms.length-1],meses:ms.length,t:sum(d,r=>r.t),arqs:(o?.arqs||[]).length}}),
     ...UNIS.filter(u=>!LJ[u]).map(u=>{const d=UNIDADES[u].rows;const ms=[...new Set(d.map(r=>r.m))].sort();return{u,L:lojaDe(u),tem:true,n:d.length,ini:ms[0],fim:ms[ms.length-1],meses:ms.length,t:sum(d,r=>r.t),arqs:(UNIDADES[u].arqs||[]).length,fora:true}})]
     .filter(r=>vis==='all'||(vis==='com'?r.tem:!r.tem));
   tabela($('#tbCarga'),[{h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},{h:'Unidade',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${r.L.status==='Não inaugurada'?' · <b>não inaugurada</b>':''}</small>`},
-    {h:'Dados',v:r=>r.tem?1:0,f:v=>v?'<span class="tag ok">carregado</span>':'<span class="tag nt">sem dados</span>'},{h:'Período',v:r=>r.ini||'',f:(v,r)=>r.tem?`${mesLabel(r.ini)} – ${mesLabel(r.fim)} <small style="color:var(--mu)">(${r.meses} m)</small>`:'—'},{h:'Itens',n:1,v:r=>r.n,f:v=>v?v.toLocaleString('pt-BR'):'—'},{h:'Total',n:1,v:r=>r.t,f:v=>v?fmt0(v):'—'},
+    {h:'Compras',v:r=>r.tem?1:0,f:v=>v?'<span class="tag ok">carregado</span>':'<span class="tag nt">sem dados</span>'},{h:'Vendas',v:r=>VENDAS[r.u]?1:0,f:(v,r)=>{const o=VENDAS[r.u];if(!o)return '<span class="tag nt">sem dados</span>';const ms=[...new Set(o.rows.map(x=>x.m))].sort();return `<span class="tag ok">${ms.length} m</span> <small style="color:var(--mu)">${mesLabel(ms[0])}–${mesLabel(ms[ms.length-1])}</small>`}},{h:'Período',v:r=>r.ini||'',f:(v,r)=>r.tem?`${mesLabel(r.ini)} – ${mesLabel(r.fim)} <small style="color:var(--mu)">(${r.meses} m)</small>`:'—'},{h:'Itens',n:1,v:r=>r.n,f:v=>v?v.toLocaleString('pt-BR'):'—'},{h:'Total',n:1,v:r=>r.t,f:v=>v?fmt0(v):'—'},
     {h:'',v:r=>r.u,f:(v,r)=>r.tem?`<button class="btn g" data-sel="${esc(v)}">Carregar mais</button> <button class="btn g" data-ren="${esc(v)}">Renomear</button> <button class="btn g" data-del="${esc(v)}" style="color:#B34A0B;border-color:#B34A0B">Remover</button>`:`<button class="btn g" data-sel="${esc(v)}">Selecionar</button>`}],rows,{sort:0,asc:true});
   $('#tbCarga').querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{$('#cBusca').value='';montarSelecaoLoja();$('#cUni').value=b.dataset.sel;$('#cArq').focus();window.scrollTo({top:0,behavior:'smooth'})});
-  $('#tbCarga').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as entradas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
+  $('#tbCarga').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;delete VENDAS[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
   $('#tbCarga').querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
 }
 $('#cVis').onchange=renderCarga;
@@ -571,7 +611,7 @@ $('#cCarregar').onclick=async()=>{const uni=($('#cUni').value||'').trim();const 
     let msgs=[],add=0,dup=0;
     for(const f of files){try{const txt=await f.text();const ls=csvParaLinhas(txt,loja.key);const r=await enviarEntradas(loja,ls,f.name);add+=r.ins;dup+=r.dup;msgs.push(`✔ ${esc(f.name)}: ${r.ins} itens${r.dup?` (${r.dup} já existiam)`:''}`)}catch(e){msgs.push(`✖ ${esc(f.name)}: ${esc(e.message)}`)}}
     $('#status').textContent='Recarregando '+loja.key+'…';await carregarLoja(loja);const {data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);$('#status').textContent='';
-    recompor();montarFiltros(true);render();
+    recompor();recomporVendas();montarFiltros(true);render();
     log.innerHTML=msgs.join('<br>')+`<br><b>${add} itens gravados no banco</b> para ${esc(loja.key)}${dup?` · ${dup} duplicados ignorados`:''}.`;$('#cArq').value='';
   }catch(e){$('#status').textContent='';sbErr(e,'Erro na carga')}};
 $('#cExp').onclick=()=>{const b=new Blob([JSON.stringify({acordos:ACORDOS,unidades:Object.values(UNIDADES).map(o=>({u:o.u,rows:o.rows}))})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='backup_painel_pop_'+new Date().toISOString().slice(0,10)+'.json';a.click()};
@@ -579,6 +619,144 @@ $('#cImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileR
   for(const o of j.unidades||[]){let loja=LJ[o.u];if(!loja){const {data,error}=await sb.from('lojas').insert({nome:o.u,status:'Ativa'}).select().single();if(error)throw error;await carregarLojas();loja=LJID[data.id]}const rr=await enviarEntradas(loja,o.rows,'backup');tot+=rr.ins}
   if(j.acordos){ACORDOS=j.acordos;await salvarAcordos()}await carregarTudo();alert('Backup importado: '+tot+' itens novos gravados.')}catch(x){$('#status').textContent='';sbErr(x,'Erro ao importar')}};r.readAsText(f);e.target.value=''};
 $('#cLimpar').onclick=async()=>{if(!confirm('Apagar TODAS as entradas de TODAS as lojas no banco central? Esta ação não pode ser desfeita.'))return;if(prompt('Digite APAGAR para confirmar')!=='APAGAR')return;try{const {error}=await sb.from('entradas').delete().gte('id',0);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao apagar')}};
+/* ======================= MÓDULO DE VENDAS (BI Global) ======================= */
+let VENDAS={};      // chave loja -> {u,id,rows}
+let VDATA=[];       // todas as linhas de venda
+let MESTRE={};      // ean -> {fabricante,segmento,grupo,ean_saco,kg_saco}
+let RESUMO_V={};
+const SEGS=['STANDARD','PREMIUM','PREMIUM ESPECIAL','SUPER PREMIUM'];
+const normFab=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+const semMarca=s=>{const n=normFab(s);return !n||n==='DIVERSOS'||n==='NAO INFORMADO'||n==='SEM FABRICANTE'||n==='(SEM FABRICANTE)'};
+
+/* ---- parser do BI Global ---- */
+function biParaLinhas(text){
+  const rows=parseCSV(text);if(rows.length<2)throw new Error('arquivo vazio');
+  const hd=rows[0].map(norm);const ix=(...alts)=>{for(const a of alts){const i=hd.findIndex(h=>h===norm(a));if(i>=0)return i}for(const a of alts){const i=hd.findIndex(h=>h.includes(norm(a)));if(i>=0)return i}return -1};
+  const I={ped:ix('N. Pedido','pedido'),d:ix('Data'),q:ix('Qtd','quantidade'),cod:ix('Cod. Produto'),p:ix('Produto'),ean:ix('Cod. Barras','codbarra','ean'),gr:ix('Grupo Linha'),sg:ix('Sub Grupo'),ia:ix('Info Adicional 1'),fa:ix('Fabricante'),fo:ix('Fornecedor'),pb:ix('Preço Bruto'),pl:ix('Preço Liquido','precoliquido'),t:ix('Total Item'),c:ix('Custo Total'),l:ix('Lucro Total'),cc:ix('Cod. Cliente.','codcliente'),cl:ix('Cliente'),ba:ix('Bairro'),ve:ix('Vendedor'),ti:ix('Tipo'),fi:ix('Filial')};
+  const falt=['ped','d','q','cod','p','t'].filter(k=>I[k]<0);if(falt.length)throw new Error('não parece um BI Global (faltam: '+falt.join(', ')+')');
+  const g=(r,k)=>I[k]>=0?String(r[I[k]]||'').trim():'';
+  const out=[];const seqMap=new Map();let filial='';
+  for(const r of rows.slice(1)){
+    const dm=g(r,'d').match(/(\d{2})\/(\d{2})\/(\d{4})/)||g(r,'d').match(/(\d{4})-(\d{2})-(\d{2})/);if(!dm)continue;
+    const d=dm[0].includes('/')?`${dm[3]}-${dm[2]}-${dm[1]}`:dm[0];const p=g(r,'p');if(!p)continue;
+    const q=money(g(r,'q')),t=money(g(r,'t')),c=money(g(r,'c')),l=I.l>=0?money(g(r,'l')):t-c;
+    const key=[d,g(r,'ped'),g(r,'cod'),q,t].join('|');const seq=(seqMap.get(key)||0)+1;seqMap.set(key,seq);
+    if(!filial&&g(r,'fi'))filial=g(r,'fi');
+    out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:money(g(r,'pb')),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve')});
+  }
+  return {linhas:out,filial};
+}
+const lojaPorFilial=f=>{const m=String(f).match(/FR\s*0*(\d+)/i);if(!m)return null;return LOJAS.find(l=>String(+l.fra)===String(+m[1]))||null};
+
+/* ---- resolução de marca / segmento / custo ---- */
+let MAPA={};  // ean -> {fab, fonte, seg, custoKg, custoUn, custoFonte}
+function construirMapa(){
+  MAPA={};
+  const cons=new Map();   // ean -> Map(fab->valor) (consenso vendas)
+  VDATA.forEach(r=>{if(!r.ean||semMarca(r.faL))return;const m=cons.get(r.ean)||new Map();m.set(r.faL,(m.get(r.faL)||0)+r.t);cons.set(r.ean,m)});
+  const ent=new Map();    // ean -> {fab, custoUn(last), porLoja: Map(loja->custo)}
+  DATA.forEach(r=>{if(!r.ean)return;const o=ent.get(r.ean)||{fabs:new Map(),ult:null,ultD:'',porLoja:new Map()};if(!semMarca(r.fa))o.fabs.set(normFab(r.fa),(o.fabs.get(normFab(r.fa))||0)+r.t);if(r.d>=o.ultD){o.ultD=r.d;o.ult=r.c}o.porLoja.set(r.u,r.c);ent.set(r.ean,o)});
+  const top=m=>[...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0];
+  const eans=new Set([...cons.keys(),...ent.keys(),...Object.keys(MESTRE),...VDATA.map(r=>r.ean)]);
+  eans.forEach(ean=>{if(!ean)return;const mm=MESTRE[ean]||{};let fab='',fonte='';
+    if(mm.fabricante){fab=normFab(mm.fabricante);fonte='manual'}
+    else if(ent.get(ean)?.fabs.size){fab=top(ent.get(ean).fabs);fonte='entradas'}
+    else if(cons.get(ean)?.size){fab=top(cons.get(ean));fonte='consenso'}
+    const e=ent.get(ean);MAPA[ean]={fab,fonte,seg:mm.segmento?normFab(mm.segmento):'',custoUn:e?.ult??null,porLoja:e?.porLoja,saco:mm.ean_saco,kg:+mm.kg_saco||0}});
+}
+function marcaDe(r){const m=MAPA[r.ean];if(m?.fab)return m.fab;return semMarca(r.faL)?'DIVERSOS':r.faL}
+function fonteMarca(r){const m=MAPA[r.ean];if(m?.fab)return m.fonte;return semMarca(r.faL)?'nenhuma':'loja'}
+function segDe(r){const m=MAPA[r.ean];if(m?.seg)return m.seg;const s=normFab(r.sg);if(SEGS.includes(s))return s;if(r.gr==='RACAO'||r.gr==='ITENS A GRANEL'||r.gr==='ALIMENTOS')return s||'NAO CLASSIFICADO';return ''};
+function custoDe(r){ // retorna {c, fonte}
+  if(r.c>0)return {c:r.c,fonte:'sistema'};if(r.tipo!=='Produto')return {c:0,fonte:'servico'};
+  const m=MAPA[r.ean];
+  if(r.bal&&m?.saco&&m.kg>0){const s=MAPA[m.saco];const cu=s?.porLoja?.get(r.u)??s?.custoUn;if(cu>0)return {c:cu/m.kg*r.q,fonte:'granel'}}
+  if(m){const cu=m.porLoja?.get(r.u)??m.custoUn;if(cu>0)return {c:cu*r.q,fonte:'entradas'}}
+  return {c:0,fonte:'sem custo'};
+}
+function enriquecer(){VDATA.forEach(r=>{r.inst=r.tipo==='Produto'&&r.q>=50;r.fa=marcaDe(r);r.fonte=fonteMarca(r);r.seg=segDe(r);const c=custoDe(r);r.ce=c.c;r.cf=c.fonte;r.le=r.t-r.ce})}
+
+/* ---- Supabase ---- */
+async function carregarMestre(){const {data,error}=await sb.from('produtos_mestre').select('*');if(error)throw error;MESTRE={};data.forEach(r=>MESTRE[r.ean]=r)}
+const mapV=(r,key)=>({u:key,d:r.data,m:r.data.slice(0,7),ped:r.pedido,seq:r.seq,cod:r.cod_produto,ean:r.ean||'',p:r.produto,gr:r.grupo||'',sg:r.subgrupo||'',faL:normFab(r.fabricante_loja),fo:r.fornecedor||'',tipo:r.tipo||'Produto',bal:!!r.balanca,q:+r.qtd,pb:+r.preco_bruto||0,pl:+r.preco_liq||0,t:+r.total,c:+r.custo,l:r.lucro==null?+r.total-+r.custo:+r.lucro,cc:r.cliente_cod||'',cl:r.cliente||'',ba:r.bairro||'',ve:r.vendedor||''});
+async function carregarVendasLoja(l){const rows=[];let off=0;const lim=10000;
+  while(true){const {data,error}=await sb.rpc('vendas_lote',{p_loja:l.id,p_offset:off,p_limit:lim});if(error)throw error;data.forEach(r=>rows.push(mapV(r,l.key)));if(data.length<lim)break;off+=lim;$('#status').textContent=`Carregando vendas ${l.key}: ${rows.length.toLocaleString('pt-BR')}…`}
+  VENDAS[l.key]={u:l.key,id:l.id,rows}}
+async function carregarVendasTodas(){
+  const {data:res,error}=await sb.rpc('resumo_vendas');if(error){if(/vendas/i.test(error.message)){console.warn('tabela vendas ainda não criada');return}throw error}
+  RESUMO_V={};res.forEach(r=>RESUMO_V[r.loja_id]=r);await carregarMestre();VENDAS={};
+  const com=LOJAS.filter(l=>RESUMO_V[l.id]);let i=0;for(const l of com){i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l)}
+}
+function recomporVendas(){VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
+async function enviarVendas(loja,linhas,arquivo){
+  const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,pedido:r.ped,seq:r.seq,cod_produto:r.cod,ean:r.ean||null,produto:r.p,grupo:r.gr||null,subgrupo:r.sg||null,fabricante_loja:r.faL||null,fornecedor:r.fo||null,tipo:r.tipo,balanca:r.bal,qtd:r.q,preco_bruto:r.pb,preco_liq:r.pl,total:r.t,custo:r.c,lucro:r.l,cliente_cod:r.cc||null,cliente:r.cl||null,bairro:r.ba||null,vendedor:r.ve||null,arquivo}));
+  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;$('#status').textContent=`Enviando vendas ${loja.key}: ${Math.min(i+1000,rows.length)}/${rows.length}…`}
+  $('#status').textContent='';return {ins,dup:rows.length-ins}}
+async function salvarMestre(ean,campos){const rec={ean,...campos,atualizado_em:new Date().toISOString()};const {error}=await sb.from('produtos_mestre').upsert(rec,{onConflict:'ean'});if(error)throw error;MESTRE[ean]={...(MESTRE[ean]||{}),...rec}}
+
+/* ---- carga (UI) ---- */
+$('#vCarregar').onclick=async()=>{const files=[...$('#vArq').files];const log=$('#vLog');if(!files.length){log.innerHTML='<span style="color:#B34A0B">Selecione ao menos um arquivo do BI Global.</span>';return}
+  try{let msgs=[],add=0,dup=0;const tocadas=new Set();
+    for(const f of files){try{const txt=await f.text();const {linhas,filial}=biParaLinhas(txt);
+      let loja=lojaPorFilial(filial);const sel=($('#vUni').value||'').trim();if(sel&&LJ[sel]){if(loja&&loja.key!==sel&&!confirm(`O arquivo ${f.name} é da filial "${filial}" (${loja.key}), mas você selecionou ${sel}. Gravar em ${sel} mesmo assim?`))continue;loja=LJ[sel]}
+      if(!loja){msgs.push(`✖ ${esc(f.name)}: filial "${esc(filial)}" não encontrada no cadastro — selecione a loja manualmente.`);continue}
+      const r=await enviarVendas(loja,linhas,f.name);add+=r.ins;dup+=r.dup;tocadas.add(loja.key);msgs.push(`✔ ${esc(f.name)} → ${esc(loja.key)}: ${r.ins} linhas${r.dup?` (${r.dup} já existiam)`:''}`)}catch(e){msgs.push(`✖ ${esc(f.name)}: ${esc(e.message)}`)}}
+    for(const k of tocadas){$('#status').textContent='Recarregando '+k+'…';await carregarVendasLoja(LJ[k])}
+    const {data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);$('#status').textContent='';
+    recomporVendas();montarFiltros(true);render();
+    log.innerHTML=msgs.join('<br>')+`<br><b>${add} linhas de venda gravadas</b>${dup?` · ${dup} duplicadas ignoradas`:''}.`;$('#vArq').value='';
+  }catch(e){$('#status').textContent='';sbErr(e,'Erro na carga de vendas')}};
+function montarSelecaoLojaV(){const s=$('#vUni');s.innerHTML='<option value="">(detectar pela coluna Filial do arquivo)</option>'+LOJAS.map(l=>`<option value="${esc(l.key)}">${esc(l.key)} — ${esc(l.cidade)}/${esc(l.uf)}${VENDAS[l.key]?' ✔':''}</option>`).join('')}
+
+/* ---- filtros de vendas ---- */
+function vfiltrado(){return VDATA.filter(r=>r.m>=F.de&&r.m<=F.ate&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===normFab(F.fa))&&(!F.fo||r.fo===F.fo)&&(!F.q||r.p.toLowerCase().includes(F.q)||r.cod.includes(F.q)||r.ean.includes(F.q)))}
+const regiaoDe=(u,tipo)=>{const l=lojaDe(u);return tipo==='uf'?(l.uf||'?'):tipo==='cidade'?(l.cidade||'?')+(l.uf?'/'+l.uf:''):tipo==='consultor'?(l.consultor||'?'):u};
+const pctS=v=>v.toFixed(1).replace('.',',')+'%';
+
+/* ---- render: mercado por região ---- */
+function renderMercado(){
+  const modo=$('#vInst').value;const V0=vfiltrado();const instT=sum(V0.filter(r=>r.inst),r=>r.t);const V=V0.filter(r=>modo==='1'||(modo==='0'?!r.inst:r.inst));const P=V.filter(r=>r.tipo==='Produto');
+  if(!VDATA.length){['#kpisVen','#tbMarcaReg','#tbSegReg','#tbCruz','#tbPend'].forEach(s=>$(s).innerHTML='<div class="empty">Nenhuma venda carregada. Use a carga do BI Global na aba <b>Unidades e carga de dados</b>.</div>');return}
+  const tot=sum(V,r=>r.t),totP=sum(P,r=>r.t);const comMarca=sum(P.filter(r=>r.fa!=='DIVERSOS'),r=>r.t);const comCusto=sum(P.filter(r=>r.cf!=='sem custo'),r=>r.t);const custoSis=sum(P.filter(r=>r.cf==='sistema'),r=>r.t);
+  const lucroV=sum(P.filter(r=>r.cf!=='sem custo'),r=>r.le);const cli=new Set(V.map(r=>r.cc).filter(Boolean)).size;const ped=new Set(V.map(r=>r.u+'|'+r.ped)).size;
+  $('#kpisVen').innerHTML=`<div class="kpi"><span>Venda total</span><b>${fmt0(tot)}</b><i>${fmt0(totP)} em produtos · ${fmt0(tot-totP)} em serviços</i></div>
+   <div class="kpi o"><span>Margem verificável (produtos)</span><b>${comCusto?pctS(lucroV/comCusto*100):'—'}</b><i>sobre ${pctS(comCusto/(totP||1)*100)} da venda com custo (${pctS(custoSis/(totP||1)*100)} do sistema)</i></div>
+   <div class="kpi a"><span>Venda com marca identificada</span><b>${pctS(comMarca/(totP||1)*100)}</b><i>${fmt0(totP-comMarca)} ainda como DIVERSOS</i></div>
+   <div class="kpi z"><span>Pedidos · clientes</span><b>${ped.toLocaleString('pt-BR')}</b><i>${cli.toLocaleString('pt-BR')} clientes identificados · ticket ${fmt0(tot/(ped||1))}</i></div>
+   <div class="kpi"><span>Lojas com vendas</span><b>${new Set(V.map(r=>r.u)).size}</b><i>de ${Object.keys(VENDAS).length} carregadas</i></div>${instT?`<div class="kpi a"><span>Vendas institucionais</span><b>${fmt0(instT)}</b><i>linhas com 50+ unidades · ${modo==='0'?'excluídas desta visão':modo==='1'?'incluídas':'somente elas'}</i></div>`:''}`;
+  const tipoReg=$('#vReg').value;const grupoSel=$('#vGrupo').value;
+  const base=grupoSel==='RACAO'?P.filter(r=>r.gr==='RACAO'||r.gr==='ITENS A GRANEL'||r.gr==='ALIMENTOS'):grupoSel?P.filter(r=>r.gr===grupoSel):P;
+  // marca × região
+  const regs=[...new Set(base.map(r=>regiaoDe(r.u,tipoReg)))].sort();const lojasReg={};base.forEach(r=>{const g=regiaoDe(r.u,tipoReg);(lojasReg[g]=lojasReg[g]||new Set()).add(r.u)});
+  const mm=new Map();base.forEach(r=>{const o=mm.get(r.fa)||{fa:r.fa,t:0,q:0,ce:0,tc:0,le:0,lojas:new Set(),reg:{}};o.t+=r.t;o.q+=r.q;o.lojas.add(r.u);if(r.cf!=='sem custo'){o.tc+=r.t;o.le+=r.le}const g=regiaoDe(r.u,tipoReg);const rg=o.reg[g]=o.reg[g]||{t:0,lojas:new Set()};rg.t+=r.t;rg.lojas.add(r.u);mm.set(r.fa,o)});
+  const totReg={};base.forEach(r=>{const g=regiaoDe(r.u,tipoReg);totReg[g]=(totReg[g]||0)+r.t});const totBase=sum(base,r=>r.t);
+  const marcas=[...mm.values()].sort((a,b)=>b.t-a.t).slice(0,+$('#vTop').value||25);
+  const cols=[{h:'Marca',v:r=>r.fa,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${r.lojas.size} loja(s)</small>`},{h:'Venda',n:1,v:r=>r.t,f:fmt0},{h:'Share',n:1,v:r=>r.t/totBase*100,f:pctS},{h:'Margem verif.',n:1,v:r=>r.tc?r.le/r.tc*100:-999,f:(v,r)=>v<-900?'<span class="tag nt">sem custo</span>':`${pctS(v)}${r.tc/r.t<.7?` <small style="color:#B34A0B" title="parte da venda sem custo">(${pctS(r.tc/r.t*100)})</small>`:''}`}];
+  regs.forEach(g=>cols.push({h:g,n:1,v:r=>r.reg[g]?.t||0,f:(v,r)=>v?`${fmt0(v)}<br><small style="color:var(--mu)">${pctS(v/totReg[g]*100)} · ${r.reg[g].lojas.size}/${lojasReg[g].size} lj</small>`:'<small style="color:var(--ln)">—</small>'}));
+  tabela($('#tbMarcaReg'),cols,marcas,{sort:1});
+  // segmento × região (só ração)
+  const R=P.filter(r=>r.seg);const sm=new Map();R.forEach(r=>{const g=regiaoDe(r.u,tipoReg);const o=sm.get(g)||{g,t:0,seg:{},lojas:new Set()};o.t+=r.t;o.lojas.add(r.u);const sk=SEGS.includes(r.seg)?r.seg:'OUTROS/NÃO CLASSIF.';o.seg[sk]=(o.seg[sk]||0)+r.t;sm.set(g,o)});
+  const segs=[...SEGS,'OUTROS/NÃO CLASSIF.'];
+  tabela($('#tbSegReg'),[{h:tipoReg==='uf'?'UF':tipoReg==='cidade'?'Cidade':tipoReg==='consultor'?'Consultor':'Loja',v:r=>r.g,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${r.lojas.size} loja(s)</small>`},{h:'Venda ração',n:1,v:r=>r.t,f:fmt0},...segs.map(s=>({h:s,n:1,v:r=>r.seg[s]||0,f:(v,r)=>`${pctS(v/r.t*100)}<br><small style="color:var(--mu)">${fmt0(v)}</small>`})),{h:'Mix',v:r=>r.t,f:(v,r)=>'<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;min-width:140px">'+segs.map((s,i)=>`<i style="width:${(r.seg[s]||0)/r.t*100}%;background:${['#C0392B','#FDAE25','#71C5E8','#009150','#5E6F69','#A8D3C4','#F1BDC8'][i%7]}" title="${s}"></i>`).join('')+'</div>'}],[...sm.values()],{sort:1});
+  // compra × venda × margem por fabricante
+  const E=filtrado();const em=new Map();E.forEach(r=>{const k=MAPA[r.ean]?.fab||normFab(r.fa);const o=em.get(k)||{comp:0,lj:new Set()};o.comp+=r.t;o.lj.add(r.u);em.set(k,o)});
+  const vm=new Map();P.forEach(r=>{const o=vm.get(r.fa)||{t:0,q:0,tc:0,le:0,lj:new Set()};o.t+=r.t;o.q+=r.q;o.lj.add(r.u);if(r.cf!=='sem custo'){o.tc+=r.t;o.le+=r.le}vm.set(r.fa,o)});
+  const all=[...new Set([...em.keys(),...vm.keys()])].map(k=>{const e=em.get(k)||{comp:0,lj:new Set()},v=vm.get(k)||{t:0,q:0,tc:0,le:0,lj:new Set()};const ac=acordoDe(k)||ACORDOS.find(a=>normFab(a.fab)===k);return{fa:k,comp:e.comp,venda:v.t,tc:v.tc,le:v.le,lj:new Set([...e.lj,...v.lj]).size,ratio:e.comp?v.t/e.comp:null,ac}}).filter(r=>r.comp>0||r.venda>0);
+  tabela($('#tbCruz'),[{h:'Fabricante',v:r=>r.fa,f:(v,r)=>`${esc(v)}${r.ac?' <span class="tag ok" title="acordo cadastrado">acordo</span>':''}<br><small style="color:var(--mu)">${r.lj} loja(s)</small>`},{h:'Comprado',n:1,v:r=>r.comp,f:v=>v?fmt0(v):'—'},{h:'Vendido',n:1,v:r=>r.venda,f:v=>v?fmt0(v):'—'},{h:'Venda ÷ compra',n:1,v:r=>r.ratio??-1,f:v=>v<0?'—':`<span class="tag ${v<1?'no':v<1.3?'at':'ok'}">${v.toFixed(2).replace('.',',')}×</span>`},{h:'Margem verif.',n:1,v:r=>r.tc?r.le/r.tc*100:-999,f:(v,r)=>v<-900?'—':`${pctS(v)} <small style="color:var(--mu)">(${pctS(r.tc/(r.venda||1)*100)} c/ custo)</small>`},{h:'Lucro verif.',n:1,v:r=>r.le,f:v=>fmt0(v)}],all,{sort:2});
+  // pendências
+  const pend=new Map();P.forEach(r=>{if(r.fa!=='DIVERSOS'&&r.cf!=='sem custo')return;const o=pend.get(r.ean||r.cod)||{ean:r.ean,cod:r.cod,p:r.p,gr:r.gr,sg:r.sg,fo:new Set(),t:0,semMarca:false,semCusto:false,bal:r.bal,lojas:new Set(),inst:false};o.t+=r.t;if(r.inst)o.inst=true;o.fo.add(r.fo);o.lojas.add(r.u);if(r.fa==='DIVERSOS')o.semMarca=true;if(r.cf==='sem custo')o.semCusto=true;pend.set(r.ean||r.cod,o)});
+  const pendRows=[...pend.values()];
+  tabela($('#tbPend'),[{h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">EAN ${esc(r.ean)||'—'} · ${esc(r.gr)}${r.sg?' · '+esc(r.sg):''} · forn.: ${esc([...r.fo].join(', '))}</small>`},{h:'Venda',n:1,v:r=>r.t,f:fmt0},{h:'Problema',v:r=>(r.semMarca?1:0)+(r.semCusto?2:0),f:(v,r)=>(r.semMarca?'<span class="tag no">sem marca</span> ':'')+(r.semCusto?`<span class="tag at">${r.bal?'granel sem custo':'sem custo'}</span>`:'')+(r.inst?' <span class="tag nt">institucional</span>':'')},
+    {h:'Classificar',v:r=>r.ean,f:(v,r)=>`<div style="display:flex;gap:4px;flex-wrap:wrap"><input list="dlMarcas" placeholder="fabricante" data-ean="${esc(r.ean)}" data-k="fabricante" value="${esc(MESTRE[r.ean]?.fabricante||'')}" style="min-width:130px;padding:5px 8px"><select data-ean="${esc(r.ean)}" data-k="segmento" style="min-width:120px;padding:5px 8px"><option value="">segmento…</option>${SEGS.map(s=>`<option ${MESTRE[r.ean]?.segmento===s?'selected':''}>${s}</option>`).join('')}</select>${r.bal?`<input list="dlSacos" placeholder="EAN do saco" data-ean="${esc(r.ean)}" data-k="ean_saco" value="${esc(MESTRE[r.ean]?.ean_saco||'')}" style="min-width:130px;padding:5px 8px"><input type="number" step="0.1" placeholder="kg" data-ean="${esc(r.ean)}" data-k="kg_saco" value="${MESTRE[r.ean]?.kg_saco||''}" style="min-width:60px;padding:5px 8px">`:''}<button class="btn" data-save="${esc(r.ean)}" style="padding:5px 10px">Salvar</button></div>`}],pendRows.slice(0,200),{sort:1});
+  $('#pendCount').textContent=`${pendRows.length} produto(s) · ${fmt0(sum(pendRows,r=>r.t))} em venda`;
+  const marcasAll=[...new Set([...VDATA.map(r=>r.fa),...DATA.map(r=>normFab(r.fa))])].filter(m=>m&&m!=='DIVERSOS').sort();
+  $('#dlMarcas').innerHTML=marcasAll.map(m=>`<option value="${esc(m)}">`).join('');
+  const sacos=[...new Map(DATA.filter(r=>r.ean&&/KG/i.test(r.p)).map(r=>[r.ean,r.p])).entries()];$('#dlSacos').innerHTML=sacos.map(([e,p])=>`<option value="${esc(e)}">${esc(p)}</option>`).join('');
+  $('#tbPend').querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{const ean=b.dataset.save;if(!ean){alert('Produto sem EAN não pode ser classificado centralmente.');return}const campos={};$('#tbPend').querySelectorAll(`[data-ean="${ean}"]`).forEach(i=>{campos[i.dataset.k]=i.value.trim()||null});if(campos.kg_saco)campos.kg_saco=+campos.kg_saco;
+    try{b.textContent='…';await salvarMestre(ean,campos);recomporVendas();render();}catch(e){sbErr(e,'Erro ao salvar classificação')}});
+}
+['#vReg','#vGrupo','#vTop','#vInst'].forEach(s=>$(s).onchange=renderMercado);
+
 /* ---------- inicialização ---------- */
 window.addEventListener('load',async()=>{montarFiltros();render();if(await conectar())await carregarTudo()});
 window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(render,200)});
