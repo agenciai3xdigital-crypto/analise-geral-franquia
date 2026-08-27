@@ -1,33 +1,32 @@
 # Backup diário do banco do Painel de Compras (Supabase) via GitHub Actions.
-# Coloque este arquivo em: .github/workflows/backup-supabase.yml
-# O dump fica salvo como "artifact" do workflow (privado, retido por 90 dias),
-# NÃO é commitado no repositório — importante se o repositório for público.
+# Caminho no repositório: .github/workflows/backup-supabase.yml
+# O dump fica salvo como "artifact" (privado, 90 dias). Nada é commitado no repositório.
 
 name: Backup Supabase
 
 on:
   schedule:
-    - cron: "0 6 * * *"      # todo dia às 06:00 UTC = 03:00 em Brasília
-  workflow_dispatch:         # permite rodar manualmente em Actions > Backup Supabase > Run workflow
+    - cron: "0 6 * * *"      # 06:00 UTC = 03:00 Brasília
+  workflow_dispatch:
 
 jobs:
   backup:
     runs-on: ubuntu-latest
+    container:
+      image: postgres:17     # já traz o pg_dump na versão compatível com o Supabase
     steps:
-      - name: Instalar cliente PostgreSQL 17
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq curl ca-certificates gnupg
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
-          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17
-
-      - name: Gerar dump das tabelas do painel
+      - name: Testar conexão
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          DATA=$(date -u +%Y-%m-%d)
+          if [ -z "$DB_URL" ]; then echo "ERRO: segredo SUPABASE_DB_URL não encontrado"; exit 1; fi
+          psql "$DB_URL" -c "select now(), (select count(*) from lojas) as lojas, (select count(*) from entradas) as entradas, (select count(*) from vendas) as vendas;"
+
+      - name: Gerar dump
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          DATA=$(date -u +%Y-%m-%d_%H%M)
           pg_dump "$DB_URL" \
             --no-owner --no-privileges \
             --schema=public \
@@ -41,7 +40,7 @@ jobs:
           gzip -9 "painel_pop_${DATA}.dump"
           ls -la *.gz
 
-      - name: Guardar como artifact (privado, 90 dias)
+      - name: Guardar como artifact (90 dias)
         uses: actions/upload-artifact@v4
         with:
           name: backup-supabase-${{ github.run_id }}
