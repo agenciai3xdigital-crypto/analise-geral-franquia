@@ -68,18 +68,41 @@ svg text{font-family:inherit}
 #login h2{color:var(--vd);font-size:18px}
 #status{font-size:12px;font-weight:600;background:var(--am);color:#3a2800;padding:6px 14px;display:none}
 #status:not(:empty){display:block}
+
+/* logo */
+#logo{height:46px;width:auto;display:none}#logo.on{display:block}.hex.off{display:none}
+/* menu sanduíche */
+#btnMenu{background:var(--vd);border:none;color:#fff;border-radius:10px;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0;flex-direction:column;margin-left:6px}
+#btnMenu i{display:block;width:20px;height:2.5px;background:#fff;border-radius:2px;margin:2.5px 0}
+#drawerBg{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none}#drawerBg.on{display:block}
+#drawer{position:fixed;top:0;right:0;height:100%;width:340px;max-width:90vw;background:#fff;z-index:61;box-shadow:-6px 0 24px rgba(0,0,0,.18);transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
+#drawer.on{transform:none}
+#drawer header{background:var(--v);padding:16px 18px;align-items:center}#drawer header h2{font-size:15px;color:#fff;flex:1}
+#drawer header button{background:none;border:none;color:#fff;font-size:22px;cursor:pointer}
+#menuList{list-style:none;padding:10px;flex:1;overflow:auto}
+#menuList li{display:flex;align-items:center;gap:10px;padding:12px 12px;border-radius:10px;cursor:pointer;font-weight:700;color:var(--vd);border:1.5px solid transparent;margin-bottom:4px;user-select:none}
+#menuList li:hover{background:#F0F8F4}#menuList li.on{background:#E6F4EC;border-color:var(--v)}
+#menuList li .grip{color:#B8C7C0;cursor:grab;font-size:16px;letter-spacing:-2px}
+#menuList li.dragging{opacity:.4}#menuList li.over{border-top:3px solid var(--la)}
+#menuList li .ord{display:flex;flex-direction:column;gap:2px;margin-left:auto}
+#menuList li .ord button{background:#fff;border:1px solid var(--ln);border-radius:5px;width:22px;height:18px;font-size:10px;cursor:pointer;line-height:1;color:var(--mu)}
+#drawer .foot{padding:12px 18px;border-top:1px solid var(--ln);font-size:12px;color:var(--mu);display:flex;justify-content:space-between;align-items:center}
+nav{display:none}
 </style>
 </head>
 <body>
 <header>
-  <div class="hex"></div>
+  <div class="hex"></div><img id="logo" alt="Rede Pop Pet Center" src="logo-pop.png" onload="this.classList.add('on');document.querySelector('.hex').classList.add('off')" onerror="this.remove()">
   <div><h1>Painel de Compras</h1><small>Rede Pop Pet Center · Inteligência comercial · Entradas de mercadoria</small></div>
   <div class="spacer"></div>
   <div class="hdr-stat">Usuário<b id="hUser" style="font-size:13px">—</b><button id="btnSair" style="background:none;border:none;color:#fff;text-decoration:underline;cursor:pointer;font:inherit;font-size:11px;padding:0">sair</button></div>
   <div class="hdr-stat">Unidades<b id="hUni">—</b></div>
   <div class="hdr-stat">Período carregado<b id="hPeriodo">—</b></div>
   <div class="hdr-stat">Total comprado<b id="hTotal">—</b></div>
+  <button id="btnMenu" title="Menu" aria-label="Abrir menu"><i></i><i></i><i></i></button>
 </header>
+<div id="drawerBg"></div>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Arraste ou use as setas para reordenar</span><button class="btn g" id="menuReset" style="padding:5px 10px;font-size:12px">Restaurar ordem</button></div></aside>
 <div id="status"></div>
 <div id="login"><div class="box"><h2>Painel de Compras · Rede Pop</h2><p class="note">Entre com o e-mail e senha criados pelo administrador. Você só precisa fazer isso uma vez por navegador.</p>
 <div class="cfgField"><label class="note">URL do projeto</label><input id="lUrl" placeholder="https://xxxx.supabase.co"></div>
@@ -596,7 +619,8 @@ function renderCarga(){
     ...UNIS.filter(u=>!LJ[u]).map(u=>{const d=UNIDADES[u].rows;const ms=[...new Set(d.map(r=>r.m))].sort();return{u,L:lojaDe(u),tem:true,n:d.length,ini:ms[0],fim:ms[ms.length-1],meses:ms.length,t:sum(d,r=>r.t),arqs:(UNIDADES[u].arqs||[]).length,fora:true}})]
     .filter(r=>vis==='all'||(vis==='com'?r.tem:!r.tem));
   tabela($('#tbCarga'),[{h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},{h:'Unidade',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${r.L.status==='Não inaugurada'?' · <b>não inaugurada</b>':''}</small>`},
-    {h:'Compras',v:r=>r.tem?1:0,f:v=>v?'<span class="tag ok">carregado</span>':'<span class="tag nt">sem dados</span>'},{h:'Vendas',v:r=>VENDAS[r.u]?1:0,f:(v,r)=>{const o=VENDAS[r.u];if(!o)return '<span class="tag nt">sem dados</span>';const ms=[...new Set(o.rows.map(x=>x.m))].sort();return `<span class="tag ok">${ms.length} m</span> <small style="color:var(--mu)">${mesLabel(ms[0])}–${mesLabel(ms[ms.length-1])}</small>`}},{h:'Período',v:r=>r.ini||'',f:(v,r)=>r.tem?`${mesLabel(r.ini)} – ${mesLabel(r.fim)} <small style="color:var(--mu)">(${r.meses} m)</small>`:'—'},{h:'Itens',n:1,v:r=>r.n,f:v=>v?v.toLocaleString('pt-BR'):'—'},{h:'Total',n:1,v:r=>r.t,f:v=>v?fmt0(v):'—'},
+    {h:'Compras (entradas)',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">${r.meses} m</span> <small style="color:var(--mu)">${mesLabel(r.ini)}–${mesLabel(r.fim)} · ${r.n.toLocaleString('pt-BR')} itens · ${fmt0(r.t)}</small>`:'<span class="tag nt">sem dados</span>'},
+    {h:'Vendas (BI Global)',v:r=>VENDAS[r.u]?1:0,f:(v,r)=>{const o=VENDAS[r.u];if(!o)return '<span class="tag nt">sem dados</span>';const ms=[...new Set(o.rows.map(x=>x.m))].sort();return `<span class="tag ok">${ms.length} m</span> <small style="color:var(--mu)">${mesLabel(ms[0])}–${mesLabel(ms[ms.length-1])} · ${o.rows.length.toLocaleString('pt-BR')} linhas · ${fmt0(sum(o.rows,x=>x.t))}</small>`}},
     {h:'',v:r=>r.u,f:(v,r)=>r.tem?`<button class="btn g" data-sel="${esc(v)}">Carregar mais</button> <button class="btn g" data-ren="${esc(v)}">Renomear</button> <button class="btn g" data-del="${esc(v)}" style="color:#B34A0B;border-color:#B34A0B">Remover</button>`:`<button class="btn g" data-sel="${esc(v)}">Selecionar</button>`}],rows,{sort:0,asc:true});
   $('#tbCarga').querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{$('#cBusca').value='';montarSelecaoLoja();$('#cUni').value=b.dataset.sel;$('#cArq').focus();window.scrollTo({top:0,behavior:'smooth'})});
   $('#tbCarga').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;delete VENDAS[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
@@ -756,6 +780,34 @@ function renderMercado(){
     try{b.textContent='…';await salvarMestre(ean,campos);recomporVendas();render();}catch(e){sbErr(e,'Erro ao salvar classificação')}});
 }
 ['#vReg','#vGrupo','#vTop','#vInst'].forEach(s=>$(s).onchange=renderMercado);
+
+
+/* ---------- menu lateral com reordenação ---------- */
+(function(){
+  const navBtns=[...document.querySelectorAll('nav button')];const ids=navBtns.map(b=>b.dataset.t);
+  let ordem=[];try{ordem=JSON.parse(localStorage.getItem('pop_menu_ordem')||'[]')}catch(e){}
+  ordem=[...ordem.filter(i=>ids.includes(i)),...ids.filter(i=>!ordem.includes(i))];
+  const salvar=()=>{try{localStorage.setItem('pop_menu_ordem',JSON.stringify(ordem))}catch(e){}};
+  const abrir=()=>{$('#drawer').classList.add('on');$('#drawerBg').classList.add('on')},fechar=()=>{$('#drawer').classList.remove('on');$('#drawerBg').classList.remove('on')};
+  $('#btnMenu').onclick=abrir;$('#drawerBg').onclick=fechar;$('#drawerClose').onclick=fechar;document.addEventListener('keydown',e=>{if(e.key==='Escape')fechar()});
+  function ativar(id){navBtns.find(b=>b.dataset.t===id).click();montar();fechar()}
+  function mover(id,dir){const i=ordem.indexOf(id);const j=i+dir;if(j<0||j>=ordem.length)return;[ordem[i],ordem[j]]=[ordem[j],ordem[i]];salvar();montar()}
+  function montar(){const atual=document.querySelector('nav button.on')?.dataset.t;const ul=$('#menuList');
+    ul.innerHTML=ordem.map(id=>{const b=navBtns.find(x=>x.dataset.t===id);return `<li draggable="true" data-id="${id}" class="${id===atual?'on':''}"><span class="grip" title="arrastar">⋮⋮</span><span>${b.textContent}</span><span class="ord"><button data-up title="subir">▲</button><button data-dn title="descer">▼</button></span></li>`}).join('');
+    let drag=null;
+    ul.querySelectorAll('li').forEach(li=>{
+      li.onclick=e=>{if(e.target.closest('.ord'))return;ativar(li.dataset.id)};
+      li.querySelector('[data-up]').onclick=e=>{e.stopPropagation();mover(li.dataset.id,-1)};
+      li.querySelector('[data-dn]').onclick=e=>{e.stopPropagation();mover(li.dataset.id,1)};
+      li.addEventListener('dragstart',()=>{drag=li.dataset.id;li.classList.add('dragging')});
+      li.addEventListener('dragend',()=>{li.classList.remove('dragging');ul.querySelectorAll('.over').forEach(x=>x.classList.remove('over'))});
+      li.addEventListener('dragover',e=>{e.preventDefault();ul.querySelectorAll('.over').forEach(x=>x.classList.remove('over'));li.classList.add('over')});
+      li.addEventListener('drop',e=>{e.preventDefault();const alvo=li.dataset.id;if(!drag||drag===alvo)return;ordem.splice(ordem.indexOf(drag),1);ordem.splice(ordem.indexOf(alvo),0,drag);salvar();montar()});
+    });}
+  $('#menuReset').onclick=()=>{ordem=[...ids];salvar();montar()};
+  navBtns.forEach(b=>b.addEventListener('click',()=>setTimeout(montar,0)));
+  montar();
+})();
 
 /* ---------- inicialização ---------- */
 window.addEventListener('load',async()=>{montarFiltros();render();if(await conectar())await carregarTudo()});
