@@ -117,6 +117,54 @@ body.tv header,body.tv .filters,body.tv #btnMenu,body.tv .tvbar,body.tv #status{
 body.tv main{padding:0;max-width:none}body.tv .tvwrap{border-radius:0;min-height:100vh;padding:28px 36px}
 body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font-size:18px}body.tv .tval{font-size:17px}
 @media(max-width:1100px){.tvkpis{grid-template-columns:repeat(2,1fr)}.tvgrid{grid-template-columns:repeat(2,1fr)}}
+
+/* ---- modo leitura (rolagem única + gaveta) ---- */
+#btnLeitura{background:#fff;color:var(--vd);border:none;border-radius:10px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer;font-size:12px}
+#leiBar{display:none;position:sticky;top:0;z-index:46;background:#fff;border-bottom:1px solid var(--ln);padding:8px 28px;height:52px;align-items:center;gap:12px}
+body.leitura #leiBar{display:flex}
+#leiBar .cmd{flex:1;max-width:560px;position:relative}
+#leiBar .cmd input{width:100%;min-width:0;padding:8px 12px 8px 34px;border-radius:10px;background:var(--bg)}
+#leiBar .cmd::before{content:"🔍";position:absolute;left:10px;top:8px;font-size:14px;pointer-events:none}
+#leiBar .cmd kbd{position:absolute;right:10px;top:9px;font:inherit;font-size:10px;border:1px solid var(--ln);border-radius:4px;padding:1px 5px;background:#fff;color:var(--mu)}
+#leiRes{display:none;position:absolute;left:0;right:0;top:40px;background:#fff;border:1.5px solid var(--ln);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;z-index:50;max-height:360px;overflow-y:auto}
+#leiRes div{padding:8px 12px;cursor:pointer;display:flex;gap:10px;align-items:center;font-size:13px;border-bottom:1px solid var(--ln)}
+#leiRes div:hover{background:#F0F8F4}#leiRes div small{color:var(--mu);font-size:10px;text-transform:uppercase;font-weight:700;min-width:82px}
+#leiBar .hint{font-size:12px;color:var(--mu)}
+body.leitura .filters{position:sticky;top:52px;z-index:45}
+body.leitura main{padding-left:200px;max-width:none}
+body.leitura .tab{display:none}body.leitura .tab.lei{display:block;margin-bottom:30px;scroll-margin-top:150px}
+.secTitle{display:none}body.leitura .secTitle{display:flex;align-items:baseline;gap:10px;font-size:18px;color:var(--vd);margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--vc)}
+body.leitura .secTitle small{font-size:12px;color:var(--mu);font-weight:500}
+#idx{display:none}body.leitura #idx{display:block;position:fixed;left:28px;top:150px;width:150px;z-index:40;font-size:12px}
+#idx a{display:block;padding:6px 10px;color:var(--mu);border-left:2px solid var(--ln);cursor:pointer;font-weight:700;text-decoration:none}
+#idx a.on{color:var(--v);border-color:var(--la)}#idx a em{font-style:normal;color:var(--la);margin-left:4px}
+#idx a.adm{margin-top:12px;border-color:transparent;color:var(--vd)}
+.agir{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--bg);border-left:4px solid var(--la);margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--mu)}
+.agir:hover{background:#F0F8F4}.agir b{display:block;color:var(--vd);font-size:13px;margin-bottom:2px}.agir>div{flex:1}.agir>span:first-child{font-size:18px}
+body.leitura #cardHist{position:fixed;right:0;top:0;bottom:0;width:min(600px,95vw);overflow:auto;z-index:70;border-radius:0;box-shadow:-8px 0 24px rgba(0,0,0,.18);margin:0}
+#histFechar{display:none}body.leitura #histFechar{display:inline-block;margin-bottom:10px}
+body.tv #leiBar,body.tv #idx{display:none!important}body.tv main{padding-left:0}
+@media(max-width:1100px){body.leitura main{padding-left:28px}body.leitura #idx{display:none}}
+
+/* ---- ajuda (?) e origem dos dados ---- */
+.qh{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--vc);color:var(--vd);font-size:11px;font-weight:700;cursor:pointer;margin-left:6px;flex:none;border:none;font-family:inherit;vertical-align:middle}
+.qh:hover{background:var(--v);color:#fff}
+.kpi span .qh{width:15px;height:15px;font-size:9px;margin-left:4px}
+#fonteBar{background:#EAF4EF;border-bottom:1px solid var(--ln);padding:6px 28px;font-size:12px;color:var(--vd);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#fonteBar b{font-weight:700}#fonteBar .lk{color:var(--v);cursor:pointer;text-decoration:underline;font-weight:700}
+#fonteBar .chip{background:#fff;border:1px solid var(--vc);border-radius:20px;padding:2px 10px}
+body.deslogado #fonteBar{visibility:hidden}body.tv #fonteBar{display:none!important}
+body.leitura #fonteBar{position:sticky;top:52px;z-index:45}body.leitura .filters{top:82px}
+#ajudaBg{position:fixed;inset:0;background:rgba(0,40,28,.45);z-index:80;display:none;align-items:center;justify-content:center;padding:20px}#ajudaBg.on{display:flex}
+#ajuda{background:#fff;border-radius:16px;width:100%;max-width:760px;max-height:90vh;overflow:auto;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+#ajuda h2{font-size:17px;color:var(--vd);display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+#ajuda h2 button{background:none;border:none;font-size:22px;cursor:pointer;color:var(--mu)}
+#ajuda h4{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--la);margin:14px 0 4px}
+#ajuda p,#ajuda li{font-size:13px;line-height:1.55;color:var(--tx)}#ajuda ul{padding-left:18px}
+#ajuda .par{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+#ajuda .par div{background:var(--bg);border-radius:8px;padding:6px 10px;font-size:12px}#ajuda .par div b{display:block;color:var(--vd);font-size:10px;text-transform:uppercase}
+#ajuda table{font-size:12px}
+.fonteSec{font-size:12px;color:var(--mu);margin:-6px 0 12px;display:none}body.leitura .fonteSec{display:block}
 </style>
 </head>
 <body>
@@ -128,6 +176,7 @@ body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font
   <div class="hdr-stat">Unidades<b id="hUni">—</b></div>
   <div class="hdr-stat">Período carregado<b id="hPeriodo">—</b></div>
   <div class="hdr-stat">Total comprado<b id="hTotal">—</b></div>
+  <button id="btnLeitura" title="Alternar entre abas e rolagem única">📖 Leitura</button>
   <button id="btnMenu" title="Menu" aria-label="Abrir menu"><i></i><i></i><i></i></button>
 </header>
 <div id="drawerBg"></div>
@@ -153,6 +202,8 @@ body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font
   <button data-t="lojas">🏬 Cadastro de lojas</button>
   <button data-t="carga">📂 Unidades e carga de dados</button>
 </nav>
+<div id="leiBar"><div class="cmd"><input id="leiBusca" placeholder="Buscar produto, loja, fornecedor ou indústria…" autocomplete="off"><kbd>⌘K</kbd><div id="leiRes"></div></div><span class="hint">Rolagem única · clique em qualquer linha para abrir o detalhe na lateral · <b>⚙</b> menu para cadastros e cargas</span></div>
+<nav id="idx"></nav>
 <div class="filters">
   <div><label>Unidade</label><select id="fUni"><option value="">Todas</option></select></div>
   <div><label>UF</label><select id="fUF"><option value="">Todas</option></select></div>
@@ -165,7 +216,10 @@ body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font
   <div><label>Buscar produto</label><input id="fBusca" placeholder="nome, código ou EAN"></div>
   <div><label>&nbsp;</label><button class="btn g" id="fLimpar">Limpar filtros</button></div>
 </div>
+<div id="fonteBar"></div>
 <main>
+
+<section class="tab" id="t-agir"><div class="card full"><h3>Alertas gerados dos dados <small>respeitam os filtros atuais · clique para ir à seção</small></h3><div id="agirList"></div></div></section>
 
 <section class="tab on" id="t-visao">
   <div class="kpis" id="kpis"></div>
@@ -209,7 +263,7 @@ body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font
   <div class="kpis" id="kpisPre"></div>
   <div class="grid">
     <div class="card full"><h3>Produtos com reajuste <small>linhas de bonificação (custo &lt; 20% da mediana) são ignoradas · clique numa linha para ver o histórico</small></h3><div class="tw" id="tbPre"></div><div class="pg" id="pgPre"></div></div>
-    <div class="card full" id="cardHist" style="display:none"><h3 id="histTitulo">Histórico</h3><div id="chHist"></div><div id="tbHist"></div></div>
+    <div class="card full" id="cardHist" style="display:none"><h3 id="histTitulo" data-help="Histórico">Histórico</h3><button class="btn g" id="histFechar">× Fechar</button><div id="chHist"></div><div id="tbHist"></div></div>
   </div>
 </section>
 
@@ -276,7 +330,7 @@ body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font
     <div class="card full"><h3>Dispersão de custo entre unidades <small>mesmo produto, custo médio por unidade · quem paga mais caro que a rede</small></h3>
       <div class="filters" style="padding:0 0 12px;border:none;background:none"><div><label>Mín. de unidades comprando</label><input type="number" id="uN" value="2" style="min-width:90px"></div></div>
       <div class="tw" id="tbDisp"></div><div class="pg" id="pgDisp"></div></div>
-    <div class="card full" id="cardDispDet" style="display:none"><h3 id="dispTitulo"></h3><div id="tbDispDet"></div></div>
+    <div class="card full" id="cardDispDet" style="display:none"><h3 id="dispTitulo" data-help="Dispersão de custo entre unidades"></h3><div id="tbDispDet"></div></div>
   </div>
 </section>
 
@@ -321,6 +375,7 @@ body.tv .tvk b{font-size:52px}body.tv .tvrow{font-size:17px}body.tv .tvc h3{font
       <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn g" id="cExp">Exportar backup completo</button><label class="btn g" style="cursor:pointer">Importar backup<input type="file" id="cImp" accept=".json" style="display:none"></label><button class="btn g" id="cLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar tudo</button></p></div>
   </div>
 </section>
+<div id="ajudaBg"><div id="ajuda"></div></div>
 </main>
 
 <script>
@@ -479,7 +534,8 @@ function filtrado(ignoreMes){return DATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=
 function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on')});
+const LEI_SECS=['agir','visao','precos','rebate','fornec','unid','mercado','itens'];
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on')});
 
 /* ---------- tabelas genéricas com ordenação ---------- */
 function tabela(el,cols,rows,opts={}){
@@ -571,7 +627,7 @@ $('#acImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new File
 
 /* ---------- render principal ---------- */
 function render(){
-  if(!DATA.length&&!VDATA.length){$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();renderLojas();renderTV();return}
+  if(!DATA.length&&!VDATA.length){$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();renderLojas();renderTV();montarAjuda();return}
   const D=filtrado();const tot=sum(D,r=>r.t);const nm=nMeses();
   $('#hUni').textContent=F.u?F.u:UNIS.length+' carregada(s)';$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';$('#hTotal').textContent=fmt0(tot);
   /* visão geral */
@@ -590,7 +646,7 @@ function render(){
    <tr><td><span class="tag at">B</span> 80–95%</td><td class="n">${b}</td><td class="n">${(b/ps.length*100||0).toFixed(1)}%</td><td class="n">15%</td></tr>
    <tr><td><span class="tag nt">C</span> últimos 5%</td><td class="n">${cN}</td><td class="n">${(cN/ps.length*100||0).toFixed(1)}%</td><td class="n">5%</td></tr></tbody></table>
    <p class="note">${a} produto(s) concentram 80% do valor comprado. É neles que a negociação de preço e rebate tem mais efeito.</p>`;
-  renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderMercado();renderItens(D);renderCarga();renderLojas();renderTV();renderQualidade();
+  renderRebate();renderFornec(D);renderPrecos(D);renderUnid(D);renderMercado();renderItens(D);renderCarga();renderLojas();renderTV();renderQualidade();renderAgir();montarAjuda();
 }
 
 const mesesEntre=(a,b)=>{const out=[];if(!a||!b)return out;let [y,m]=a.split('-').map(Number);const [y2,m2]=b.split('-').map(Number);while(y<y2||(y===y2&&m<=m2)){out.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}return out};
@@ -701,7 +757,7 @@ function renderPrecos(D){
       const porFo=agg('fo').sort((a,b)=>b.med-a.med);
       const blocoFo=porFo.length>1?`<h4 style="margin:12px 0 6px">Custo por fornecedor <small style="color:var(--mu);font-weight:400">quem entrega mais caro · % do volume comprado</small></h4><table><thead><tr><th>Fornecedor</th><th class="n">Compras</th><th class="n">% do volume</th><th class="n">Custo médio</th><th class="n">Último custo</th><th class="n">Mín / Máx</th></tr></thead><tbody>${porFo.map(g=>`<tr><td>${esc(g.k)}</td><td class="n">${g.n}</td><td class="n">${pctS(g.q/totQ*100)}</td><td class="n">${fmt(g.med)}</td><td class="n">${fmt(g.ult)}<br><small style="color:var(--mu)">${g.ultD.split('-').reverse().join('/')}</small></td><td class="n"><small>${fmt(g.mn)} / ${fmt(g.mx)}</small></td></tr>`).join('')}</tbody></table>`:'';
       const blocoSalto=r.salto?`<p class="note" style="margin:8px 0 0">Reajuste principal: <span class="tag ${r.salto.v>0?'up':'dn'}">${pct(r.salto.v)}</span> em <b>${r.salto.d.split('-').reverse().join('/')}</b> · ${esc(r.salto.fo)} · ${esc(lojaLbl(r.salto.u))}</p>`:'';
-      $('#tbHist').innerHTML=blocoSalto+blocoLoja+blocoFo+'<h4 style="margin:12px 0 6px">Todas as compras</h4><table><thead><tr><th>Data</th><th>Loja</th><th>NF</th><th>Fornecedor</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Var. vs anterior</th></tr></thead><tbody>'+r.h.map((x,i)=>{const prev=[...r.h.slice(0,i)].reverse().find(y=>!y.bonif);return `<tr style="${x.bonif?'opacity:.55':''}"><td>${x.d.split('-').reverse().join('/')}</td><td><small>${esc(lojaLbl(x.u))}</small></td><td>${x.nf}</td><td>${esc(x.fo)}</td><td class="n">${x.q}</td><td class="n">${fmt(x.c)}${x.bonif?' <span class="tag nt">bonif.</span>':''}</td><td class="n">${x.bonif?'—':prev?`<span class="tag ${x.c>prev.c*1.005?'up':x.c<prev.c*0.995?'dn':'nt'}">${pct((x.c/prev.c-1)*100)}</span>`:'—'}</td></tr>`}).join('')+'</tbody></table>';$('#cardHist').scrollIntoView({behavior:'smooth'})}});
+      montarAjuda();$('#tbHist').innerHTML=blocoSalto+blocoLoja+blocoFo+'<h4 style="margin:12px 0 6px">Todas as compras</h4><table><thead><tr><th>Data</th><th>Loja</th><th>NF</th><th>Fornecedor</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Var. vs anterior</th></tr></thead><tbody>'+r.h.map((x,i)=>{const prev=[...r.h.slice(0,i)].reverse().find(y=>!y.bonif);return `<tr style="${x.bonif?'opacity:.55':''}"><td>${x.d.split('-').reverse().join('/')}</td><td><small>${esc(lojaLbl(x.u))}</small></td><td>${x.nf}</td><td>${esc(x.fo)}</td><td class="n">${x.q}</td><td class="n">${fmt(x.c)}${x.bonif?' <span class="tag nt">bonif.</span>':''}</td><td class="n">${x.bonif?'—':prev?`<span class="tag ${x.c>prev.c*1.005?'up':x.c<prev.c*0.995?'dn':'nt'}">${pct((x.c/prev.c-1)*100)}</span>`:'—'}</td></tr>`}).join('')+'</tbody></table>';if(!document.body.classList.contains('leitura'))$('#cardHist').scrollIntoView({behavior:'smooth'})}});
 }
 ['#pMin','#pN','#pDir','#pModo','#pLimpo'].forEach(s=>$(s).onchange=()=>renderPrecos(filtrado()));
 
@@ -1161,6 +1217,143 @@ $('#qExpTudo').onclick=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentua
 /* ---------- inicialização ---------- */
 window.addEventListener('load',async()=>{montarFiltros();render();if(await conectar())await carregarTudo()});
 window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(render,200)});
+
+/* ---------- modo leitura: rolagem única, índice, busca global e gaveta ---------- */
+const LEI_TIT={agir:'Onde agir <small>alertas montados a partir dos dados</small>'};
+document.querySelectorAll('nav button').forEach(b=>{LEI_TIT[b.dataset.t]=LEI_TIT[b.dataset.t]||b.textContent.replace(/^[^\wÀ-ú]+/,'').trim()});
+function irPara(id){const s=$('#t-'+id);if(s)s.scrollIntoView({behavior:'smooth',block:'start'})}
+let leiObs=null;
+function montarIdx(){$('#idx').innerHTML=LEI_SECS.map(id=>`<a data-go="${id}">${LEI_TIT[id].replace(/<small>.*<\/small>/,'')}${id==='agir'?' <em id="agirN"></em>':''}</a>`).join('')+'<a class="adm" data-adm>⚙ Cadastros e cargas</a>';
+  $('#idx').querySelectorAll('[data-go]').forEach(a=>a.onclick=()=>irPara(a.dataset.go));$('#idx [data-adm]').onclick=()=>$('#btnMenu').click();
+  if(leiObs)leiObs.disconnect();leiObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){const id=e.target.id.slice(2);$('#idx').querySelectorAll('a').forEach(a=>a.classList.toggle('on',a.dataset.go===id))}})},{rootMargin:'-160px 0px -70% 0px'});
+  LEI_SECS.forEach(id=>leiObs.observe($('#t-'+id)))}
+function leitura(on){document.body.classList.toggle('leitura',on);try{localStorage.setItem('pop_leitura',on?'1':'0')}catch(e){}
+  if(on){LEI_SECS.forEach(id=>{const sec=$('#t-'+id);sec.classList.add('lei');if(!sec.querySelector('.secTitle')){const h=document.createElement('h2');h.className='secTitle';h.innerHTML=LEI_TIT[id];sec.prepend(h)}});montarIdx();renderAgir();montarAjuda();window.scrollTo({top:0})}
+  else{document.querySelectorAll('.tab.lei').forEach(x=>x.classList.remove('lei'));$('#cardHist').style.display='none';if(leiObs)leiObs.disconnect()}
+  $('#btnLeitura').textContent=on?'▦ Voltar às abas':'📖 Leitura'}
+$('#btnLeitura').onclick=()=>leitura(!document.body.classList.contains('leitura'));
+$('#histFechar').onclick=()=>$('#cardHist').style.display='none';
+function renderAgir(){const el=$('#agirList');if(!el)return;const D=filtrado();const al=[];
+  [...PRE_ROWS].filter(r=>r.v>0).sort((a,b)=>b.impacto-a.impacto).slice(0,3).forEach(r=>al.push({ic:'📈',t:`${r.p}: reajuste de ${pct(r.v)}`,s:`${r.fa} · impacto ${fmt0(r.impacto)}${r.salto?' · maior salto '+pct(r.salto.v)+' em '+mesLabel(r.salto.m)+' ('+r.salto.fo+')':''}`,go:'precos',tag:'preço'}));
+  const agr=(key)=>{const m=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;if(!m.has(r.cod))m.set(r.cod,{p:r.p,fa:r.fa,g:new Map()});const o=m.get(r.cod);const l=o.g.get(r[key])||{c:0,q:0};l.c+=r.c*r.q;l.q+=r.q;o.g.set(r[key],l)});const out=[];
+    m.forEach(o=>{if(o.g.size<2)return;const arr=[...o.g.entries()].map(([k,l])=>({k,m:l.c/l.q,q:l.q}));const mn=Math.min(...arr.map(x=>x.m));const mx=arr.reduce((a,b)=>b.m>a.m?b:a);const v=(mx.m/mn-1)*100;if(v<8||mx.m/mn>4)return;out.push({...o,v,mn,caro:mx.k,sobre:sum(arr,x=>(x.m-mn)*x.q)})});return out.sort((a,b)=>b.sobre-a.sobre).slice(0,3)};
+  agr('u').forEach(o=>al.push({ic:'🏬',t:`${o.p}: ${lojaLbl(o.caro)} paga ${pct(o.v)} a mais`,s:`${o.fa} · sobrecusto ${fmt0(o.sobre)} em relação à loja mais barata (${fmt(o.mn)})`,go:'unid',tag:'loja'}));
+  agr('fo').forEach(o=>al.push({ic:'🚚',t:`${o.p}: ${o.caro} entrega ${pct(o.v)} mais caro`,s:`${o.fa} · sobrecusto ${fmt0(o.sobre)} em relação ao fornecedor mais barato (${fmt(o.mn)})`,go:'fornec',tag:'fornecedor'}));
+  el.innerHTML=al.length?al.map(a=>`<div class="agir" data-go="${a.go}"><span>${a.ic}</span><div><b>${esc(a.t)}</b>${esc(a.s)}</div><span class="tag at">${a.tag}</span></div>`).join(''):'<div class="empty">Nenhum alerta com os filtros atuais.</div>';
+  el.querySelectorAll('[data-go]').forEach(d=>d.onclick=()=>irPara(d.dataset.go));const n=$('#agirN');if(n)n.textContent=al.length||''}
+(function(){const inp=$('#leiBusca'),res=$('#leiRes');let itens=[];
+  const fechar=()=>{res.style.display='none';res.innerHTML=''};
+  inp.oninput=()=>{const q=inp.value.trim().toLowerCase();if(q.length<2){fechar();return}itens=[];
+    UNIS.filter(u=>u.toLowerCase().includes(q)||(lojaDe(u).cidade||'').toLowerCase().includes(q)).slice(0,4).forEach(u=>itens.push({k:'Loja',v:u,f:'#fUni',go:'unid'}));
+    FABS.filter(x=>x.toLowerCase().includes(q)).slice(0,4).forEach(x=>itens.push({k:'Indústria',v:x,f:'#fFab',go:'rebate'}));
+    FORS.filter(x=>x.toLowerCase().includes(q)).slice(0,4).forEach(x=>itens.push({k:'Fornecedor',v:x,f:'#fFor',go:'fornec'}));
+    const ps=new Map();for(const r of DATA){if(ps.size>=6)break;if(!ps.has(r.cod)&&(r.p.toLowerCase().includes(q)||String(r.cod).includes(q)))ps.set(r.cod,r.p)}ps.forEach((p,cod)=>itens.push({k:'Produto',v:p,q:String(cod),go:'precos'}));
+    if(!itens.length){res.innerHTML='<div><small>nada</small>Nenhum resultado</div>';res.style.display='block';return}
+    res.innerHTML=itens.map((it,i)=>`<div data-i="${i}"><small>${it.k}</small>${esc(it.v)}</div>`).join('');res.style.display='block';
+    res.querySelectorAll('[data-i]').forEach(d=>d.onclick=()=>{const it=itens[+d.dataset.i];if(it.f){$(it.f).value=it.v;$(it.f).onchange()}else{$('#fBusca').value=it.q;F.q=it.q;render()}inp.value='';fechar();setTimeout(()=>irPara(it.go),50)})};
+  inp.onkeydown=e=>{if(e.key==='Escape'){inp.value='';fechar()}if(e.key==='Enter'){const f=res.querySelector('[data-i]');if(f)f.click()}};
+  document.addEventListener('click',e=>{if(!e.target.closest('#leiBar .cmd'))fechar()});
+  document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!document.body.classList.contains('leitura'))leitura(true);inp.focus()}
+    if(e.key==='Escape'&&document.body.classList.contains('leitura'))$('#cardHist').style.display='none'});
+  try{if(localStorage.getItem('pop_leitura')==='1')leitura(true)}catch(e){}
+})();
+
+/* ---------- ajuda (?) por indicador e origem dos dados ---------- */
+const HELP={
+'Compras por mês':{o:'Valor total das notas de entrada em cada mês, somando todas as lojas e produtos dentro dos filtros.',c:'Σ (quantidade × custo final) por mês de emissão da NF. Meses sem nenhuma NF aparecem como zero.',l:'Transferências do CD não vêm no relatório de entradas e não estão aqui.'},
+'Top fabricantes':{o:'Indústrias (marcas) que mais concentram o gasto em compras.',c:'Soma do valor comprado por campo Fabricante do relatório de entradas; share = valor ÷ total filtrado.',l:'Fabricante vem do cadastro do ERP da loja; nomes divergentes entre lojas são normalizados pelo mapa de marcas, mas podem restar variações.'},
+'Top fornecedores':{o:'Distribuidores por quem a mercadoria efetivamente entrou.',c:'Soma do valor comprado por campo Fornecedor da NF.',l:'Um mesmo distribuidor pode aparecer com CNPJs/nomes diferentes entre lojas.'},
+'Por categoria':{o:'Distribuição do gasto por categoria de produto.',c:'Categoria atribuída por regras de palavras-chave no nome do produto (ração, medicamento, acessório…).',l:'Classificação automática: produtos com nomes atípicos podem cair em "OUTROS".'},
+'Curva ABC de produtos':{o:'Quantos produtos concentram o gasto. Onde negociar primeiro.',c:'Produtos ordenados por valor comprado; A = até 80% do gasto acumulado, B = 80–95%, C = restante.',l:'Baseada em valor, não em margem.'},
+'Acompanhamento de metas por indústria':{o:'Quanto a rede já comprou de cada indústria com acordo de rebate, quanto falta para a meta e qual faixa de rebate está sendo atingida.',c:'Comprado = Σ compras das marcas do acordo dentro da vigência (em R$ ou kg conforme o acordo). Projeção = comprado ÷ meses decorridos × meses de vigência. Rebate estimado = faixa cujo piso o comprado (ou a projeção) já alcança.',p:['Vigência e faixas vêm do Cadastro de acordos','kg: peso extraído da descrição do produto (ex.: 15KG); itens sem peso ficam de fora e são avisados'],l:'Projeção é linear, sem sazonalidade. Faixa com piso muito abaixo da meta gera alerta de cadastro.'},
+'Fornecedor por fabricante':{o:'Quem está entregando cada marca em cada loja, comparado ao distribuidor homologado.',c:'Para cada fabricante, valor comprado por fornecedor e % do total; confronta com o campo distribuidor do cadastro de acordos.',l:'Só marca divergência se houver distribuidor homologado cadastrado.'},
+'Produtos comprados de mais de um fornecedor':{o:'Mesmo produto vindo de fontes diferentes — e quanto custa a mais pela fonte cara.',c:'Custo médio ponderado por fornecedor (Σ custo×qtd ÷ Σ qtd); diferença = (mais caro ÷ mais barato − 1). Sobrecusto = Σ (custo médio do fornecedor − menor custo) × qtd.',l:'Produto identificado pelo código; embalagens diferentes com o mesmo código distorcem.'},
+'Produtos com reajuste':{o:'Produtos cujo custo subiu ou caiu além do limite escolhido, com o impacto em R$ e o momento do maior salto.',c:'Modo média: compara a média ponderada do 1º quarto do período com a do último quarto. Modo simples: primeira × última compra. Impacto = Σ (custo pago − custo inicial) × qtd, compra a compra. Maior salto = maior variação entre duas compras consecutivas.',p:['Linhas com custo < 20% da mediana do produto são tratadas como bonificação e ignoradas','Custo máximo > 4× mínimo marca "embalagem?"'],pd:()=>[['Variação mínima',$('#pMin').value+'%'],['Mín. de compras',$('#pN').value],['Direção',$('#pDir').selectedOptions[0].text],['Comparação',$('#pModo').selectedOptions[0].text],['Só limpos',$('#pLimpo').checked?'sim':'não']],l:'Não distingue reajuste de tabela de mudança de fornecedor; use o histórico para ver.'},
+'Histórico':{o:'Todas as compras do produto selecionado, com custo por loja e por fornecedor.',c:'Custo médio = média ponderada pela quantidade; Δ vs. menor = último custo da loja ÷ menor último custo entre as lojas − 1.',l:'Linhas bonificadas aparecem esmaecidas e não entram nos cálculos.'},
+'Ranking de unidades':{o:'Comparação de compra entre lojas: volume, média mensal, ticket por NF, SKUs e fornecedores.',c:'Média mensal = total ÷ meses com dados da loja. Ticket = total ÷ número de NFs distintas.',l:'Lojas com períodos carregados diferentes não são comparáveis em total; use média mensal.'},
+'Dispersão de custo entre unidades':{o:'Mesmo produto, custos diferentes entre lojas — a base da negociação de equalização de preço.',c:'Custo médio ponderado por loja; dispersão = (maior ÷ menor − 1). Sobrecusto = Σ (custo médio da loja − menor custo) × qtd da loja.',pd:()=>[['Mín. de unidades',$('#uN')?.value||'2']],l:'Compare o fornecedor nas duas lojas antes de concluir; pode ser fonte diferente, não preço diferente.'},
+'Por UF':{o:'Compra agregada por estado, com cobertura (lojas com dados ÷ lojas ativas na UF).',c:'Soma por UF do cadastro de lojas.'},
+'Por consultor':{o:'Compra agregada por consultor de campo responsável.',c:'Soma por consultor do cadastro de lojas.'},
+'Marca × região':{o:'Venda de cada marca por região (UF ou consultor) e sua penetração em lojas.',c:'Fonte: BI Global. Share = venda da marca ÷ venda da região. "x/y lj" = lojas que vendem a marca ÷ lojas com dados na região.',pd:()=>[['Institucionais',$('#vInst')?.selectedOptions[0].text||''],['Região',$('#vReg')?.selectedOptions[0].text||''],['Grupo',$('#vGrupo')?.selectedOptions[0].text||'todos'],['Top',$('#vTop')?.value||'']],l:'Marca identificada por EAN no mestre de produtos; o restante cai em DIVERSOS.'},
+'Mix de segmento de ração por região':{o:'Participação de cada segmento (super premium, premium, standard…) na venda de ração por região.',c:'Segmento vem do mestre de produtos; soma por região.',l:'Rações sem segmento no mestre entram em OUTROS/NÃO CLASSIF.'},
+'Compra × venda × margem por fabricante':{o:'Para cada marca: quanto a rede comprou, quanto vendeu, a margem verificável e a relação venda/compra.',c:'Compra = entradas; venda e lucro = BI Global (só linhas com custo). V/C = venda ÷ compra; abaixo de 1 sugere estoque acumulando.',l:'Compra e venda podem ter períodos diferentes carregados; o painel avisa quando estão desalinhados.'},
+'Pendências de cadastro':{o:'Produtos vendidos que ainda não têm marca/segmento no mestre — quanto maior o valor, mais importante cadastrar.',c:'Vendas com fabricante DIVERSOS agrupadas por descrição e EAN.'},
+'Inconsistências por loja':{o:'Verificações de qualidade dos dados de cada loja (custo zero, preço fora do padrão, venda abaixo do custo…).',c:'Cada verificação tem regra própria; veja "O que cada verificação significa".',l:'Uma ocorrência é um sinal para conferir no ERP, não uma conclusão.'},
+'Itens de entrada':{o:'Linha a linha das notas de entrada dentro dos filtros.',c:'Dados brutos do relatório de entradas após limpeza de duplicidade (mesma NF, produto, quantidade e custo).'},
+'Cobertura do cadastro':{o:'Quais lojas da rede já têm compras e vendas carregadas, período coberto, arquivos e primeiros sinais de qualidade.',c:'Cruza o cadastro de lojas com as cargas. "desalinhado" = último mês de compras ≠ último mês de vendas. Buraco = mês sem dados entre o primeiro e o último carregado. V/C = vendido ÷ comprado (sem institucional).',l:'c0 = compras com custo zero; vc0 = % da venda sem custo; div = % vendido como DIVERSOS.'},
+'Alertas gerados dos dados':{o:'Os pontos que mais merecem ação agora, calculados automaticamente.',c:'Top 3 reajustes por impacto em R$; top 3 produtos com maior sobrecusto entre lojas; top 3 com maior sobrecusto entre fornecedores. Só entram diferenças ≥ 8% e ≤ 4× (para excluir caixa × unidade).'},
+'Cadastro de acordos comerciais':{o:'Onde se registram meta, vigência, faixas de rebate e distribuidor homologado de cada indústria.',c:'Alimenta a aba Rebate e a comparação de fornecedores.'},
+'Lojas':{o:'Registro das unidades da rede: FRA, cidade, UF, consultor, inauguração e status.',c:'É a chave que liga arquivos carregados a cada loja (coluna Filial "FR 158 - …").'},
+'Consultores':{o:'Consultores de campo e quantas lojas atendem.'},
+/* KPIs */
+'Total comprado':{o:'Valor total das entradas no filtro.',c:'Σ quantidade × custo final.'},
+'Média mensal':{o:'Compra média por mês no período filtrado.',c:'Total ÷ meses entre "De" e "Até".'},
+'Notas fiscais':{o:'Quantidade de NFs distintas de entrada.',c:'Contagem de números de NF únicos por loja.'},
+'Produtos distintos':{o:'SKUs diferentes comprados.',c:'Códigos de produto únicos.'},
+'Fabricantes':{o:'Indústrias diferentes com compra no período.'},
+'Acordos cadastrados':{o:'Quantos acordos de rebate existem no cadastro e quantos têm meta definida.'},
+'Comprado em indústrias c/ acordo':{o:'Parte do gasto que está coberta por algum acordo de rebate.',c:'Σ compras de marcas com acordo ÷ total comprado.'},
+'Rebate estimado (comprado)':{o:'Rebate a receber se as compras parassem hoje.',c:'Para cada acordo, faixa cujo piso o comprado já alcança × comprado.'},
+'Rebate projetado':{o:'Rebate esperado ao fim da vigência mantendo o ritmo atual.',c:'Faixa alcançada pela projeção linear (comprado ÷ meses decorridos × meses de vigência).'},
+'Metas em risco':{o:'Acordos cuja projeção fica abaixo da meta.'},
+'Produtos com aumento':{o:'Produtos com custo acima do limite de variação.',c:'Conta linhas da tabela abaixo com variação positiva.'},
+'Produtos com queda':{o:'Produtos com custo abaixo do limite de variação.'},
+'Impacto dos aumentos':{o:'Quanto a rede pagou a mais por causa dos aumentos, compra a compra.',c:'Σ (custo pago − custo inicial) × qtd, só em produtos com aumento.'},
+'Economia nas quedas':{o:'Quanto a rede economizou com os produtos que caíram de preço.',c:'Mesma fórmula do impacto, em produtos com queda.'},
+'Unidades com compras':{o:'Lojas com pelo menos uma NF no filtro.'},
+'Compra média por unidade':{o:'Total comprado ÷ lojas com compras.'},
+'Maior compradora':{o:'Loja com maior valor comprado no filtro.'},
+'Menor compradora':{o:'Loja com menor valor comprado no filtro.'},
+'Venda total':{o:'Venda bruta do BI Global (produtos + serviços) no filtro.',l:'Lançamentos institucionais (50+ unidades) podem estar incluídos ou não conforme o seletor da aba.'},
+'Margem verificável (produtos)':{o:'Margem só nas vendas de produto que têm custo registrado.',c:'Σ lucro ÷ Σ venda das linhas com custo. Ignora linhas sem custo para não inflar a margem.'},
+'Venda com marca identificada':{o:'% da venda de produto que já tem marca no mestre; o resto é DIVERSOS.'},
+'Pedidos · clientes':{o:'Pedidos distintos e clientes identificados; ticket = venda ÷ pedidos.'},
+'Lojas com vendas':{o:'Lojas com alguma venda no filtro.'},
+'Vendas institucionais':{o:'Valor de vendas com 50+ unidades numa linha (licitações, fundos municipais).',l:'Isoladas para não distorcer margem e ranking do varejo.'},
+'Lojas ativas no cadastro':{o:'Lojas com status Ativa no cadastro de lojas.'},
+'Com dados carregados':{o:'Lojas ativas com pelo menos um relatório de entradas.'},
+'Sem dados':{o:'Lojas ativas ainda sem nenhuma carga.'},
+'Com vendas carregadas':{o:'Lojas ativas com BI Global carregado.'},
+'Fora do cadastro':{o:'Cargas cujo nome de loja não bate com o cadastro; use "Renomear" para mover.'},
+'Lojas avaliadas':{o:'Lojas que passaram pelas verificações de qualidade.'},
+'Ocorrências graves':{o:'Verificações acima do limite de tolerância.'},
+'Pior índice':{o:'Loja com mais ocorrências ponderadas.'},
+'Venda sem custo (rede)':{o:'% da venda de produto sem custo no ERP — margem invisível.'},
+'Compras fora do padrão':{o:'Compras com custo zero ou muito fora da mediana do produto.'},
+'Vendas × compras · últimos 12 meses':{o:'Série mensal de venda e compra da rede (sem filtros).'},
+};
+function fonteInfo(){const D=filtrado();const V=typeof vfiltrado==='function'?vfiltrado():[];
+  const us=new Set(D.map(r=>r.u)),ms=[...new Set(D.map(r=>r.m))].sort(),arqs=new Set(D.map(r=>r.arq).filter(Boolean));
+  const usV=new Set(V.map(r=>r.u)),msV=[...new Set(V.map(r=>r.m))].sort(),arqsV=new Set(V.map(r=>r.arq).filter(Boolean));
+  return {D,V,us,ms,arqs,usV,msV,arqsV}}
+function filtrosAtivos(){const a=[];a.push(['Período',(F.de?mesLabel(F.de):'—')+' – '+(F.ate?mesLabel(F.ate):'—')]);
+  if(F.u)a.push(['Unidade',F.u]);if(F.uf)a.push(['UF',F.uf]);if(F.cons)a.push(['Consultor',F.cons]);if(F.fa)a.push(['Fabricante',F.fa]);if(F.fo)a.push(['Fornecedor',F.fo]);if(F.cat)a.push(['Categoria',F.cat]);if(F.q)a.push(['Busca',F.q]);return a}
+function renderFonte(){const el=$('#fonteBar');if(!el)return;const f=fonteInfo();const n=x=>x.toLocaleString('pt-BR');
+  el.innerHTML=`<span><b>Dados em uso</b></span><span class="chip">🧾 Compras: <b>${f.us.size}</b> loja(s) · ${f.ms.length?mesLabel(f.ms[0])+'–'+mesLabel(f.ms[f.ms.length-1]):'—'} · ${n(f.D.length)} linhas · ${f.arqs.size} arquivo(s)</span><span class="chip">🛒 Vendas (BI Global): <b>${f.usV.size}</b> loja(s) · ${f.msV.length?mesLabel(f.msV[0])+'–'+mesLabel(f.msV[f.msV.length-1]):'—'} · ${n(f.V.length)} linhas</span><span class="chip">🔎 Filtros: ${filtrosAtivos().slice(1).length?filtrosAtivos().slice(1).map(x=>x[0]+' = '+esc(x[1])).join(' · '):'nenhum além do período'}</span><span class="lk" data-fonte>ver por loja e arquivo</span>`;
+  el.querySelector('[data-fonte]').onclick=abrirFonte;
+  document.querySelectorAll('.tab.lei').forEach(sec=>{let fs=sec.querySelector('.fonteSec');if(!fs){fs=document.createElement('div');fs.className='fonteSec';const t=sec.querySelector('.secTitle');if(t)t.after(fs);else sec.prepend(fs)}
+    const usaV=/mercado|qual|agir|rebate/.test(sec.id);fs.innerHTML=`Fonte: compras de ${f.us.size} loja(s) (${f.ms.length?mesLabel(f.ms[0])+'–'+mesLabel(f.ms[f.ms.length-1]):'—'})${usaV?` · vendas de ${f.usV.size} loja(s) (${f.msV.length?mesLabel(f.msV[0])+'–'+mesLabel(f.msV[f.msV.length-1]):'—'})`:''} · ${filtrosAtivos().slice(1).length?filtrosAtivos().slice(1).map(x=>x[0]+': '+esc(x[1])).join(' · '):'sem filtros além do período'}`})}
+function abrirFonte(){const f=fonteInfo();const n=x=>x.toLocaleString('pt-BR');
+  const porLoja=u=>{const d=f.D.filter(r=>r.u===u),v=f.V.filter(r=>r.u===u);const ms=[...new Set(d.map(r=>r.m))].sort(),mv=[...new Set(v.map(r=>r.m))].sort();
+    return `<tr><td>${esc(lojaLbl(u))}<br><small style="color:var(--mu)">${esc(lojaDe(u).cidade||'')}${lojaDe(u).uf?'/'+lojaDe(u).uf:''}${lojaDe(u).consultor?' · '+esc(lojaDe(u).consultor):''}</small></td><td>${ms.length?mesLabel(ms[0])+'–'+mesLabel(ms[ms.length-1])+' ('+ms.length+' m)':'—'}<br><small style="color:var(--mu)">${n(d.length)} linhas · ${[...new Set(d.map(r=>r.arq).filter(Boolean))].map(esc).join(', ')||'arquivo não registrado'}</small></td><td>${mv.length?mesLabel(mv[0])+'–'+mesLabel(mv[mv.length-1])+' ('+mv.length+' m)':'—'}<br><small style="color:var(--mu)">${n(v.length)} linhas · ${[...new Set(v.map(r=>r.arq).filter(Boolean))].map(esc).join(', ')||''}</small></td></tr>`};
+  const us=[...new Set([...f.us,...f.usV])].sort();
+  abrirAjuda('De onde vêm os dados em uso',`<p>Tudo que está na tela vem de arquivos CSV exportados do ERP de cada loja e carregados no banco central (Supabase). Compras = relatório <b>BI Entradas</b>; vendas = <b>BI Global</b>. A loja é identificada pela coluna Filial ("FR 158 - …") e ligada ao cadastro de lojas.</p>
+  <h4>Filtros ativos</h4><div class="par">${filtrosAtivos().map(x=>`<div><b>${x[0]}</b>${esc(x[1])}</div>`).join('')}</div>
+  <h4>Por loja</h4><table><thead><tr><th>Loja</th><th>Compras</th><th>Vendas</th></tr></thead><tbody>${us.map(porLoja).join('')||'<tr><td colspan=3>Nenhuma loja no filtro.</td></tr>'}</tbody></table>
+  <h4>O que não está aqui</h4><ul><li>Transferências do centro de distribuição (não saem no relatório de entradas).</li><li>Vendas institucionais (50+ unidades) quando o seletor da aba de vendas as exclui.</li><li>Lojas sem carga — veja Cobertura do cadastro.</li></ul>`)}
+function abrirAjuda(titulo,html){$('#ajuda').innerHTML=`<h2>${titulo}<button data-x aria-label="Fechar">×</button></h2>${html}`;$('#ajudaBg').classList.add('on');$('#ajuda [data-x]').onclick=fecharAjuda}
+function fecharAjuda(){$('#ajudaBg').classList.remove('on')}
+$('#ajudaBg').onclick=e=>{if(e.target.id==='ajudaBg')fecharAjuda()};document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharAjuda()});
+function mostrarAjuda(k){const h=HELP[k];if(!h)return;const f=fonteInfo();const pars=[...filtrosAtivos(),...(h.pd?h.pd():[])];
+  abrirAjuda(esc(k),`<h4>O que mostra</h4><p>${h.o||''}</p>${h.c?`<h4>Como é calculado</h4><p>${h.c}</p>`:''}${h.p?`<h4>Regras fixas</h4><ul>${h.p.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}
+  <h4>Parâmetros em uso agora</h4><div class="par">${pars.map(x=>`<div><b>${x[0]}</b>${esc(String(x[1]))}</div>`).join('')}</div>
+  <h4>Origem dos dados</h4><p>Compras: ${f.us.size} loja(s), ${f.ms.length?mesLabel(f.ms[0])+' a '+mesLabel(f.ms[f.ms.length-1]):'—'}, ${f.D.length.toLocaleString('pt-BR')} linhas de ${f.arqs.size} arquivo(s) BI Entradas.${f.V.length?` Vendas: ${f.usV.size} loja(s), ${f.msV.length?mesLabel(f.msV[0])+' a '+mesLabel(f.msV[f.msV.length-1]):'—'}, ${f.V.length.toLocaleString('pt-BR')} linhas do BI Global.`:''} <span class="lk" style="color:var(--v);cursor:pointer;text-decoration:underline" data-fonte>Ver por loja e arquivo</span></p>
+  ${h.l?`<h4>Cuidados na leitura</h4><p>${h.l}</p>`:''}`);$('#ajuda [data-fonte]').onclick=abrirFonte}
+function montarAjuda(){const norm=t=>t.replace(/\s+/g,' ').trim();
+  document.querySelectorAll('.card h3, .kpi span').forEach(h=>{if(h.querySelector('.qh'))return;const txt=norm([...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(''))||norm(h.textContent).split('·')[0].trim();
+    const k=h.dataset.help||Object.keys(HELP).find(key=>txt.startsWith(key));if(!k||!HELP[k])return;const b=document.createElement('button');b.className='qh';b.textContent='?';b.title='Por que este número e como é calculado';b.onclick=e=>{e.stopPropagation();mostrarAjuda(k)};
+    if(h.tagName==='H3'){const small=h.querySelector('small');if(small)small.before(b);else h.appendChild(b)}else h.appendChild(b)});
+  renderFonte()}
 </script>
 </body>
 </html>
