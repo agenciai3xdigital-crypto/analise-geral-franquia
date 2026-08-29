@@ -57,6 +57,9 @@ svg text{font-family:inherit}
 .pg button{background:#fff;border:1.5px solid var(--ln);border-radius:7px;padding:4px 10px;cursor:pointer;font:inherit}
 .note{font-size:12px;color:var(--mu);line-height:1.5;margin-top:8px}
 .acordos td input,.acordos td select{min-width:0;width:100%;padding:6px 8px}
+.acordos input[type=number]{min-width:78px}
+.acordos input[type=month]{min-width:120px}
+.acordos input[data-k=meta]{min-width:96px;font-weight:700}
 .acordos td{padding:4px}
 .empty{padding:30px;text-align:center;color:var(--mu)}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--mu);flex-wrap:wrap;margin-bottom:8px}
@@ -742,13 +745,35 @@ function renderCarga(){
   $('#cResumo').textContent=`${UNIS.length} unidade(s) com dados · ${DATA.length.toLocaleString('pt-BR')} itens`;
   $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas no cadastro</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com dados carregados</span><b>${com}</b><i>${(com/ativas.length*100).toFixed(0)}% de cobertura</i></div><div class="kpi a"><span>Sem dados</span><b>${ativas.length-com}</b></div><div class="kpi z"><span>Com vendas carregadas</span><b>${ativas.filter(l=>VENDAS[l.key]).length}</b><i>BI Global</i></div>${fora?`<div class="kpi z"><span>Fora do cadastro</span><b>${fora}</b><i>renomeie para uma loja da lista</i></div>`:''}`;
   const vis=$('#cVis').value;
-  const rows=[...LOJAS.map(l=>{const o=UNIDADES[l.key];const d=o?o.rows:[];const ms=[...new Set(d.map(r=>r.m))].sort();return{u:l.key,L:l,tem:!!o,n:d.length,ini:ms[0],fim:ms[ms.length-1],meses:ms.length,t:sum(d,r=>r.t),arqs:(o?.arqs||[]).length}}),
-    ...UNIS.filter(u=>!LJ[u]).map(u=>{const d=UNIDADES[u].rows;const ms=[...new Set(d.map(r=>r.m))].sort();return{u,L:lojaDe(u),tem:true,n:d.length,ini:ms[0],fim:ms[ms.length-1],meses:ms.length,t:sum(d,r=>r.t),arqs:(UNIDADES[u].arqs||[]).length,fora:true}})]
-    .filter(r=>vis==='all'||(vis==='com'?r.tem:!r.tem));
-  tabela($('#tbCarga'),[{h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},{h:'Unidade',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${r.L.status==='Não inaugurada'?' · <b>não inaugurada</b>':''}</small>`},
-    {h:'Compras (entradas)',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">${r.meses} m</span> <small style="color:var(--mu)">${mesLabel(r.ini)}–${mesLabel(r.fim)} · ${r.n.toLocaleString('pt-BR')} itens · ${fmt0(r.t)}</small>`:'<span class="tag nt">sem dados</span>'},
-    {h:'Vendas (BI Global)',v:r=>VENDAS[r.u]?1:0,f:(v,r)=>{const o=VENDAS[r.u];if(!o)return '<span class="tag nt">sem dados</span>';const ms=[...new Set(o.rows.map(x=>x.m))].sort();return `<span class="tag ok">${ms.length} m</span> <small style="color:var(--mu)">${mesLabel(ms[0])}–${mesLabel(ms[ms.length-1])} · ${o.rows.length.toLocaleString('pt-BR')} linhas · ${fmt0(sum(o.rows,x=>x.t))}</small>`}},
-    {h:'',v:r=>r.u,f:(v,r)=>r.tem?`<button class="btn g" data-sel="${esc(v)}">Carregar mais</button> <button class="btn g" data-ren="${esc(v)}">Renomear</button> <button class="btn g" data-del="${esc(v)}" style="color:#B34A0B;border-color:#B34A0B">Remover</button>`:`<button class="btn g" data-sel="${esc(v)}">Selecionar</button>`}],rows,{sort:0,asc:true});
+  const mesesGap=(arr)=>{if(arr.length<2)return 0;const s=[...new Set(arr)].sort();return mesesEntre(s[0],s[s.length-1]).filter(m=>!s.includes(m)).length};
+  const build=(l,fora)=>{const o=UNIDADES[l.key];const ov=VENDAS[l.key];const d=o?o.rows:[];const dv=ov?ov.rows:[];
+    const msC=[...new Set(d.map(r=>r.m))].sort();const msV=[...new Set(dv.map(r=>r.m))].sort();
+    const pv=dv.filter(r=>r.tipo==='Produto'&&!r.inst);const pc=pv.filter(r=>r.cf!=='sem custo');
+    const tv=sum(dv.filter(r=>!r.inst),r=>r.t);const t=sum(d,r=>r.t);
+    return {u:l.key,L:l,fora,tem:!!o,temV:!!ov,n:d.length,nv:dv.length,
+      mesesC:msC.length,iniC:msC[0],fimC:msC[msC.length-1],arqC:new Set(d.map(r=>r.arq).filter(Boolean)).size||(o?.arqs?.length||0),
+      mesesV:msV.length,iniV:msV[0],fimV:msV[msV.length-1],arqV:new Set(dv.map(r=>r.arq).filter(Boolean)).size,
+      t,tv,margem:pc.length?sum(pc,r=>r.le)/sum(pc,r=>r.t)*100:null,
+      custo0:d.filter(r=>r.c===0).length,
+      custo0v:pv.length?sum(pv.filter(r=>r.cf==='sem custo'),r=>r.t)/sum(pv,r=>r.t)*100:0,
+      diversosPct:pv.length?sum(pv.filter(r=>r.fa==='DIVERSOS'),r=>r.t)/sum(pv,r=>r.t)*100:0,
+      buracosC:mesesGap(msC),buracosV:mesesGap(msV),
+      gap:(o&&ov&&msC[msC.length-1]!==msV[msV.length-1]?2:0)+mesesGap(msC)+mesesGap(msV)};};
+  const rows=[...LOJAS.map(l=>build(l,false)),...UNIS.filter(u=>!LJ[u]).map(u=>build({...lojaDe(u),key:u,nome:u},true))]
+    .filter(r=>vis==='all'||(vis==='com'?(r.tem||r.temV):!(r.tem||r.temV)));
+  tabela($('#tbCarga'),[
+    {h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},
+    {h:'Unidade',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${r.L.status==='Não inaugurada'?' · <b>não inaugurada</b>':''}</small>`},
+    {h:'Compras',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">${r.mesesC} m</span><br><small style="color:var(--mu)">${mesLabel(r.iniC)}–${mesLabel(r.fimC)} · ${r.n.toLocaleString('pt-BR')} it · ${r.arqC} arq</small>`:'<span class="tag nt">—</span>'},
+    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>{const o=VENDAS[r.u];if(!o)return '<span class="tag nt">—</span>';return `<span class="tag ok">${r.mesesV} m</span><br><small style="color:var(--mu)">${mesLabel(r.iniV)}–${mesLabel(r.fimV)} · ${r.nv.toLocaleString('pt-BR')} li · ${r.arqV} arq</small>`}},
+    {h:'Alinhamento',v:r=>r.gap,f:(v,r)=>{if(!r.tem&&!r.temV)return '';const tags=[];if(r.tem&&r.temV&&r.fimC!==r.fimV)tags.push(`<span class="tag no" title="compras vão até ${r.fimC?mesLabel(r.fimC):'—'}, vendas até ${r.fimV?mesLabel(r.fimV):'—'}">desalinhado</span>`);if(r.tem&&!r.temV)tags.push('<span class="tag at">só compras</span>');if(!r.tem&&r.temV)tags.push('<span class="tag at">só vendas</span>');if(r.buracosC||r.buracosV)tags.push(`<span class="tag no" title="meses sem dados entre início e fim">${(r.buracosC||0)+(r.buracosV||0)} buraco(s)</span>`);return tags.join(' ')||'<span class="tag ok">ok</span>'}},
+    {h:'Comprado',n:1,v:r=>r.t,f:v=>v?fmt0(v):'—'},
+    {h:'Vendido',n:1,v:r=>r.tv,f:v=>v?fmt0(v):'—'},
+    {h:'V/C',n:1,v:r=>r.t?r.tv/r.t:-1,f:(v,r)=>v<0||!r.t||!r.tv?'—':`<span class="tag ${v<1?'no':v<1.3?'at':'ok'}">${v.toFixed(2).replace('.',',')}×</span>`},
+    {h:'Margem',n:1,v:r=>r.margem??-999,f:v=>v<-900?'—':`<span class="tag ${v<20?'no':v<32?'at':'ok'}">${pctS(v)}</span>`},
+    {h:'Qualidade',v:r=>-(r.custo0v+r.diversosPct),f:(v,r)=>{if(!r.temV&&!r.tem)return '';const t=[];if(r.custo0>0)t.push(`<span class="tag ${r.custo0>50?'no':'at'}" title="compras com custo zero">${r.custo0} c0</span>`);if(r.custo0v>0)t.push(`<span class="tag ${r.custo0v>3?'no':'at'}" title="% da venda de produto sem custo">${pctS(r.custo0v)} vc0</span>`);if(r.diversosPct>0)t.push(`<span class="tag ${r.diversosPct>3?'no':'nt'}" title="% da venda como DIVERSOS">${pctS(r.diversosPct)} div</span>`);return t.join(' ')||'<span class="tag ok">limpa</span>'}},
+    {h:'',v:r=>r.u,f:(v,r)=>r.tem||r.temV?`<button class="btn g" data-sel="${esc(v)}">+ carregar</button> <button class="btn g" data-ren="${esc(v)}">Renomear</button> <button class="btn g" data-del="${esc(v)}" style="color:#B34A0B;border-color:#B34A0B">Remover</button>`:`<button class="btn g" data-sel="${esc(v)}">Selecionar</button>`}
+  ],rows,{sort:0,asc:true});
   $('#tbCarga').querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{$('#cBusca').value='';montarSelecaoLoja();$('#cUni').value=b.dataset.sel;$('#cArq').focus();window.scrollTo({top:0,behavior:'smooth'})});
   $('#tbCarga').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;delete VENDAS[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
   $('#tbCarga').querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
