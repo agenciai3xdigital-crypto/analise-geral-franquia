@@ -1006,7 +1006,7 @@ function renderMercado(){
    <div class="kpi o"><span>Margem verificável (produtos)</span><b>${comCusto?pctS(lucroV/comCusto*100):'—'}</b><i>sobre ${pctS(comCusto/(totP||1)*100)} da venda com custo (${pctS(custoSis/(totP||1)*100)} do sistema)</i></div>
    <div class="kpi a"><span>Venda com marca identificada</span><b>${pctS(comMarca/(totP||1)*100)}</b><i>${fmt0(totP-comMarca)} ainda como DIVERSOS</i></div>
    <div class="kpi z"><span>Pedidos · clientes</span><b>${ped.toLocaleString('pt-BR')}</b><i>${cli.toLocaleString('pt-BR')} clientes identificados · ticket ${fmt0(tot/(ped||1))}</i></div>
-   <div class="kpi"><span>Lojas com vendas</span><b>${new Set(V.map(r=>r.u)).size}</b><i>de ${Object.keys(VENDAS).length} carregadas</i></div>${instT?`<div class="kpi a"><span>Vendas institucionais</span><b>${fmt0(instT)}</b><i>linhas com 50+ unidades · ${modo==='0'?'excluídas desta visão':modo==='1'?'incluídas':'somente elas'}</i></div>`:''}`;
+   <div class="kpi"><span>Lojas com vendas</span><b>${new Set(V.map(r=>r.u)).size}</b><i>de ${Object.keys(VENDAS).length} carregadas</i></div>${instT?`<div class="kpi a"><span>Vendas institucionais</span><b>${fmt0(instT)}</b><i>linhas com 50+ unidades · ${F.inst==='0'?'excluídas (filtro global)':F.inst==='1'?'incluídas':'somente elas'}</i></div>`:''}`;
   const tipoReg=$('#vReg').value;const grupoSel=$('#vGrupo').value;
   const base=grupoSel==='RACAO'?P.filter(r=>r.gr==='RACAO'||r.gr==='ITENS A GRANEL'||r.gr==='ALIMENTOS'):grupoSel?P.filter(r=>r.gr===grupoSel):P;
   // marca × região
