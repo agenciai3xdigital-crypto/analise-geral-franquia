@@ -265,7 +265,7 @@ body.filtrosOff .filters{display:none}
   <button id="btnLeitura" title="Alternar entre abas e rolagem única">📖 Leitura</button>
   <button id="btnMenu" title="Menu" aria-label="Abrir menu"><i></i><i></i><i></i></button>
 </header>
-<aside id="side"><div class="brand"><span class="hex"></span><span>Painel de Compras<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
+<aside id="side"><div class="brand"><span class="hex"></span><span>Painel de Compras<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span><br><button id="btnHist" style="display:none;margin-top:6px;background:none;border:1px solid var(--v);color:var(--v);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:11px" title="Carrega todo o histórico (mais lento)">↕ Carregar histórico completo</button></div></aside>
 <div id="drawerBg"></div>
 <aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v5</span></div></aside>
 <div id="status"></div>
@@ -579,22 +579,50 @@ async function salvarAcordos(){
   await carregarAcordos();
 }
 const mapRow=(r,key)=>({u:key,arq:r.arquivo||'',d:r.data,m:r.data.slice(0,7),nf:r.nf,fo:r.fornecedor,fa:r.fabricante,cod:r.cod_produto,ean:r.ean||'',p:r.produto,q:r.quantidade,c:+r.custo,t:+r.total,cat:r.categoria||categoria(r.produto)});
-async function carregarLoja(l){
+/* Data de corte: 1º dia do mês, (MESES_INICIAIS-1) meses atrás. Null = tudo. */
+function corte12(){if(PERIODO_FULL)return null;const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-(MESES_INICIAIS-1));return d.toISOString().slice(0,10);}
+/* Executa fn sobre items com no máximo n em paralelo. */
+async function emParalelo(items,n,fn){const fila=items.slice();let feitas=0;const total=items.length;async function worker(){while(fila.length){const it=fila.shift();await fn(it,++feitas,total);}}await Promise.all(Array.from({length:Math.min(n,total||1)},worker));}
+/* Lote de entradas com corte de período; cai para entradas_lote2 se o banco ainda não tiver a _lote3. */
+async function loteEntradas(id,apos,lim,desde){
+  if(!SEM_LOTE3){const r=await sb.rpc('entradas_lote3',{p_loja:id,p_apos:apos,p_limit:lim,p_desde:desde});
+    if(!r.error)return r.data;
+    if(/lote3|PGRST202|could not find|schema cache|does not exist/i.test(r.error.message||'')){SEM_LOTE3=true;}else throw r.error;}
+  const r2=await sb.rpc('entradas_lote2',{p_loja:id,p_apos:apos,p_limit:lim});if(r2.error)throw r2.error;return r2.data;
+}
+async function loteVendas(id,apos,lim,desde){
+  if(!SEM_LOTE3V){const r=await sb.rpc('vendas_lote3',{p_loja:id,p_apos:apos,p_limit:lim,p_desde:desde});
+    if(!r.error)return r.data;
+    if(/lote3|PGRST202|could not find|schema cache|does not exist/i.test(r.error.message||'')){SEM_LOTE3V=true;}else throw r.error;}
+  const r2=await sb.rpc('vendas_lote2',{p_loja:id,p_apos:apos,p_limit:lim});if(r2.error)throw r2.error;return r2.data;
+}
+function atualizarBtnHist(){const b=$('#btnHist');if(!b)return;const parcial=!PERIODO_FULL&&!SEM_LOTE3;b.style.display=parcial?'':'none';b.disabled=false;b.textContent='↕ Carregar histórico completo';}
+async function carregarLoja(l,desde){
+  if(desde===undefined)desde=corte12();
   const rows=[];let apos=0;const lim=10000;
-  while(true){const {data,error}=await sb.rpc('entradas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
-    data.forEach(r=>rows.push(mapRow(r,l.key)));if(data.length<lim)break;apos=data[data.length-1].id;$('#status').textContent=`Carregando ${l.key}: ${rows.length.toLocaleString('pt-BR')} itens…`}
+  while(true){const data=await loteEntradas(l.id,apos,lim,desde);
+    data.forEach(r=>rows.push(mapRow(r,l.key)));if(data.length<lim)break;apos=data[data.length-1].id;}
   rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
   UNIDADES[l.key]={u:l.key,id:l.id,rows,arqs:[...new Set(rows.map(r=>r.arq).filter(Boolean))]};
 }
 let RESUMO={};
+/* ---- Fase 2: carga por período + paralela ---- */
+let PERIODO_FULL=false;      // false = últimos 12 meses; true = histórico completo
+let SEM_LOTE3=false;         // fallback se entradas_lote3 ainda não existir no banco
+let SEM_LOTE3V=false;        // idem para vendas_lote3
+const MESES_INICIAIS=12;     // janela padrão de carga
 async function carregarTudo(){
   try{$('#status').textContent='Conectando…';$('#hUser').textContent=USER.email;
     await carregarLojas();await carregarAcordos();
+    const desde=corte12();const jan=PERIODO_FULL?'histórico completo':'últimos 12 meses';
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
-    UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
-    for(const l of comDados){i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l)}
-    await carregarVendasTodas();$('#status').textContent='';recompor();recomporVendas();montarFiltros();renderAcordos();render();
-  }catch(e){$('#status').textContent='';sbErr(e,/entradas_lote2|vendas_lote2|function/i.test(e.message||'')?'Erro ao carregar: rode o script supabase_fix_timeout.sql no SQL Editor do Supabase':'Erro ao carregar do Supabase')}
+    UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);
+    await emParalelo(comDados,5,async(l,n,tot)=>{await carregarLoja(l,desde);$('#status').textContent=`Compras (${jan}): ${n}/${tot} lojas…`});
+    recompor();montarFiltros();renderAcordos();render();atualizarBtnHist();
+    /* vendas em segundo plano: não bloqueiam a primeira pintura das compras */
+    $('#status').textContent=`Carregando vendas (${jan})…`;
+    carregarVendasTodas(desde).then(()=>{recomporVendas();montarFiltros(true);render();$('#status').textContent='';}).catch(err=>{$('#status').textContent='';console.warn('vendas em 2º plano:',err);});
+  }catch(e){$('#status').textContent='';sbErr(e,/lote|function|schema cache/i.test(e.message||'')?'Erro ao carregar: rode o script 03_FASE2_LOTE_PERIODO.sql no SQL Editor do Supabase':'Erro ao carregar do Supabase')}
 }
 async function enviarEntradas(loja,linhas,arquivo){
   const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,nf:r.nf,fornecedor:r.fo,fabricante:r.fa,cod_produto:r.cod,ean:r.ean||null,produto:r.p,categoria:r.cat,quantidade:r.q,custo:r.c,arquivo}));
@@ -1044,15 +1072,17 @@ function enriquecer(){VDATA.forEach(r=>{r.inst=r.tipo==='Produto'&&r.q>=50;r.fa=
 /* ---- Supabase ---- */
 async function carregarMestre(){const {data,error}=await sb.from('produtos_mestre').select('*');if(error)throw error;MESTRE={};data.forEach(r=>MESTRE[r.ean]=r)}
 const mapV=(r,key)=>({u:key,d:r.data,m:r.data.slice(0,7),ped:r.pedido,seq:r.seq,cod:r.cod_produto,ean:r.ean||'',p:r.produto,gr:r.grupo||'',sg:r.subgrupo||'',faL:normFab(r.fabricante_loja),fo:r.fornecedor||'',tipo:r.tipo||'Produto',bal:!!r.balanca,q:+r.qtd,pb:+r.preco_bruto||0,pl:+r.preco_liq||0,t:+r.total,c:+r.custo,l:r.lucro==null?+r.total-+r.custo:+r.lucro,cc:r.cliente_cod||'',cl:r.cliente||'',ba:r.bairro||'',ve:r.vendedor||''});
-async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=10000;
-  while(true){const {data,error}=await sb.rpc('vendas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
-    data.forEach(r=>rows.push(mapV(r,l.key)));if(data.length<lim)break;apos=data[data.length-1].id;$('#status').textContent=`Carregando vendas ${l.key}: ${rows.length.toLocaleString('pt-BR')}…`}
+async function carregarVendasLoja(l,desde){if(desde===undefined)desde=corte12();const rows=[];let apos=0;const lim=10000;
+  while(true){const data=await loteVendas(l.id,apos,lim,desde);
+    data.forEach(r=>rows.push(mapV(r,l.key)));if(data.length<lim)break;apos=data[data.length-1].id;}
   rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
   VENDAS[l.key]={u:l.key,id:l.id,rows}}
-async function carregarVendasTodas(){
+async function carregarVendasTodas(desde){
+  if(desde===undefined)desde=corte12();
   const {data:res,error}=await sb.rpc('resumo_vendas');if(error){if(/vendas/i.test(error.message)){console.warn('tabela vendas ainda não criada');return}throw error}
   RESUMO_V={};res.forEach(r=>RESUMO_V[r.loja_id]=r);await carregarMestre();VENDAS={};
-  const com=LOJAS.filter(l=>RESUMO_V[l.id]);let i=0;for(const l of com){i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l)}
+  const com=LOJAS.filter(l=>RESUMO_V[l.id]);
+  await emParalelo(com,5,async(l,n,tot)=>{await carregarVendasLoja(l,desde);$('#status').textContent=`Vendas: ${n}/${tot} lojas…`});
 }
 function recomporVendas(){VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
 async function enviarVendas(loja,linhas,arquivo){
@@ -1363,6 +1393,7 @@ $('#qExpTudo').onclick=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentua
 })();
 
 /* ---------- inicialização ---------- */
+document.addEventListener('click',e=>{if(e.target&&e.target.id==='btnHist'){const b=e.target;if(PERIODO_FULL)return;PERIODO_FULL=true;b.disabled=true;b.textContent='Carregando histórico…';carregarTudo().catch(()=>{PERIODO_FULL=false;atualizarBtnHist();});}});
 window.addEventListener('load',async()=>{montarFiltros();render();if(await conectar())await carregarTudo()});
 window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(render,200)});
 
