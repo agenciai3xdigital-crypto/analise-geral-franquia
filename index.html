@@ -196,6 +196,10 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 .fin-head p{font-size:12.5px;color:var(--mu)}
 .kpi .ic{font-size:14px;margin-right:6px;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--bg);vertical-align:-6px}
 @media(max-width:700px){.fin-head{padding:2px 0 12px}.fin-head h2{font-size:16px}}
+.fin-recorde-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
+.fin-recorde-item{background:#FFF6EC;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.fin-recorde-item b{font-size:13px;color:var(--vd)}
+.fin-recorde-item span{font-size:15px;font-weight:700;color:#8A5A00}
 #fonteBar b{font-weight:700}#fonteBar .lk{color:var(--v);cursor:pointer;text-decoration:underline;font-weight:700}
 #fonteBar .chip{background:#fff;border:1px solid var(--vc);border-radius:20px;padding:2px 10px}
 body.deslogado #fonteBar{visibility:hidden}body.tv #fonteBar{display:none!important}
@@ -517,14 +521,10 @@ body.filtrosOff .filters{display:none}
       <p class="note">A loja é identificada pela coluna <b>Filial</b> do arquivo ("FR 158 - ..."); só escolha manualmente se o arquivo não trouxer. Linhas repetidas de um mesmo pedido (ex.: três banhos) são preservadas; recarregar o mesmo arquivo não duplica.</p>
     </div>
     <div class="card full"><h3>Financeiro <small>Faturamento, Inadimplência e Recebidos · os resultados aparecem na aba <a href="#" id="lkFinCarga" style="color:var(--v);font-weight:700;text-decoration:underline">💰 Financeiro</a></small></h3>
-      <p class="note" style="margin-bottom:14px">💡 <b>Faturamento</b> é calculado automaticamente para lojas com BI Global carregado acima — o upload manual só é necessário para as demais.</p>
-      <div class="grid">
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px">Faturamento mensal (.xlsx) <small style="text-transform:none;font-weight:500">— só p/ lojas sem BI Global</small></label>
-          <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Atualizar faturamento<input type="file" accept=".xlsx" id="finUploadFat" style="display:none"></label></div>
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px">Inadimplência (Conta Azul, .xlsx)</label>
-          <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Atualizar inadimplência<input type="file" accept=".xlsx" id="finUploadInad" style="display:none"></label></div>
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px">Recebidos (Conta Azul, .xls/.xlsx)</label>
-          <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Atualizar recebidos<input type="file" accept=".xls,.xlsx" id="finUploadReceb" style="display:none"></label></div>
+      <p class="note" style="margin-bottom:14px">💡 Um upload só — o painel reconhece pelo conteúdo se é a planilha de <b>Faturamento</b>, o export de <b>Inadimplência</b> ou o <b>Extrato Financeiro</b> do Conta Azul, e grava no lugar certo. Faturamento é calculado automaticamente para lojas com BI Global carregado acima, então esse upload só é necessário para as demais.</p>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Enviar arquivo(s) financeiro(s)<input type="file" accept=".xls,.xlsx" multiple id="finUploadAuto" style="display:none"></label>
+        <span class="note" style="margin:0">.xlsx ou .xls · pode selecionar vários de uma vez</span>
       </div>
     </div>
     <div class="card"><h3>Ordem do menu <small>arraste ou use as setas · vale para este navegador</small></h3><ul id="ordemList"></ul><p style="margin-top:10px"><button class="btn g" id="menuReset">Restaurar ordem padrão</button></p></div>
@@ -1483,7 +1483,7 @@ $('#qExpTudo').onclick=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentua
   function ativar(id){navBtns.find(b=>b.dataset.t===id).click();montar();fechar()}
   function mover(id,dir){const i=ordem.indexOf(id);const j=i+dir;if(j<0||j>=ordem.length)return;[ordem[i],ordem[j]]=[ordem[j],ordem[i]];salvar();montar()}
   const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','financeiro','precos','rebate','fornec','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
-  const ICO={agir:'🎯',tv:'📺',visao:'▦',precos:'↗',rebate:'%',fornec:'🤝',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
+  const ICO={agir:'🎯',tv:'📺',visao:'▦',financeiro:'💰',precos:'↗',rebate:'%',fornec:'🤝',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
   const rotulo=id=>navBtns.find(x=>x.dataset.t===id).textContent.replace(/^[^\wÀ-ú]+/,'').replace(/^Painel executivo \(TV\)$/,'Painel executivo · TV').trim();
   function montar(){const lei=document.body.classList.contains('leitura');
     const cur=document.querySelector('#side a.on')?.dataset.t;const atual=lei?(LEI_SECS.includes(cur)?cur:'agir'):document.querySelector('nav button.on')?.dataset.t;
@@ -1612,7 +1612,8 @@ function finDesenharFaturamento(){
   }).filter(l=>l.ativa).sort((a,b)=>(b.valorAtual||0)-(a.valorAtual||0));
   const recordistas=linhas.filter(l=>l.bateuRecorde);
   $('#finRecordeBanner').innerHTML=recordistas.length
-    ?'<div class="kpis"><div class="kpi o" style="grid-column:1/-1"><span>🏆 Recorde histórico em '+finMesLabel(mesAtualISO)+'</span><i style="display:block;margin-top:6px;line-height:1.6">'+recordistas.map(l=>'<b>'+esc(l.nome)+'</b> — '+finFmt(l.valorAtual)).join('<br>')+'</i></div></div>'
+    ?'<div class="card full" style="border-left:5px solid var(--la);margin-bottom:16px"><h3>🏆 Recorde histórico em '+finMesLabel(mesAtualISO)+' <small>'+recordistas.length+' loja'+(recordistas.length>1?'s':'')+'</small></h3>'
+      +'<div class="fin-recorde-grid">'+recordistas.map(l=>'<div class="fin-recorde-item"><b>'+esc(l.nome)+'</b><span>'+finFmt(l.valorAtual)+'</span></div>').join('')+'</div></div>'
     :'';
   $('#finFatTab').innerHTML='<table><thead><tr><th>FRA</th><th>Loja</th><th class="n">'+finMesLabel(mesAtualISO)+'</th><th class="n">vs. mês anterior</th><th class="n">Fonte</th><th class="n">Recorde histórico</th><th class="n">Total (12 meses)</th></tr></thead><tbody>'
     +linhas.map(l=>{
@@ -1679,6 +1680,32 @@ function finDesenharReceita(){
 }
 
 /* ---------- uploads (mesma lógica de leitura do Central POP, gravando neste projeto) ---------- */
+async function finSniffTipo(file){
+  // detecta o tipo do arquivo financeiro pelo conteúdo, sem precisar de 3 botões separados
+  if(!/\.xlsx?$/i.test(file.name))return null;
+  let wb;try{wb=XLSX.read(await file.arrayBuffer(),{type:'array'});}catch(e){return null;}
+  for(const nome of wb.SheetNames){
+    const linha1=XLSX.utils.sheet_to_json(wb.Sheets[nome],{defval:null})[0];
+    if(linha1){
+      const chaves=Object.keys(linha1);
+      if(chaves.some(k=>k.trim().toUpperCase()==='FRA')&&chaves.some(k=>k.trim().toUpperCase().startsWith('FATURAMENTO')))return'faturamento';
+      if(chaves.includes('Identificador do fornecedor/cliente')&&chaves.includes('Data de competência'))return'recebidos';
+    }
+    const bruta=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,defval:null});
+    if(bruta.some(row=>row&&row.some(c=>typeof c==='string'&&c.trim()==='Nome do cliente ou fornecedor')))return'inadimplencia';
+  }
+  return null;
+}
+async function processarUploadFinanceiroIC(files){
+  if(!files||!files.length)return;
+  for(const file of files){
+    const tipo=await finSniffTipo(file);
+    if(tipo==='faturamento')await processarUploadFaturamentoIC(file);
+    else if(tipo==='inadimplencia')await processarUploadInadimplenciaIC(file);
+    else if(tipo==='recebidos')await processarUploadRecebidosIC(file);
+    else alert('Não reconheci o arquivo "'+file.name+'". Confirme que é a planilha de Faturamento, o export de Inadimplência ou o Extrato Financeiro do Conta Azul.');
+  }
+}
 async function processarUploadFaturamentoIC(file){
   if(!file)return;
   if(!/\.xlsx$/i.test(file.name)){alert('Envie o arquivo .xlsx no mesmo modelo da última planilha de faturamento mensal.');return;}
@@ -1770,9 +1797,7 @@ async function processarUploadRecebidosIC(file){
   await carregarFinanceiroIC();
 }
 document.addEventListener('DOMContentLoaded',()=>{
-  const i1=document.getElementById('finUploadFat');   if(i1)i1.onchange=ev=>{processarUploadFaturamentoIC(ev.target.files[0]);ev.target.value='';};
-  const i2=document.getElementById('finUploadInad');  if(i2)i2.onchange=ev=>{processarUploadInadimplenciaIC(ev.target.files[0]);ev.target.value='';};
-  const i3=document.getElementById('finUploadReceb'); if(i3)i3.onchange=ev=>{processarUploadRecebidosIC(ev.target.files[0]);ev.target.value='';};
+  const iAuto=document.getElementById('finUploadAuto'); if(iAuto)iAuto.onchange=ev=>{processarUploadFinanceiroIC([...ev.target.files]);ev.target.value='';};
   const irAba=id=>{const b=[...document.querySelectorAll('nav button')].find(x=>x.dataset.t===id);if(b)b.click();};
   const l1=document.getElementById('lkCargaFin'); if(l1)l1.onclick=ev=>{ev.preventDefault();irAba('carga');};
   const l2=document.getElementById('lkFinCarga'); if(l2)l2.onclick=ev=>{ev.preventDefault();irAba('financeiro');};
