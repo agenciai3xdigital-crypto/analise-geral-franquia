@@ -196,6 +196,12 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 .fin-head p{font-size:12.5px;color:var(--mu)}
 .kpi .ic{font-size:14px;margin-right:6px;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--bg);vertical-align:-6px}
 @media(max-width:700px){.fin-head{padding:2px 0 12px}.fin-head h2{font-size:16px}}
+.cg-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cg-zona{border:1.5px dashed var(--vc);border-radius:14px;padding:26px 20px;text-align:center;background:var(--card);cursor:pointer;transition:background .15s,border-color .15s}
+.cg-zona:hover,.cg-zona.drag{background:#EAF4EF;border-color:var(--v)}
+.cg-aplicar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border-radius:10px;padding:9px 11px;margin:10px 0}
+.cg-manut{margin-top:18px;border:1px solid var(--ln);border-radius:12px;padding:10px 16px;background:var(--card)}
+.cg-manut summary{cursor:pointer;font-weight:700;color:var(--vd);font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .fin-recorde-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
 .fin-recorde-item{background:#FFF6EC;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
 .fin-recorde-item b{font-size:13px;color:var(--vd)}
@@ -500,37 +506,61 @@ body.filtrosOff .filters{display:none}
 </section>
 
 <section class="tab" id="t-carga">
-  <div class="grid">
-    <div class="card"><h3>Carregar relatórios de entrada</h3>
-      <div style="display:grid;gap:10px">
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase">Unidade (cadastro da rede)</label><input id="cBusca" placeholder="digite número FRA, nome ou cidade para filtrar" style="width:100%;margin-bottom:6px"><select id="cUni" style="width:100%" size="6"></select><datalist id="dlUni"></datalist></div>
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase">Arquivos CSV (pode selecionar vários)</label><input type="file" id="cArq" accept=".csv,.txt" multiple style="width:100%"></div>
-        <div><button class="btn o" id="cCarregar">Carregar para a unidade</button></div>
-        <div id="cLog" class="note"></div>
-      </div>
-      <p class="note">Formato esperado: o relatório de entradas do sistema (colunas Data, Número da NF, Fornecedor, Fabricante, Cod. Barra, Cód. Produto, Produto, Quantidade, Custo final). Linhas repetidas (mesma unidade, NF, produto e data) são ignoradas, então pode recarregar um período sem duplicar. Os dados são gravados no banco central da rede e ficam disponíveis para todos os usuários do painel.</p>
-    </div>
-    
-    <div class="card"><h3>Carregar vendas (BI Global)</h3>
-      <div style="display:grid;gap:10px">
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase">Loja</label><select id="vUni" style="width:100%"></select></div>
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase">Arquivos do BI Global (pode selecionar os 12 meses)</label><input type="file" id="vArq" accept=".csv,.txt" multiple style="width:100%"></div>
-        <div><button class="btn o" id="vCarregar">Carregar vendas</button></div>
-        <div id="vLog" class="note"></div>
-      </div>
-      <p class="note">A loja é identificada pela coluna <b>Filial</b> do arquivo ("FR 158 - ..."); só escolha manualmente se o arquivo não trouxer. Linhas repetidas de um mesmo pedido (ex.: três banhos) são preservadas; recarregar o mesmo arquivo não duplica.</p>
-    </div>
-    <div class="card full"><h3>Financeiro <small>Faturamento, Inadimplência e Recebidos · os resultados aparecem na aba <a href="#" id="lkFinCarga" style="color:var(--v);font-weight:700;text-decoration:underline">💰 Financeiro</a></small></h3>
-      <p class="note" style="margin-bottom:14px">💡 Um upload só — o painel reconhece pelo conteúdo se é a planilha de <b>Faturamento</b>, o export de <b>Inadimplência</b> ou o <b>Extrato Financeiro</b> do Conta Azul, e grava no lugar certo. Faturamento é calculado automaticamente para lojas com BI Global carregado acima, então esse upload só é necessário para as demais.</p>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Enviar arquivo(s) financeiro(s)<input type="file" accept=".xls,.xlsx" multiple id="finUploadAuto" style="display:none"></label>
-        <span class="note" style="margin:0">.xlsx ou .xls · pode selecionar vários de uma vez</span>
-      </div>
-    </div>
-    <div class="card"><h3>Ordem do menu <small>arraste ou use as setas · vale para este navegador</small></h3><ul id="ordemList"></ul><p style="margin-top:10px"><button class="btn g" id="menuReset">Restaurar ordem padrão</button></p></div>
-    <div class="card full"><h3>Cobertura do cadastro <small id="cResumo"></small></h3><div class="kpis" id="kpisCarga" style="margin-bottom:10px"></div><div class="filters" style="padding:0 0 10px;border:none;background:none"><div><label>Mostrar</label><select id="cVis"><option value="all">Todas as lojas</option><option value="com">Só com dados</option><option value="sem">Só sem dados</option></select></div></div><div class="tw" id="tbCarga"></div>
-      <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn g" id="cExp">Exportar backup completo</button><label class="btn g" style="cursor:pointer">Importar backup<input type="file" id="cImp" accept=".json" style="display:none"></label><button class="btn g" id="cLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar tudo</button></p></div>
+  <div class="cg-head">
+    <div><h2 style="font-size:18px;color:var(--vd);margin:0">Carga de dados</h2>
+    <p class="note" style="margin:2px 0 0">Compras, vendas e financeiro. Tudo vai para o mesmo banco e alimenta o painel inteiro.</p></div>
+    <span class="note" id="cgUltima"></span>
   </div>
+
+  <div id="cgZona" class="cg-zona">
+    <div style="font-size:26px;line-height:1">⬆️</div>
+    <div style="font-size:16px;font-weight:700;color:var(--vd);margin-top:6px">Arraste os arquivos ou clique para escolher</div>
+    <div class="note" style="margin-top:4px">Relatório de entradas · BI Global · faturamento · inadimplência · recebidos<br>Pode soltar a pasta do mês inteira, de várias lojas de uma vez.</div>
+    <input type="file" id="cgArq" accept=".csv,.txt,.xls,.xlsx" multiple style="display:none">
+  </div>
+
+  <div class="card full" id="cgConf" style="display:none;margin-top:16px">
+    <h3>Conferir antes de gravar <small id="cgResumo"></small></h3>
+    <div id="cgAplicar" class="cg-aplicar" style="display:none">
+      <span class="note" style="margin:0">Aplicar a todos os pendentes:</span>
+      <input list="cgDatalist" id="cgAplicaLoja" placeholder="digite FRA ou nome" style="width:210px;font-size:12px">
+      <button class="btn g" id="cgAplicaBtn" style="font-size:12px">Aplicar</button>
+    </div>
+    <datalist id="cgDatalist"></datalist>
+    <div class="tw" id="cgTab"></div>
+    <p style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn o" id="cgGravar">Gravar</button>
+      <span class="note" id="cgNota" style="margin:0"></span>
+      <span class="note" id="cgStatus" style="margin:0"></span>
+    </p>
+    <div id="cgLog" class="note"></div>
+  </div>
+
+  <h3 style="margin:22px 0 10px;font-size:15px;color:var(--vd)">Cobertura da rede <small id="cResumo" style="font-weight:400"></small></h3>
+  <div class="kpis" id="kpisCarga" style="margin-bottom:14px"></div>
+
+  <div class="card full">
+    <div class="filters" style="padding:0 0 12px;border:none;background:none">
+      <div style="flex:1;min-width:180px"><label>Filtrar</label><input id="cFiltro" placeholder="FRA, nome ou cidade"></div>
+      <div><label>Mostrar</label><select id="cVis"><option value="all">Todas as lojas</option><option value="com">Só com dados</option><option value="sem">Só sem dados</option></select></div>
+    </div>
+    <div class="tw" id="tbCarga"></div>
+  </div>
+
+  <details class="cg-manut">
+    <summary>Preferências e manutenção <span class="note" style="margin:0">ordem do menu · backup · apagar tudo</span></summary>
+    <div style="margin-top:14px">
+      <h3 style="font-size:14px;color:var(--vd);margin-bottom:8px">Ordem do menu <small style="font-weight:400">arraste ou use as setas · vale para este navegador</small></h3>
+      <ul id="ordemList"></ul>
+      <p style="margin-top:8px"><button class="btn g" id="menuReset">Restaurar ordem padrão</button></p>
+      <h3 style="font-size:14px;color:var(--vd);margin:18px 0 8px">Backup</h3>
+      <p style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn g" id="cExp">Exportar backup completo</button>
+        <label class="btn g" style="cursor:pointer">Importar backup<input type="file" id="cImp" accept=".json" style="display:none"></label>
+        <button class="btn g" id="cLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar tudo</button>
+      </p>
+    </div>
+  </details>
 </section>
 <div id="ajudaBg"><div id="ajuda"></div></div>
 </main>
@@ -706,7 +736,7 @@ function montarFiltros(keepPeriodo){
   fill('#fUni',UNIS);fill('#fUF',[...new Set(UNIS.map(u=>lojaDe(u).uf).filter(Boolean))].sort());fill('#fCons',[...new Set(UNIS.map(u=>lojaDe(u).consultor).filter(Boolean))].sort());fill('#fFab',FABS);fill('#fFor',FORS);fill('#fCat',CATS);fill('#fDe',MESES,mesLabel);fill('#fAte',MESES,mesLabel);
   if(!keepPeriodo||!MESES.includes(F.de))F.de=MESES[0]||'';if(!keepPeriodo||!MESES.includes(F.ate))F.ate=MESES[MESES.length-1]||'';
   $('#fDe').value=F.de;$('#fAte').value=F.ate;F.u=$('#fUni').value;F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;
-  $('#dlUni').innerHTML=UNIS.map(u=>`<option value="${esc(u)}">`).join('');
+  const _dl=$('#dlUni');if(_dl)_dl.innerHTML=UNIS.map(u=>`<option value="${esc(u)}">`).join('');
 }
 ['#fDe','#fAte','#fUni','#fUF','#fCons','#fFab','#fFor','#fCat'].forEach(s=>$(s).onchange=()=>{F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.de=$('#fDe').value;F.ate=$('#fAte').value;if(F.de>F.ate){[F.de,F.ate]=[F.ate,F.de];$('#fDe').value=F.de;$('#fAte').value=F.ate}F.u=$('#fUni').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;render()});
 (function(){const inp=$('#fUniTxt'),res=$('#fUniRes'),sel=$('#fUni');let list=[],idx=-1;
@@ -1039,18 +1069,14 @@ function renderUnid(D){
 $('#uN').onchange=()=>renderUnid(filtrado());
 
 /* ---------- carga de dados ---------- */
-function montarSelecaoLoja(){const q=norm($('#cBusca').value||'');const s=$('#cUni');const cur=s.value;
-  const ops=LOJAS.filter(l=>!q||norm(l.key+' '+l.cidade+' '+l.razao).includes(q)).map(l=>`<option value="${esc(l.key)}">${esc(l.key)} — ${esc(l.cidade)}/${esc(l.uf)}${UNIDADES[l.key]?' ✔':''}</option>`);
-  const extra=UNIS.filter(u=>!LJ[u]).map(u=>`<option value="${esc(u)}">${esc(u)} (fora do cadastro) ✔</option>`);
-  s.innerHTML=ops.join('')+extra.join('')+(q&&!ops.length?`<option value="${esc($('#cBusca').value.trim())}">➕ Criar unidade "${esc($('#cBusca').value.trim())}" (fora do cadastro)</option>`:'');
-  if([...s.options].some(o=>o.value===cur))s.value=cur;}
-$('#cBusca').oninput=montarSelecaoLoja;
+
 function renderCarga(){
-  montarSelecaoLoja();montarSelecaoLojaV();
   const ativas=LOJAS.filter(l=>l.status==='Ativa');const com=ativas.filter(l=>UNIDADES[l.key]).length;const fora=UNIS.filter(u=>!LJ[u]).length;
   $('#cResumo').textContent=`${UNIS.length} unidade(s) com dados · ${DATA.length.toLocaleString('pt-BR')} itens`;
-  $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas no cadastro</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com dados carregados</span><b>${com}</b><i>${(com/ativas.length*100).toFixed(0)}% de cobertura</i></div><div class="kpi a"><span>Sem dados</span><b>${ativas.length-com}</b></div><div class="kpi z"><span>Com vendas carregadas</span><b>${ativas.filter(l=>VENDAS[l.key]).length}</b><i>BI Global</i></div>${fora?`<div class="kpi z"><span>Fora do cadastro</span><b>${fora}</b><i>renomeie para uma loja da lista</i></div>`:''}`;
-  const vis=$('#cVis').value;
+  const comV=ativas.filter(l=>VENDAS[l.key]).length;
+  const semNada=ativas.filter(l=>!UNIDADES[l.key]&&!VENDAS[l.key]).length;
+  $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com compras</span><b>${com}</b><i>${ativas.length?(com/ativas.length*100).toFixed(0):0}% da rede</i></div><div class="kpi z"><span>Com vendas</span><b>${comV}</b><i>BI Global</i></div><div class="kpi a"><span>Sem nenhum dado</span><b>${semNada}</b><i>${fora?fora+' fora do cadastro':'aguardando carga'}</i></div>`;
+  const vis=$('#cVis').value;const fq=norm($('#cFiltro')?$('#cFiltro').value:'');
   const mesesGap=(arr)=>{if(arr.length<2)return 0;const s=[...new Set(arr)].sort();return mesesEntre(s[0],s[s.length-1]).filter(m=>!s.includes(m)).length};
   const build=(l,fora)=>{const o=UNIDADES[l.key];const ov=VENDAS[l.key];const d=o?o.rows:[];const dv=ov?ov.rows:[];
     const msC=[...new Set(d.map(r=>r.m))].sort();const msV=[...new Set(dv.map(r=>r.m))].sort();
@@ -1066,7 +1092,8 @@ function renderCarga(){
       buracosC:mesesGap(msC),buracosV:mesesGap(msV),
       gap:(o&&ov&&msC[msC.length-1]!==msV[msV.length-1]?2:0)+mesesGap(msC)+mesesGap(msV)};};
   const rows=[...LOJAS.map(l=>build(l,false)),...UNIS.filter(u=>!LJ[u]).map(u=>build({...lojaDe(u),key:u,nome:u},true))]
-    .filter(r=>vis==='all'||(vis==='com'?(r.tem||r.temV):!(r.tem||r.temV)));
+    .filter(r=>vis==='all'||(vis==='com'?(r.tem||r.temV):!(r.tem||r.temV)))
+    .filter(r=>!fq||norm((r.L.fra||'')+' '+(r.L.nome||'')+' '+(r.L.cidade||'')+' '+(r.L.consultor||'')).includes(fq));
   tabela($('#tbCarga'),[
     {h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},
     {h:'Unidade',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${r.L.status==='Não inaugurada'?' · <b>não inaugurada</b>':''}</small>`},
@@ -1080,22 +1107,12 @@ function renderCarga(){
     {h:'Qualidade',v:r=>-(r.custo0v+r.diversosPct),f:(v,r)=>{if(!r.temV&&!r.tem)return '';const t=[];if(r.custo0>0)t.push(`<span class="tag ${r.custo0>50?'no':'at'}" title="compras com custo zero">${r.custo0} c0</span>`);if(r.custo0v>0)t.push(`<span class="tag ${r.custo0v>3?'no':'at'}" title="% da venda de produto sem custo">${pctS(r.custo0v)} vc0</span>`);if(r.diversosPct>0)t.push(`<span class="tag ${r.diversosPct>3?'no':'nt'}" title="% da venda como DIVERSOS">${pctS(r.diversosPct)} div</span>`);return t.join(' ')||'<span class="tag ok">limpa</span>'}},
     {h:'',v:r=>r.u,f:(v,r)=>r.tem||r.temV?`<button class="btn g" data-sel="${esc(v)}">+ carregar</button> <button class="btn g" data-ren="${esc(v)}">Renomear</button> <button class="btn g" data-del="${esc(v)}" style="color:#B34A0B;border-color:#B34A0B">Remover</button>`:`<button class="btn g" data-sel="${esc(v)}">Selecionar</button>`}
   ],rows,{sort:0,asc:true});
-  $('#tbCarga').querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{$('#cBusca').value='';montarSelecaoLoja();$('#cUni').value=b.dataset.sel;$('#cArq').focus();window.scrollTo({top:0,behavior:'smooth'})});
+  $('#tbCarga').querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{$('#cgZona').scrollIntoView({behavior:'smooth',block:'center'});$('#cgArq').click()});
   $('#tbCarga').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
   $('#tbCarga').querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
 }
 $('#cVis').onchange=renderCarga;
-$('#cCarregar').onclick=async()=>{const uni=($('#cUni').value||'').trim();const files=[...$('#cArq').files];const log=$('#cLog');
-  if(!uni){log.innerHTML='<span style="color:#B34A0B">Selecione a unidade na lista.</span>';return}if(!files.length){log.innerHTML='<span style="color:#B34A0B">Selecione ao menos um arquivo CSV.</span>';return}
-  let loja=LJ[uni];
-  try{
-    if(!loja){if(!confirm(`"${uni}" não está no cadastro. Criar como nova loja?`))return;const {data,error}=await sb.from('lojas').insert({nome:uni,status:'Ativa'}).select().single();if(error)throw error;await carregarLojas();loja=LJID[data.id]}
-    let msgs=[],add=0,dup=0;
-    for(const f of files){try{const txt=await f.text();const ls=csvParaLinhas(txt,loja.key);const r=await enviarEntradas(loja,ls,f.name);add+=r.ins;dup+=r.dup;msgs.push(`✔ ${esc(f.name)}: ${r.ins} itens${r.dup?` (${r.dup} já existiam)`:''}`)}catch(e){msgs.push(`✖ ${esc(f.name)}: ${esc(e.message)}`)}}
-    $('#status').textContent='Recarregando '+loja.key+'…';await carregarLoja(loja);const {data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);$('#status').textContent='';
-    recompor();recomporVendas();montarFiltros(true);render();
-    log.innerHTML=msgs.join('<br>')+`<br><b>${add} itens gravados no banco</b> para ${esc(loja.key)}${dup?` · ${dup} duplicados ignorados`:''}.`;$('#cArq').value='';
-  }catch(e){$('#status').textContent='';sbErr(e,'Erro na carga')}};
+
 $('#cExp').onclick=()=>{const b=new Blob([JSON.stringify({acordos:ACORDOS,unidades:Object.values(UNIDADES).map(o=>({u:o.u,rows:o.rows}))})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='backup_painel_pop_'+new Date().toISOString().slice(0,10)+'.json';a.click()};
 $('#cImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const j=JSON.parse(r.result);let tot=0;
   for(const o of j.unidades||[]){let loja=LJ[o.u];if(!loja){const {data,error}=await sb.from('lojas').insert({nome:o.u,status:'Ativa'}).select().single();if(error)throw error;await carregarLojas();loja=LJID[data.id]}const rr=await enviarEntradas(loja,o.rows,'backup');tot+=rr.ins}
@@ -1188,18 +1205,8 @@ async function enviarVendas(loja,linhas,arquivo){
 async function salvarMestre(ean,campos){const rec={ean,...campos,atualizado_em:new Date().toISOString()};const {error}=await sb.from('produtos_mestre').upsert(rec,{onConflict:'ean'});if(error)throw error;MESTRE[ean]={...(MESTRE[ean]||{}),...rec}}
 
 /* ---- carga (UI) ---- */
-$('#vCarregar').onclick=async()=>{const files=[...$('#vArq').files];const log=$('#vLog');if(!files.length){log.innerHTML='<span style="color:#B34A0B">Selecione ao menos um arquivo do BI Global.</span>';return}
-  try{let msgs=[],add=0,dup=0;const tocadas=new Set();
-    for(const f of files){try{const txt=await f.text();const {linhas,filial}=biParaLinhas(txt);
-      let loja=lojaPorFilial(filial);const sel=($('#vUni').value||'').trim();if(sel&&LJ[sel]){if(loja&&loja.key!==sel&&!confirm(`O arquivo ${f.name} é da filial "${filial}" (${loja.key}), mas você selecionou ${sel}. Gravar em ${sel} mesmo assim?`))continue;loja=LJ[sel]}
-      if(!loja){msgs.push(`✖ ${esc(f.name)}: filial "${esc(filial)}" não encontrada no cadastro — selecione a loja manualmente.`);continue}
-      const r=await enviarVendas(loja,linhas,f.name);add+=r.ins;dup+=r.dup;tocadas.add(loja.key);msgs.push(`✔ ${esc(f.name)} → ${esc(loja.key)}: ${r.ins} linhas${r.dup?` (${r.dup} já existiam)`:''}`)}catch(e){msgs.push(`✖ ${esc(f.name)}: ${esc(e.message)}`)}}
-    for(const k of tocadas){$('#status').textContent='Recarregando '+k+'…';await carregarVendasLoja(LJ[k])}
-    await carregarVMes();const {data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);$('#status').textContent='';
-    recomporVendas();montarFiltros(true);render();
-    log.innerHTML=msgs.join('<br>')+`<br><b>${add} linhas de venda gravadas</b>${dup?` · ${dup} duplicadas ignoradas`:''}.`;$('#vArq').value='';
-  }catch(e){$('#status').textContent='';sbErr(e,'Erro na carga de vendas')}};
-function montarSelecaoLojaV(){const s=$('#vUni');s.innerHTML='<option value="">(detectar pela coluna Filial do arquivo)</option>'+LOJAS.map(l=>`<option value="${esc(l.key)}">${esc(l.key)} — ${esc(l.cidade)}/${esc(l.uf)}${VENDAS[l.key]?' ✔':''}</option>`).join('')}
+
+
 
 /* ---- filtros de vendas ---- */
 function vfiltrado(ignoreInst,ignoreMes){return VDATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(ignoreInst||F.inst==='1'||(F.inst==='0'?!r.inst:r.inst))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===normFab(F.fa))&&(!F.fo||r.fo===F.fo)&&(!F.q||r.p.toLowerCase().includes(F.q)||r.cod.includes(F.q)||r.ean.includes(F.q)))}
@@ -1508,7 +1515,7 @@ $('#qExpTudo').onclick=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentua
       li.addEventListener('dragover',e=>{e.preventDefault();ul.querySelectorAll('.over').forEach(x=>x.classList.remove('over'));li.classList.add('over')});
       li.addEventListener('drop',e=>{e.preventDefault();const alvo=li.dataset.id;if(!drag||drag===alvo)return;ordem.splice(ordem.indexOf(drag),1);ordem.splice(ordem.indexOf(alvo),0,drag);salvar();montar()});
     });}
-  $('#menuReset').onclick=()=>{ordem=[...ids];salvar();montar()};
+  {const mr=$('#menuReset');if(mr)mr.onclick=()=>{ordem=[...ids];salvar();montar()};}
   navBtns.forEach(b=>b.addEventListener('click',()=>setTimeout(montar,0)));
   montar();
 })();
@@ -1796,8 +1803,178 @@ async function processarUploadRecebidosIC(file){
   alert('✅ Receita recebida atualizada ('+registros.length+' registros)');
   await carregarFinanceiroIC();
 }
+/* ================================================================
+   CARGA UNIFICADA v2 — zona única + conferência (03/09/2026)
+================================================================ */
+let CG_FILAS=[]; // {id,file,tipo,periodo,lojaKey,lojaAuto,status,msg}
+let CG_SEQ=0;
+
+function cgTipoRotulo(t){return{entradas:'entradas',bi:'BI Global',faturamento:'faturamento',inadimplencia:'inadimplência',recebidos:'recebidos'}[t]||'?';}
+function cgTipoCor(t){return t==='entradas'?'background:#E6F1FB;color:#0C447C':t==='bi'?'background:#E1F5EE;color:#085041':'background:#FAEEDA;color:#633806';}
+function cgEhCsv(f){return /\.(csv|txt)$/i.test(f.name);}
+function cgMesLabel(m){if(!m)return'—';const N=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];const[a,b]=m.split('-');return N[+b-1]+'/'+a.slice(2);}
+
+/* ---- detecção de tipo pelo conteúdo ---- */
+async function cgDetectar(file){
+  const out={tipo:null,periodo:null,filialTxt:'',nLojas:0};
+  if(cgEhCsv(file)){
+    const txt=await file.text();
+    let rows;try{rows=parseCSV(txt);}catch(e){return out;}
+    if(!rows||rows.length<2)return out;
+    const hd=rows[0].map(norm);
+    const tem=(...alts)=>alts.some(a=>hd.some(h=>h===norm(a)||h.includes(norm(a))));
+    const ehBi=tem('N. Pedido','pedido')&&tem('Grupo Linha','Sub Grupo','Filial');
+    const ehEnt=tem('Numero da NF','NF')&&tem('Custo final','custo');
+    out.tipo=ehBi?'bi':ehEnt?'entradas':(tem('Data')&&tem('Produto')?'entradas':null);
+    // período + filial
+    const iData=hd.findIndex(h=>h==='data'||h.includes('data'));
+    const meses=new Set();
+    if(iData>=0)for(const r of rows.slice(1,4000)){
+      const s=String(r[iData]||'');const m=s.match(/(\d{2})\/(\d{2})\/(\d{4})/)||s.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if(m)meses.add(m[0].includes('/')?m[3]+'-'+m[2]:m[1]+'-'+m[2]);
+    }
+    const ms=[...meses].sort();
+    out.periodo=ms.length?(ms.length>1?cgMesLabel(ms[0])+'–'+cgMesLabel(ms[ms.length-1]):cgMesLabel(ms[0])):null;
+    if(out.tipo==='bi'){
+      const iF=hd.findIndex(h=>h.includes('filial'));
+      const fs=new Set();if(iF>=0)for(const r of rows.slice(1))if(r[iF])fs.add(String(r[iF]).trim());
+      out.nLojas=fs.size;out.filialTxt=[...fs][0]||'';
+    }
+    return out;
+  }
+  const t=await finSniffTipo(file);
+  if(t)out.tipo=t;
+  return out;
+}
+
+/* ---- palpite da loja pelo nome do arquivo ---- */
+function cgLojaPeloNome(nome){
+  const base=nome.replace(/\.[^.]+$/,'');
+  const mF=base.match(/(?:^|[^0-9])(?:fra?|fr)[\s_-]*0*(\d{1,3})(?:[^0-9]|$)/i);
+  if(mF){const l=LOJAS.find(x=>Number(x.fra)===Number(mF[1]));if(l)return l.key;}
+  const mN=base.match(/(?:^|[^0-9])0*(\d{1,3})(?:[^0-9]|$)/);
+  if(mN){const l=LOJAS.find(x=>Number(x.fra)===Number(mN[1]));if(l)return l.key;}
+  const n=norm(base);
+  let melhor=null,mx=0;
+  for(const l of LOJAS){const ln=norm(l.nome);if(ln.length<5)continue;if(n.includes(ln)&&ln.length>mx){mx=ln.length;melhor=l.key;}}
+  return melhor;
+}
+
+/* ---- receber arquivos ---- */
+async function cgReceber(files){
+  if(!files||!files.length)return;
+  const box=$('#cgConf');box.style.display='block';
+  $('#cgStatus').textContent='Lendo '+files.length+' arquivo(s)…';
+  for(const f of files){
+    const d=await cgDetectar(f);
+    const item={id:'f'+(++CG_SEQ),file:f,tipo:d.tipo,periodo:d.periodo,nLojas:d.nLojas,lojaKey:null,auto:false,status:'ok'};
+    if(d.tipo==='entradas'){const g=cgLojaPeloNome(f.name);if(g){item.lojaKey=g;item.auto=true;}}
+    if(!d.tipo)item.status='erro';
+    CG_FILAS.push(item);
+  }
+  $('#cgStatus').textContent='';
+  cgRender();
+}
+
+function cgPendencias(){return CG_FILAS.filter(i=>i.status!=='erro'&&i.tipo==='entradas'&&!i.lojaKey).length;}
+function cgProntos(){return CG_FILAS.filter(i=>i.status!=='erro'&&!(i.tipo==='entradas'&&!i.lojaKey));}
+
+function cgRender(){
+  const box=$('#cgConf');
+  if(!CG_FILAS.length){box.style.display='none';return;}
+  box.style.display='block';
+  const pend=cgPendencias(),prontos=cgProntos().length,erros=CG_FILAS.filter(i=>i.status==='erro').length;
+  $('#cgResumo').innerHTML=CG_FILAS.length+' arquivo(s) · '+prontos+' prontos'
+    +(pend?' · <span style="color:#B34A0B;font-weight:700">'+pend+' sem loja</span>':'')
+    +(erros?' · <span style="color:#B3241A;font-weight:700">'+erros+' não reconhecidos</span>':'');
+  const opts=LOJAS.filter(l=>l.status!=='Encerrada').sort((a,b)=>(+a.fra||9999)-(+b.fra||9999))
+    .map(l=>'<option value="'+esc(l.key)+'">').join('');
+  $('#cgDatalist').innerHTML=opts;
+  $('#cgTab').innerHTML='<table><thead><tr><th style="width:30%">Arquivo</th><th style="width:20%">Tipo</th><th style="width:13%">Período</th><th>Loja</th><th style="width:36px"></th></tr></thead><tbody>'
+    +CG_FILAS.map(i=>{
+      const erro=i.status==='erro';
+      const semLoja=!erro&&i.tipo==='entradas'&&!i.lojaKey;
+      const tipoCel=erro?'<span class="tag no">não reconhecido</span>'
+        :(i.tipo==='entradas'||i.tipo==='bi')
+          ?'<select data-tipo="'+i.id+'" style="width:100%;font-size:12px"><option value="entradas"'+(i.tipo==='entradas'?' selected':'')+'>entradas</option><option value="bi"'+(i.tipo==='bi'?' selected':'')+'>BI Global</option></select>'
+          :'<span class="tag" style="'+cgTipoCor(i.tipo)+'">'+cgTipoRotulo(i.tipo)+'</span>';
+      let lojaCel;
+      if(erro)lojaCel='<small style="color:var(--mu)">confira se é o arquivo certo</small>';
+      else if(i.tipo==='bi')lojaCel='<small style="color:var(--mu)">'+(i.nLojas>1?i.nLojas+' lojas, pela coluna Filial':'pela coluna Filial')+'</small>';
+      else if(i.tipo==='entradas')lojaCel='<input list="cgDatalist" data-loja="'+i.id+'" value="'+esc(i.lojaKey||'')+'" placeholder="digite FRA ou nome" style="width:100%;font-size:12px">'
+        +(i.auto&&i.lojaKey?' <small style="color:var(--vd)">pelo nome do arquivo</small>':'');
+      else lojaCel='<small style="color:var(--mu)">'+(i.tipo==='recebidos'?'pelo CNPJ':'rede inteira')+'</small>';
+      return '<tr'+(semLoja?' style="background:#FFF8EC"':erro?' style="background:#FDF0EF"':'')+'>'
+        +'<td><small>'+esc(i.file.name)+'</small></td><td>'+tipoCel+'</td>'
+        +'<td><small style="color:var(--mu)">'+(i.periodo||'—')+'</small></td>'
+        +'<td>'+lojaCel+'</td>'
+        +'<td><button class="btn g" data-rm="'+i.id+'" style="padding:2px 7px;font-size:11px" title="tirar da lista">✕</button></td></tr>';
+    }).join('')+'</tbody></table>';
+  $('#cgTab').querySelectorAll('[data-tipo]').forEach(s=>s.onchange=()=>{const i=CG_FILAS.find(x=>x.id===s.dataset.tipo);i.tipo=s.value;if(i.tipo==='entradas'&&!i.lojaKey){const g=cgLojaPeloNome(i.file.name);if(g){i.lojaKey=g;i.auto=true;}}cgRender();});
+  $('#cgTab').querySelectorAll('[data-loja]').forEach(inp=>inp.onchange=()=>{const i=CG_FILAS.find(x=>x.id===inp.dataset.loja);i.lojaKey=inp.value.trim()||null;i.auto=false;cgRender();});
+  $('#cgTab').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{CG_FILAS=CG_FILAS.filter(x=>x.id!==b.dataset.rm);cgRender();});
+  $('#cgGravar').textContent='Gravar '+prontos+' arquivo(s)';
+  $('#cgGravar').disabled=!prontos;
+  $('#cgNota').textContent=pend?'os '+pend+' sem loja ficam de fora':'';
+  $('#cgAplicar').style.display=pend?'flex':'none';
+}
+
+/* ---- gravar ---- */
+async function cgGravar(){
+  const fila=cgProntos();if(!fila.length)return;
+  const log=$('#cgLog');log.innerHTML='';
+  const msgs=[];let addE=0,dupE=0,addV=0,dupV=0;
+  const tocadasE=new Set(),tocadasV=new Set();
+  try{
+    for(const i of fila){
+      $('#cgStatus').textContent='Processando '+i.file.name+'…';
+      try{
+        if(i.tipo==='entradas'){
+          let loja=LJ[i.lojaKey];
+          if(!loja){msgs.push('✖ '+esc(i.file.name)+': loja "'+esc(i.lojaKey)+'" não está no cadastro');continue;}
+          const txt=await i.file.text();const ls=csvParaLinhas(txt,loja.key);
+          const r=await enviarEntradas(loja,ls,i.file.name);
+          addE+=r.ins;dupE+=r.dup;tocadasE.add(loja.key);
+          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' itens'+(r.dup?' ('+r.dup+' já existiam)':''));
+        }else if(i.tipo==='bi'){
+          const txt=await i.file.text();const{linhas,filial}=biParaLinhas(txt);
+          const loja=lojaPorFilial(filial);
+          if(!loja){msgs.push('✖ '+esc(i.file.name)+': filial "'+esc(filial)+'" não encontrada no cadastro');continue;}
+          const r=await enviarVendas(loja,linhas,i.file.name);
+          addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
+          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(r.dup?' ('+r.dup+' já existiam)':''));
+        }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
+        else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
+        else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
+      }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));}
+    }
+    for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';await carregarLoja(LJ[k]);}
+    for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';await carregarVendasLoja(LJ[k]);}
+    if(tocadasE.size){const{data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);}
+    if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);}
+    $('#cgStatus').textContent='';
+    recompor();recomporVendas();montarFiltros(true);render();
+    const ids=new Set(fila.map(f=>f.id));CG_FILAS=CG_FILAS.filter(i=>!ids.has(i.id));
+    cgRender();
+    log.innerHTML=msgs.join('<br>')+'<br><b>'+addE.toLocaleString('pt-BR')+' itens de compra</b> e <b>'+addV.toLocaleString('pt-BR')+' linhas de venda</b> gravados.'
+      +(dupE+dupV?' · '+(dupE+dupV).toLocaleString('pt-BR')+' duplicados ignorados.':'');
+  }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
-  const iAuto=document.getElementById('finUploadAuto'); if(iAuto)iAuto.onchange=ev=>{processarUploadFinanceiroIC([...ev.target.files]);ev.target.value='';};
+  const z=document.getElementById('cgZona'),inp=document.getElementById('cgArq');
+  if(z&&inp){
+    z.onclick=()=>inp.click();
+    inp.onchange=ev=>{cgReceber([...ev.target.files]);ev.target.value='';};
+    ['dragenter','dragover'].forEach(e=>z.addEventListener(e,ev=>{ev.preventDefault();z.classList.add('drag');}));
+    ['dragleave','drop'].forEach(e=>z.addEventListener(e,ev=>{ev.preventDefault();z.classList.remove('drag');}));
+    z.addEventListener('drop',ev=>{const fs=[...(ev.dataTransfer?.files||[])];if(fs.length)cgReceber(fs);});
+  }
+  const g=document.getElementById('cgGravar'); if(g)g.onclick=cgGravar;
+  const ap=document.getElementById('cgAplicaBtn');
+  if(ap)ap.onclick=()=>{const v=document.getElementById('cgAplicaLoja').value.trim();if(!v)return;CG_FILAS.forEach(i=>{if(i.status!=='erro'&&i.tipo==='entradas'&&!i.lojaKey){i.lojaKey=v;i.auto=false;}});document.getElementById('cgAplicaLoja').value='';cgRender();};
+  const cf=document.getElementById('cFiltro');
+  if(cf)cf.oninput=()=>{clearTimeout(window._cfT);window._cfT=setTimeout(renderCarga,250);};
   const irAba=id=>{const b=[...document.querySelectorAll('nav button')].find(x=>x.dataset.t===id);if(b)b.click();};
   const l1=document.getElementById('lkCargaFin'); if(l1)l1.onclick=ev=>{ev.preventDefault();irAba('carga');};
   const l2=document.getElementById('lkFinCarga'); if(l2)l2.onclick=ev=>{ev.preventDefault();irAba('financeiro');};
