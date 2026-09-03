@@ -188,6 +188,12 @@ body.tv #leiBar,body.tv #idx{display:none!important}body.tv main{padding-left:0}
 .qh:hover{background:var(--v);color:#fff}
 .kpi span .qh{width:15px;height:15px;font-size:9px;margin-left:4px}
 #fonteBar{background:#EAF4EF;border-bottom:1px solid var(--ln);padding:6px 28px;font-size:12px;color:var(--vd);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
+.fin-head{padding:2px 0 18px}
+.fin-head h2{font-size:19px;color:var(--vd);margin-bottom:2px}
+.fin-head p{font-size:12.5px;color:var(--mu)}
+.kpi .ic{font-size:17px;margin-right:4px}
+@media(max-width:700px){.fin-head{padding:2px 0 12px}.fin-head h2{font-size:16px}}
 #fonteBar b{font-weight:700}#fonteBar .lk{color:var(--v);cursor:pointer;text-decoration:underline;font-weight:700}
 #fonteBar .chip{background:#fff;border:1px solid var(--vc);border-radius:20px;padding:2px 10px}
 body.deslogado #fonteBar{visibility:hidden}body.tv #fonteBar{display:none!important}
@@ -352,6 +358,7 @@ body.filtrosOff .filters{display:none}
 </section>
 
 <section class="tab" id="t-financeiro">
+  <div class="fin-head"><h2>💰 Financeiro da rede</h2><p>Faturamento, inadimplência e receita recebida por loja · dados do Conta Azul e das planilhas mensais, restrito à administração.</p></div>
   <div class="kpis" id="kpisFin"></div>
   <div id="finRecordeBanner"></div>
   <div class="grid">
@@ -359,8 +366,9 @@ body.filtrosOff .filters{display:none}
     <div class="card"><h3>Receita recebida <small>Conta Azul · extrato financeiro</small></h3><div class="tw" id="finRecebTab"></div></div>
     <div class="card full"><h3>Inadimplência <small id="finInadMesRef">carregando…</small></h3><div class="tw" id="finInadTab"></div><div id="finInadNaoVinc"></div></div>
     <div class="card full"><h3>Atualizar dados <small>mesmos arquivos que já eram enviados no Central POP</small></h3>
+      <p class="note" style="margin-bottom:14px">💡 <b>Faturamento</b> agora é calculado automaticamente para as lojas que já têm <b>BI Global</b> carregado em "Unidades e carga de dados" (marcadas 🔗 na tabela acima) — não precisa mais subir a planilha manual pra elas. O upload de faturamento continua necessário só para as lojas ainda sem BI Global.</p>
       <div class="grid">
-        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px">Faturamento mensal (.xlsx)</label>
+        <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px">Faturamento mensal (.xlsx) <small style="text-transform:none;font-weight:500">— só p/ lojas sem BI Global</small></label>
           <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Atualizar faturamento<input type="file" accept=".xlsx" id="finUploadFat" style="display:none"></label></div>
         <div><label style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;display:block;margin-bottom:6px">Inadimplência (Conta Azul, .xlsx)</label>
           <label class="btn o" style="cursor:pointer;display:inline-block">⬆️ Atualizar inadimplência<input type="file" accept=".xlsx" id="finUploadInad" style="display:none"></label></div>
@@ -723,7 +731,7 @@ function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
 const LEI_SECS=['agir','visao','financeiro','precos','rebate','fornec','unid','mercado','itens'];
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on')});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro')});
 
 /* ---------- tabelas genéricas com ordenação ---------- */
 function tabela(el,cols,rows,opts={}){
@@ -1472,7 +1480,7 @@ $('#qExpTudo').onclick=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentua
   $('#btnMenu').onclick=abrir;$('#drawerBg').onclick=fechar;$('#drawerClose').onclick=fechar;document.addEventListener('keydown',e=>{if(e.key==='Escape')fechar()});
   function ativar(id){navBtns.find(b=>b.dataset.t===id).click();montar();fechar()}
   function mover(id,dir){const i=ordem.indexOf(id);const j=i+dir;if(j<0||j>=ordem.length)return;[ordem[i],ordem[j]]=[ordem[j],ordem[i]];salvar();montar()}
-  const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','precos','rebate','fornec','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
+  const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','financeiro','precos','rebate','fornec','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
   const ICO={agir:'🎯',tv:'📺',visao:'▦',precos:'↗',rebate:'%',fornec:'🤝',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
   const rotulo=id=>navBtns.find(x=>x.dataset.t===id).textContent.replace(/^[^\wÀ-ú]+/,'').replace(/^Painel executivo \(TV\)$/,'Painel executivo · TV').trim();
   function montar(){const lei=document.body.classList.contains('leitura');
@@ -1551,45 +1559,65 @@ function finDesenharKpis(infoFat,infoInad,infoReceb){
   const pctInad=faturamentoTotal?(inadVinculado/faturamentoTotal*100):null;
   const criticas=vinculadas.filter(c=>c.acima_180>0);
   const recebMesAtual=infoReceb.totalMesAtual||0;
-  const kv=(cls,rot,val,sub)=>`<div class="kpi ${cls}"><span>${rot}</span><b>${val}</b><i>${sub}</i></div>`;
+  const kv=(cls,ic,rot,val,sub)=>`<div class="kpi ${cls}"><span><span class="ic">${ic}</span>${rot}</span><b>${val}</b><i>${sub}</i></div>`;
   $('#kpisFin').innerHTML=
-    kv('','Faturamento da rede (mês)',finFmt(faturamentoTotal),(infoFat.mesLabel||'—')+(varTotalPct==null?'':' · '+(varTotalPct>=0?'▲ +':'▼ ')+varTotalPct+'%'))
-   +kv(varTotalPct!=null&&varTotalPct<0?'a':'o','Lojas com recorde no mês',String(recordistas.length),'histórico batido')
-   +kv('a','Inadimplência vinculada',finFmt(inadVinculado),(infoInad.mesLabel||'—')+' · '+fmt0(inadTotalGeral)+' no total')
-   +kv(pctInad!=null&&pctInad>=7?'a':'','% inadimplência s/ faturamento',pctInad==null?'—':pctInad.toFixed(1)+'%','saúde da rede')
-   +kv('z','Receita recebida (mês)',finFmt(recebMesAtual),(infoReceb.mesLabel||'—'))
-   +kv(criticas.length?'a':'','Lojas em risco crítico (+180d)',String(criticas.length),'atraso severo');
+    kv(varTotalPct!=null&&varTotalPct<0?'a':'','💵','Faturamento da rede (mês)',finFmt(faturamentoTotal),(infoFat.mesLabel||'—')+(varTotalPct==null?'':' · '+(varTotalPct>=0?'▲ +':'▼ ')+varTotalPct+'%'))
+   +kv(recordistas.length?'o':'','🏆','Lojas com recorde no mês',String(recordistas.length),'histórico batido')
+   +kv('a','⚠️','Inadimplência vinculada',finFmt(inadVinculado),(infoInad.mesLabel||'—')+' · '+fmt0(inadTotalGeral)+' no total')
+   +kv(pctInad!=null&&pctInad>=7?'a':'','📊','% inadimplência s/ faturamento',pctInad==null?'—':pctInad.toFixed(1)+'%','saúde da rede')
+   +kv('z','💰','Receita recebida (mês)',finFmt(recebMesAtual),(infoReceb.mesLabel||'—'))
+   +kv(criticas.length?'a':'','🔴','Lojas em risco crítico (+180d)',String(criticas.length),'atraso severo');
 }
 
+function finSerieFra(fra,porFraManual){
+  // uma série mês->valor por loja, priorizando o BI Global (Unidades e carga de dados)
+  // sobre o upload manual de Faturamento quando os dois existem pro mesmo mês
+  const hist={};
+  (porFraManual[fra]||[]).forEach(h=>{hist[h.mes_ano]={valor:Number(h.valor),fonte:'manual'};});
+  const l=lojaPorFra(fra);
+  if(l&&VMES[l.key]){
+    Object.keys(VMES[l.key]).forEach(mesYYYYMM=>{
+      const v=VMES[l.key][mesYYYYMM].venda;
+      if(v!=null)hist[mesYYYYMM+'-01']={valor:Number(v),fonte:'bi'};
+    });
+  }
+  return hist;
+}
 function finDesenharFaturamento(){
-  if(!FIN_FAT.length){
+  const porFraManual={};FIN_FAT.forEach(f=>{(porFraManual[f.fra]=porFraManual[f.fra]||[]).push(f);});
+  const frasBI=new Set(LOJAS.filter(l=>VMES[l.key]).map(l=>Number(l.fra)));
+  const todosFras=new Set([...Object.keys(porFraManual).map(Number),...frasBI]);
+  const todosMeses=new Set();
+  FIN_FAT.forEach(f=>todosMeses.add(f.mes_ano));
+  LOJAS.forEach(l=>{if(VMES[l.key])Object.keys(VMES[l.key]).forEach(m=>todosMeses.add(m+'-01'));});
+  if(!todosMeses.size){
     $('#finFatMesRef').textContent='Nenhum dado de faturamento carregado ainda.';
     $('#finFatTab').innerHTML='';$('#finRecordeBanner').innerHTML='';
     return{linhas:[],mesLabel:null};
   }
-  const mesAtualISO=FIN_FAT[0].mes_ano,mesAntISO=finMesAnterior(mesAtualISO);
-  $('#finFatMesRef').textContent='Mês de referência: '+finMesLabel(mesAtualISO)+' · '+new Set(FIN_FAT.map(f=>f.fra)).size+' lojas com histórico';
-  const porFra={};FIN_FAT.forEach(f=>{(porFra[f.fra]=porFra[f.fra]||[]).push(f);});
-  const meses12=[...new Set(FIN_FAT.map(f=>f.mes_ano))].sort((a,b)=>b.localeCompare(a)).slice(0,12);
-  const set12=new Set(meses12);
-  const linhas=Object.keys(porFra).map(fraStr=>{
-    const fra=Number(fraStr),hist=porFra[fra];
-    const atual=hist.find(h=>h.mes_ano===mesAtualISO),anterior=hist.find(h=>h.mes_ano===mesAntISO);
-    const recorde=hist.reduce((max,h)=>h.valor>(max?max.valor:-1)?h:max,null);
-    const bateuRecorde=!!(atual&&recorde&&recorde.mes_ano===mesAtualISO&&hist.length>1);
-    const total12m=hist.filter(h=>set12.has(h.mes_ano)).reduce((s,h)=>s+(h.valor||0),0);
+  const mesAtualISO=[...todosMeses].sort().slice(-1)[0],mesAntISO=finMesAnterior(mesAtualISO);
+  const meses12=[...todosMeses].sort((a,b)=>b.localeCompare(a)).slice(0,12),set12=new Set(meses12);
+  $('#finFatMesRef').textContent='Mês de referência: '+finMesLabel(mesAtualISO)+' · '+todosFras.size+' lojas com histórico · '+frasBI.size+' com BI Global automático';
+  const linhas=[...todosFras].map(fra=>{
+    const hist=finSerieFra(fra,porFraManual);
+    const entradas=Object.entries(hist); // [mes_ano,{valor,fonte}]
+    const atual=hist[mesAtualISO],anterior=hist[mesAntISO];
+    const recorde=entradas.reduce((max,[m,h])=>h.valor>(max?max.valor:-1)?{mes:m,...h}:max,null);
+    const bateuRecorde=!!(atual&&recorde&&recorde.mes===mesAtualISO&&entradas.length>1);
+    const total12m=entradas.filter(([m])=>set12.has(m)).reduce((s,[,h])=>s+(h.valor||0),0);
     const l=lojaPorFra(fra);
-    return{fra,nome:lojaNomeFra(fra),ativa:!l||l.status==='Ativa',valorAtual:atual?atual.valor:null,valorAnterior:anterior?anterior.valor:null,recordeValor:recorde?recorde.valor:null,recordeMes:recorde?recorde.mes_ano:null,bateuRecorde,total12m};
+    return{fra,nome:lojaNomeFra(fra),ativa:!l||l.status==='Ativa',valorAtual:atual?atual.valor:null,fonteAtual:atual?atual.fonte:null,valorAnterior:anterior?anterior.valor:null,recordeValor:recorde?recorde.valor:null,recordeMes:recorde?recorde.mes:null,bateuRecorde,total12m};
   }).filter(l=>l.ativa).sort((a,b)=>(b.valorAtual||0)-(a.valorAtual||0));
   const recordistas=linhas.filter(l=>l.bateuRecorde);
   $('#finRecordeBanner').innerHTML=recordistas.length
     ?'<div class="kpis"><div class="kpi o" style="grid-column:1/-1"><span>🏆 Recorde histórico em '+finMesLabel(mesAtualISO)+'</span><i style="display:block;margin-top:6px;line-height:1.6">'+recordistas.map(l=>'<b>'+esc(l.nome)+'</b> — '+finFmt(l.valorAtual)).join('<br>')+'</i></div></div>'
     :'';
-  $('#finFatTab').innerHTML='<table><thead><tr><th>FRA</th><th>Loja</th><th class="n">'+finMesLabel(mesAtualISO)+'</th><th class="n">vs. mês anterior</th><th class="n">Recorde histórico</th><th class="n">Total (12 meses)</th></tr></thead><tbody>'
+  $('#finFatTab').innerHTML='<table><thead><tr><th>FRA</th><th>Loja</th><th class="n">'+finMesLabel(mesAtualISO)+'</th><th class="n">vs. mês anterior</th><th class="n">Fonte</th><th class="n">Recorde histórico</th><th class="n">Total (12 meses)</th></tr></thead><tbody>'
     +linhas.map(l=>{
       const varPct=(l.valorAtual!=null&&l.valorAnterior)?Math.round((l.valorAtual-l.valorAnterior)/l.valorAnterior*100):null;
       const tag=l.bateuRecorde?'<span class="tag ok">🏆 recorde</span>':(varPct==null?'':'<span class="tag '+(varPct>=0?'dn':'up')+'">'+pct(varPct)+'</span>');
-      return'<tr><td>'+l.fra+'</td><td>'+esc(l.nome)+'</td><td class="n"><b>'+finFmt(l.valorAtual)+'</b></td><td class="n">'+tag+'</td><td class="n">'+finFmt(l.recordeValor)+(l.recordeMes?' <small style="color:var(--mu)">('+finMesLabel(l.recordeMes)+')</small>':'')+'</td><td class="n"><b>'+finFmt(l.total12m)+'</b></td></tr>';
+      const fonteTag=l.fonteAtual==='bi'?'<span class="tag ok" title="Calculado automaticamente do BI Global, não precisa de upload manual">🔗 BI Global</span>':l.fonteAtual==='manual'?'<span class="tag nt">✍️ upload manual</span>':'—';
+      return'<tr><td>'+l.fra+'</td><td>'+esc(l.nome)+'</td><td class="n"><b>'+finFmt(l.valorAtual)+'</b></td><td class="n">'+tag+'</td><td class="n">'+fonteTag+'</td><td class="n">'+finFmt(l.recordeValor)+(l.recordeMes?' <small style="color:var(--mu)">('+finMesLabel(l.recordeMes)+')</small>':'')+'</td><td class="n"><b>'+finFmt(l.total12m)+'</b></td></tr>';
     }).join('')+'</tbody></table>';
   return{linhas,mesLabel:finMesLabel(mesAtualISO)};
 }
@@ -1614,8 +1642,8 @@ function finDesenharInadimplencia(mapaLookup){
   const vinculadas=todas.filter(c=>c.fra),naoVinculadas=todas.filter(c=>!c.fra&&c.valor_vencido>0);
   const totalVinculado=vinculadas.reduce((s,c)=>s+c.valor_vencido,0),totalGeral=todas.reduce((s,c)=>s+c.valor_vencido,0);
   const maxCol={ate_30:Math.max(1,...todas.map(c=>c.ate_30)),d31_60:Math.max(1,...todas.map(c=>c.d31_60)),d61_90:Math.max(1,...todas.map(c=>c.d61_90)),d91_180:Math.max(1,...todas.map(c=>c.d91_180)),acima_180:Math.max(1,...todas.map(c=>c.acima_180))};
-  $('#finInadTab').innerHTML='<table><thead><tr><th>Loja</th><th class="n">Até 30d</th><th class="n">31-60d</th><th class="n">61-90d</th><th class="n">91-180d</th><th class="n">+180d</th><th class="n">Total vencido</th></tr></thead><tbody>'
-    +vinculadas.map(c=>'<tr><td>'+esc(c.nome)+'</td><td class="n" style="'+finHeat(c.ate_30,maxCol.ate_30)+'">'+finFmt(c.ate_30)+'</td><td class="n" style="'+finHeat(c.d31_60,maxCol.d31_60)+'">'+finFmt(c.d31_60)+'</td><td class="n" style="'+finHeat(c.d61_90,maxCol.d61_90)+'">'+finFmt(c.d61_90)+'</td><td class="n" style="'+finHeat(c.d91_180,maxCol.d91_180)+'">'+finFmt(c.d91_180)+'</td><td class="n" style="'+finHeat(c.acima_180,maxCol.acima_180)+'">'+finFmt(c.acima_180)+'</td><td class="n"><b>'+finFmt(c.valor_vencido)+'</b></td></tr>').join('')
+  $('#finInadTab').innerHTML='<table><thead><tr><th>Loja</th><th class="n">Total vencido</th><th class="n">+180d</th><th class="n">Até 30d</th><th class="n">31-60d</th><th class="n">61-90d</th><th class="n">91-180d</th></tr></thead><tbody>'
+    +vinculadas.map(c=>'<tr><td>'+esc(c.nome)+'</td><td class="n"><b>'+finFmt(c.valor_vencido)+'</b></td><td class="n" style="'+finHeat(c.acima_180,maxCol.acima_180)+'">'+finFmt(c.acima_180)+'</td><td class="n" style="'+finHeat(c.ate_30,maxCol.ate_30)+'">'+finFmt(c.ate_30)+'</td><td class="n" style="'+finHeat(c.d31_60,maxCol.d31_60)+'">'+finFmt(c.d31_60)+'</td><td class="n" style="'+finHeat(c.d61_90,maxCol.d61_90)+'">'+finFmt(c.d61_90)+'</td><td class="n" style="'+finHeat(c.d91_180,maxCol.d91_180)+'">'+finFmt(c.d91_180)+'</td></tr>').join('')
     +'</tbody></table>';
   if(naoVinculadas.length){
     const opcoes=LOJAS.filter(l=>l.status==='Ativa').sort((a,b)=>a.nome.localeCompare(b.nome)).map(l=>'<option value="'+l.fra+'">'+esc(l.nome)+' (FRA '+l.fra+')</option>').join('');
