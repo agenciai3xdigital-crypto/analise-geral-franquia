@@ -518,6 +518,7 @@ body.filtrosOff .filters{display:none}
     <div class="note" style="margin-top:4px">Relatório de entradas · BI Global · faturamento · inadimplência · recebidos<br>Pode soltar a pasta do mês inteira, de várias lojas de uma vez.</div>
     <input type="file" id="cgArq" accept=".csv,.txt,.xls,.xlsx" multiple style="display:none">
   </div>
+  <p class="note" id="cgDica" style="margin-top:8px;text-align:center">Depois de soltar, aparece a lista de conferência: cada arquivo com o <b>tipo</b> (entradas ⇄ BI Global, editável), o <b>período</b> e a <b>loja</b> — que você pode digitar ou corrigir. Nada é gravado antes de você confirmar.</p>
 
   <div class="card full" id="cgConf" style="display:none;margin-top:16px">
     <h3>Conferir antes de gravar <small id="cgResumo"></small></h3>
@@ -1070,6 +1071,10 @@ $('#uN').onchange=()=>renderUnid(filtrado());
 
 /* ---------- carga de dados ---------- */
 
+function ligarAcoesCarga(ctx){
+  ctx.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
+  ctx.querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
+}
 function renderCarga(){
   const ativas=LOJAS.filter(l=>l.status==='Ativa');const com=ativas.filter(l=>UNIDADES[l.key]).length;const fora=UNIS.filter(u=>!LJ[u]).length;
   $('#cResumo').textContent=`${UNIS.length} unidade(s) com dados · ${DATA.length.toLocaleString('pt-BR')} itens`;
@@ -1096,20 +1101,43 @@ function renderCarga(){
     .filter(r=>!fq||norm((r.L.fra||'')+' '+(r.L.nome||'')+' '+(r.L.cidade||'')+' '+(r.L.consultor||'')).includes(fq));
   tabela($('#tbCarga'),[
     {h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},
-    {h:'Unidade',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${r.L.status==='Não inaugurada'?' · <b>não inaugurada</b>':''}</small>`},
-    {h:'Compras',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">${r.mesesC} m</span><br><small style="color:var(--mu)">${mesLabel(r.iniC)}–${mesLabel(r.fimC)} · ${r.n.toLocaleString('pt-BR')} it · ${r.arqC} arq</small>`:'<span class="tag nt">—</span>'},
-    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>{const o=VENDAS[r.u];if(!o)return '<span class="tag nt">—</span>';return `<span class="tag ok">${r.mesesV} m</span><br><small style="color:var(--mu)">${mesLabel(r.iniV)}–${mesLabel(r.fimV)} · ${r.nv.toLocaleString('pt-BR')} li · ${r.arqV} arq</small>`}},
-    {h:'Alinhamento',v:r=>r.gap,f:(v,r)=>{if(!r.tem&&!r.temV)return '';const tags=[];if(r.tem&&r.temV&&r.fimC!==r.fimV)tags.push(`<span class="tag no" title="compras vão até ${r.fimC?mesLabel(r.fimC):'—'}, vendas até ${r.fimV?mesLabel(r.fimV):'—'}">desalinhado</span>`);if(r.tem&&!r.temV)tags.push('<span class="tag at">só compras</span>');if(!r.tem&&r.temV)tags.push('<span class="tag at">só vendas</span>');if(r.buracosC||r.buracosV)tags.push(`<span class="tag no" title="meses sem dados entre início e fim">${(r.buracosC||0)+(r.buracosV||0)} buraco(s)</span>`);return tags.join(' ')||'<span class="tag ok">ok</span>'}},
-    {h:'Comprado',n:1,v:r=>r.t,f:v=>v?fmt0(v):'—'},
-    {h:'Vendido',n:1,v:r=>r.tv,f:v=>v?fmt0(v):'—'},
-    {h:'V/C',n:1,v:r=>r.t?r.tv/r.t:-1,f:(v,r)=>v<0||!r.t||!r.tv?'—':`<span class="tag ${v<1?'no':v<1.3?'at':'ok'}">${v.toFixed(2).replace('.',',')}×</span>`},
-    {h:'Margem',n:1,v:r=>r.margem??-999,f:v=>v<-900?'—':`<span class="tag ${v<20?'no':v<32?'at':'ok'}">${pctS(v)}</span>`},
-    {h:'Qualidade',v:r=>-(r.custo0v+r.diversosPct),f:(v,r)=>{if(!r.temV&&!r.tem)return '';const t=[];if(r.custo0>0)t.push(`<span class="tag ${r.custo0>50?'no':'at'}" title="compras com custo zero">${r.custo0} c0</span>`);if(r.custo0v>0)t.push(`<span class="tag ${r.custo0v>3?'no':'at'}" title="% da venda de produto sem custo">${pctS(r.custo0v)} vc0</span>`);if(r.diversosPct>0)t.push(`<span class="tag ${r.diversosPct>3?'no':'nt'}" title="% da venda como DIVERSOS">${pctS(r.diversosPct)} div</span>`);return t.join(' ')||'<span class="tag ok">limpa</span>'}},
-    {h:'',v:r=>r.u,f:(v,r)=>r.tem||r.temV?`<button class="btn g" data-sel="${esc(v)}">+ carregar</button> <button class="btn g" data-ren="${esc(v)}">Renomear</button> <button class="btn g" data-del="${esc(v)}" style="color:#B34A0B;border-color:#B34A0B">Remover</button>`:`<button class="btn g" data-sel="${esc(v)}">Selecionar</button>`}
+    {h:'Loja',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade||'')}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}</small>`},
+    {h:'Compras',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">até ${mesLabel(r.fimC)}</span><br><small style="color:var(--mu)">${r.mesesC} m · ${r.n.toLocaleString('pt-BR')} it</small>`:'<span class="tag nt">—</span>'},
+    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>r.temV?`<span class="tag ok">até ${mesLabel(r.fimV)}</span><br><small style="color:var(--mu)">${r.mesesV} m</small>`:'<span class="tag nt">—</span>'},
+    {h:'',v:r=>r.u,f:(v,r)=>`<button class="btn g" data-sel="${esc(v)}" style="font-size:11px;padding:3px 9px">+ carregar</button>${r.tem||r.temV?` <button class="btn g" data-det="${esc(v)}" style="font-size:11px;padding:3px 9px">Detalhe</button>`:''}`}
   ],rows,{sort:0,asc:true});
+  const porU={};rows.forEach(r=>porU[r.u]=r);
+  $('#tbCarga').querySelectorAll('[data-det]').forEach(b=>b.onclick=()=>{
+    const tr=b.closest('tr'),prox=tr.nextElementSibling;
+    if(prox&&prox.classList.contains('cg-det')){prox.remove();b.textContent='Detalhe';return;}
+    const r=porU[b.dataset.det];if(!r)return;
+    const vc=r.t&&r.tv?(r.tv/r.t):null;
+    const q=[];
+    if(r.custo0>0)q.push(`<span class="tag ${r.custo0>50?'no':'at'}">${r.custo0} compras c/ custo 0</span>`);
+    if(r.custo0v>0)q.push(`<span class="tag ${r.custo0v>10?'no':'at'}">${pctS(r.custo0v)} vendas sem custo</span>`);
+    if(r.diversosPct>0)q.push(`<span class="tag ${r.diversosPct>10?'no':'at'}">${pctS(r.diversosPct)} fabricante DIVERSOS</span>`);
+    if(r.tem&&r.temV&&r.fimC!==r.fimV)q.push(`<span class="tag no">compras até ${mesLabel(r.fimC)}, vendas até ${mesLabel(r.fimV)}</span>`);
+    if(r.buracosC)q.push(`<span class="tag at">${r.buracosC} mês(es) sem compras no meio</span>`);
+    if(r.buracosV)q.push(`<span class="tag at">${r.buracosV} mês(es) sem vendas no meio</span>`);
+    const novo=document.createElement('tr');novo.className='cg-det';
+    novo.innerHTML=`<td colspan="5" style="background:var(--bg)">
+      <div style="display:flex;gap:22px;flex-wrap:wrap;font-size:12px;margin-bottom:${q.length?'8px':'0'}">
+        <div><b style="color:var(--mu);font-size:11px;text-transform:uppercase">Comprado</b><br>${r.t?fmt0(r.t):'—'}</div>
+        <div><b style="color:var(--mu);font-size:11px;text-transform:uppercase">Vendido</b><br>${r.tv?fmt0(r.tv):'—'}</div>
+        <div><b style="color:var(--mu);font-size:11px;text-transform:uppercase">V/C</b><br>${vc?`<span class="tag ${vc<1?'no':vc<1.3?'at':'ok'}">${vc.toFixed(2).replace('.',',')}×</span>`:'—'}</div>
+        <div><b style="color:var(--mu);font-size:11px;text-transform:uppercase">Margem</b><br>${r.margem==null?'—':`<span class="tag ${r.margem<20?'no':r.margem<32?'at':'ok'}">${pctS(r.margem)}</span>`}</div>
+        <div><b style="color:var(--mu);font-size:11px;text-transform:uppercase">Arquivos</b><br>${r.arqC} compras · ${r.arqV} vendas</div>
+      </div>
+      ${q.length?`<div style="display:flex;gap:6px;flex-wrap:wrap">${q.join('')}</div>`:''}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn g" data-ren="${esc(r.u)}" style="font-size:11px;padding:3px 9px">Renomear</button>
+        <button class="btn g" data-del="${esc(r.u)}" style="font-size:11px;padding:3px 9px;color:#B34A0B;border-color:#B34A0B">Remover dados</button>
+      </div></td>`;
+    tr.after(novo);b.textContent='Fechar';
+    ligarAcoesCarga(novo);
+  });
   $('#tbCarga').querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{$('#cgZona').scrollIntoView({behavior:'smooth',block:'center'});$('#cgArq').click()});
-  $('#tbCarga').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
-  $('#tbCarga').querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
+
 }
 $('#cVis').onchange=renderCarga;
 
@@ -1881,8 +1909,9 @@ function cgProntos(){return CG_FILAS.filter(i=>i.status!=='erro'&&!(i.tipo==='en
 
 function cgRender(){
   const box=$('#cgConf');
-  if(!CG_FILAS.length){box.style.display='none';return;}
-  box.style.display='block';
+  const dica=$('#cgDica');
+  if(!CG_FILAS.length){box.style.display='none';if(dica)dica.style.display='block';return;}
+  box.style.display='block';if(dica)dica.style.display='none';
   const pend=cgPendencias(),prontos=cgProntos().length,erros=CG_FILAS.filter(i=>i.status==='erro').length;
   $('#cgResumo').innerHTML=CG_FILAS.length+' arquivo(s) · '+prontos+' prontos'
     +(pend?' · <span style="color:#B34A0B;font-weight:700">'+pend+' sem loja</span>':'')
