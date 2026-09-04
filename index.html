@@ -23,6 +23,20 @@ header small{display:block;font-weight:500;opacity:.85;font-size:12px}
 @keyframes sinoPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,21,.55)}50%{box-shadow:0 0 0 7px rgba(255,107,21,0)}}
 #sinoN{position:absolute;top:-5px;right:-5px;background:#FDAE25;color:#14332A;font-size:10px;font-weight:800;min-width:17px;height:17px;line-height:17px;border-radius:9px;padding:0 4px}
 #sinoN:empty{display:none}
+#relBg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:70;display:none}
+#relBg.on{display:block}
+#relBox{position:fixed;top:4vh;left:50%;transform:translateX(-50%);width:min(880px,calc(100vw - 28px));max-height:92vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 22px 60px rgba(0,0,0,.32);z-index:71;display:none;padding:20px}
+#relBox.on{display:block}
+#relBox h3{margin:0;font-size:19px;color:var(--vd)}
+.relf{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin-top:12px}
+.relf .rt{font-weight:800;font-size:14px;color:var(--vd)}
+.relf .rs{font-size:12px;color:var(--mu);margin-top:2px}
+.relnum{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0 4px}
+.relnum div{font-size:12px;color:var(--mu)}
+.relnum b{display:block;font-size:19px;color:var(--tx);font-weight:800;line-height:1.2}
+.relav{margin-top:8px;font-size:12px;padding:8px 10px;border-radius:8px;background:#FFF6E8;border-left:3px solid var(--la)}
+.relav.ruim{background:#FDECEC;border-left-color:#C0392B}
+.relav.bom{background:#EAF6EF;border-left-color:var(--v)}
 body.deslogado #btnSino,body.tv #btnSino,body.tv #sinoBox,body.tv #sinoBg{display:none}
 #sinoBg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:none}
 #sinoBg.on{display:block}
@@ -333,8 +347,10 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.7 · marca→indústria→distribuidor</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.8 · relatório de carga</span></div></aside>
 <div id="sinoBg"></div>
+<div id="relBg"></div>
+<aside id="relBox"></aside>
 <aside id="sinoBox"></aside>
 <div id="status"></div>
 <div id="login"><div class="box"><h2>Inteligência Comercial · Rede Pop</h2><p class="note">Entre com o e-mail e senha criados pelo administrador. Você só precisa fazer isso uma vez por navegador.</p>
@@ -826,10 +842,24 @@ async function carregarTudo(){
 }
 async function enviarEntradas(loja,linhas,arquivo){
   const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,nf:r.nf,fornecedor:r.fo,fabricante:r.fa,cod_produto:r.cod,ean:r.ean||null,produto:r.p,categoria:r.cat,quantidade:r.q,custo:r.c,arquivo}));
+  // radiografia do arquivo, antes de gravar
+  const arq={meses:{},valor:0,zerados:0,qtdZero:0,fabricantes:new Set(),fornecedores:new Set(),nfs:new Set()};
+  linhas.forEach(r=>{const m=String(r.d||'').slice(0,7),v=(+r.q||0)*(+r.c||0);
+    const a=arq.meses[m]||(arq.meses[m]={n:0,valor:0});a.n++;a.valor+=v;arq.valor+=v;
+    if(v<=0)arq.zerados++;if(!(+r.q>0))arq.qtdZero++;
+    if(r.fa)arq.fabricantes.add(normFab(r.fa));if(r.fo)arq.fornecedores.add(normFab(r.fo));if(r.nf)arq.nfs.add(r.nf)});
   let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);
     const {data,error}=await sb.from('entradas').upsert(lote,{onConflict:'loja_id,data,nf,cod_produto,quantidade,custo',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;
     $('#status').textContent=`Enviando ${loja.key}: ${Math.min(i+1000,rows.length)}/${rows.length}…`}
-  $('#status').textContent='';return {ins,dup:rows.length-ins};
+  // o que de fato ficou gravado com o nome deste arquivo
+  let gravadas=[];
+  try{const g=await sb.from('entradas').select('data,total').eq('loja_id',loja.id).eq('arquivo',arquivo);
+      gravadas=g.data||[]}catch(e){}
+  const grav={};let gravValor=0;
+  gravadas.forEach(r=>{const m=String(r.data).slice(0,7);const a=grav[m]||(grav[m]={n:0,valor:0});a.n++;a.valor+=+r.total||0;gravValor+=+r.total||0});
+  $('#status').textContent='';
+  return {ins,dup:rows.length-ins,lidas:rows.length,arq,grav,gravValor,
+          fabricantes:arq.fabricantes.size,fornecedores:arq.fornecedores.size,nfs:arq.nfs.size};
 }
 
 let UNIDADES={};   // nome -> {u, rows}
@@ -1176,6 +1206,7 @@ function renderDistrib(){
   const ca=$('#ciAdd');if(ca)ca.onclick=async()=>{const n=$('#ciNome');
     if(await criarIndustria(n.value,$('#ciCnpj').value,$('#ciObs').value)){n.value='';$('#ciCnpj').value='';$('#ciObs').value=''}};
   const g=$('#sinoBg');if(g)g.onclick=fecharSino;
+  const rg=$('#relBg');if(rg)rg.onclick=fecharRel;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharSino()});})();
 /* ---------- acordos (persistência) ---------- */
 let ACORDOS=[];
@@ -2322,11 +2353,74 @@ function cgRender(){
   $('#cgAplicar').style.display=pend?'flex':'none';
 }
 
+/* ---- relatório da carga (pop-up) ---- */
+function relMes(m){const [a,b]=String(m).split('-');const N=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  return (N[+b-1]||b)+'/'+String(a).slice(2)}
+function abrirRelCarga(REL,tot){
+  const box=$('#relBox');if(!box)return;
+  const ent=REL.filter(r=>r.tipo==='entradas'),bi=REL.filter(r=>r.tipo==='bi'),err=REL.filter(r=>r.tipo==='erro');
+  const cartao=r=>{
+    const mesesArq=Object.keys(r.arq?.meses||{}).sort();
+    const linhasMes=mesesArq.map(m=>{
+      const a=r.arq.meses[m],g=(r.grav||{})[m];
+      const novo=g?g.n:0, jaTinha=a.n-novo;
+      return `<tr><td><b>${relMes(m)}</b></td>
+        <td style="text-align:right">${a.n.toLocaleString('pt-BR')}</td>
+        <td style="text-align:right;color:${novo?'var(--v)':'var(--mu)'};font-weight:${novo?'800':'400'}">${novo.toLocaleString('pt-BR')}</td>
+        <td style="text-align:right;color:var(--mu)">${jaTinha>0?jaTinha.toLocaleString('pt-BR'):'—'}</td>
+        <td style="text-align:right">${g&&g.valor?fmt0(g.valor):'—'}</td></tr>`}).join('');
+    const semNovo=mesesArq.filter(m=>!((r.grav||{})[m]||{}).n);
+    const avisos=[];
+    if(r.ins>0)avisos.push(`<div class="relav bom"><b>${r.ins.toLocaleString('pt-BR')} item(ns) novo(s)</b> gravado(s), somando ${fmt0(r.gravValor||0)}.</div>`);
+    if(semNovo.length)avisos.push(`<div class="relav">O arquivo também trazia <b>${semNovo.map(relMes).join(', ')}</b>, mas essas linhas já estavam no banco e foram ignoradas. Isso é o esperado quando o relatório é exportado com período sobreposto — nada foi duplicado, e o mês continua com o dado da carga anterior.</div>`);
+    if(!r.ins)avisos.push('<div class="relav ruim">Nenhuma linha nova. Este arquivo já tinha sido carregado por inteiro.</div>');
+    if(r.arq?.zerados)avisos.push(`<div class="relav">${r.arq.zerados} linha(s) com valor zero ou negativo (bonificação, brinde ou devolução). Entram no banco, mas não somam custo.</div>`);
+    if(r.arq?.qtdZero)avisos.push(`<div class="relav ruim">${r.arq.qtdZero} linha(s) com quantidade zerada — vale conferir no relatório de origem.</div>`);
+    return `<div class="relf">
+      <div class="rt">${esc(r.arquivo)}</div>
+      <div class="rs">${esc(r.loja)} · ${mesesArq.length?relMes(mesesArq[0])+' a '+relMes(mesesArq[mesesArq.length-1]):'sem período'} · ${r.nfs||0} NF(s) · ${r.fornecedores||0} fornecedor(es) · ${r.fabricantes||0} fabricante(s)</div>
+      <div class="relnum">
+        <div>lidas do arquivo<b>${(r.lidas||0).toLocaleString('pt-BR')}</b></div>
+        <div>gravadas agora<b style="color:var(--v)">${(r.ins||0).toLocaleString('pt-BR')}</b></div>
+        <div>já existiam<b style="color:var(--mu)">${(r.dup||0).toLocaleString('pt-BR')}</b></div>
+        <div>valor gravado<b>${fmt0(r.gravValor||0)}</b></div>
+      </div>
+      ${linhasMes?`<div class="tw"><table><thead><tr><th>Mês</th><th style="text-align:right">no arquivo</th><th style="text-align:right">gravadas</th><th style="text-align:right">já tinha</th><th style="text-align:right">valor</th></tr></thead><tbody>${linhasMes}</tbody></table></div>`:''}
+      ${avisos.join('')}</div>`};
+  const nm=tot.novasMarcas||[];
+  box.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+      <h3 style="flex:1">Relatório da carga</h3>
+      <button class="btn g" id="relCopy" style="padding:6px 11px;font-size:12px">Copiar resumo</button>
+      <button class="btn o" id="relX" style="padding:6px 13px;font-size:13px">Fechar</button></div>
+    <p class="note">O painel nunca sobrescreve: linha que já existe é ignorada. Por isso "gravadas" costuma ser menor que "lidas" quando o relatório vem com período sobreposto.</p>
+    <div class="relnum" style="margin-top:14px">
+      <div>itens de compra<b style="color:var(--v)">${tot.addE.toLocaleString('pt-BR')}</b></div>
+      <div>linhas de venda<b style="color:var(--v)">${tot.addV.toLocaleString('pt-BR')}</b></div>
+      <div>repetidas ignoradas<b style="color:var(--mu)">${(tot.dupE+tot.dupV).toLocaleString('pt-BR')}</b></div>
+      <div>arquivos<b>${REL.length}</b></div></div>
+    ${err.map(e=>`<div class="relf"><div class="rt">${esc(e.arquivo)}</div><div class="relav ruim">${esc(e.erro)}</div></div>`).join('')}
+    ${ent.map(cartao).join('')}
+    ${bi.map(r=>`<div class="relf"><div class="rt">${esc(r.arquivo)}</div><div class="rs">${esc(r.loja)} · BI Global</div>
+      <div class="relnum"><div>lidas<b>${(r.lidas||0).toLocaleString('pt-BR')}</b></div>
+      <div>gravadas<b style="color:var(--v)">${(r.ins||0).toLocaleString('pt-BR')}</b></div>
+      <div>já existiam<b style="color:var(--mu)">${(r.dup||0).toLocaleString('pt-BR')}</b></div></div></div>`).join('')}
+    ${nm.length?`<div class="relf"><div class="rt">🔔 ${nm.length} marca(s) nova(s) sem indústria</div>
+      <div class="rs">Entraram por esta carga e ainda não estão relacionadas. Sem indústria, não somam no card de indústrias nem no rebate.</div>
+      <div style="margin-top:8px;font-size:13px">${nm.slice(0,20).map(r=>`<b>${esc(r.exemplo||r.rotulo)}</b> <span style="color:var(--mu)">${fmt0(+r.relevancia||0)}${r.pct_racao>=50?' · ração':''}</span>`).join(' · ')}</div>
+      <div style="margin-top:10px"><a id="relParam" style="color:var(--v);font-weight:700;cursor:pointer;text-decoration:underline">Abrir Parametrização de marcas →</a></div></div>`:''}`;
+  box.classList.add('on');$('#relBg').classList.add('on');
+  $('#relX').onclick=fecharRel;
+  $('#relCopy').onclick=()=>{navigator.clipboard.writeText(box.innerText).then(()=>{$('#relCopy').textContent='copiado ✓'})};
+  const lp=$('#relParam');if(lp)lp.onclick=()=>{fecharRel();const nb=document.querySelector('nav button[data-t="param"]');if(nb&&!document.body.classList.contains('leitura'))nb.click();setTimeout(()=>irPara('param'),60)};
+}
+function fecharRel(){$('#relBox').classList.remove('on');$('#relBg').classList.remove('on')}
+
 /* ---- gravar ---- */
 async function cgGravar(){
   const fila=cgProntos();if(!fila.length)return;
   const log=$('#cgLog');log.innerHTML='';
-  const msgs=[];let addE=0,dupE=0,addV=0,dupV=0;
+  const msgs=[];let addE=0,dupE=0,addV=0,dupV=0;const REL=[];
+  const pendAntes=new Set(ROT_PEND.map(r=>r.rotulo));
   const tocadasE=new Set(),tocadasV=new Set();
   try{
     for(const i of fila){
@@ -2338,6 +2432,7 @@ async function cgGravar(){
           const txt=await i.file.text();const ls=csvParaLinhas(txt,loja.key);
           const r=await enviarEntradas(loja,ls,i.file.name);
           addE+=r.ins;dupE+=r.dup;tocadasE.add(loja.key);
+          REL.push({tipo:'entradas',arquivo:i.file.name,loja:loja.key,...r});
           msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' itens'+(r.dup?' ('+r.dup+' já existiam)':''));
         }else if(i.tipo==='bi'){
           const txt=await i.file.text();const{linhas,filial}=biParaLinhas(txt);
@@ -2345,11 +2440,12 @@ async function cgGravar(){
           if(!loja){msgs.push('✖ '+esc(i.file.name)+': filial "'+esc(filial)+'" não encontrada no cadastro');continue;}
           const r=await enviarVendas(loja,linhas,i.file.name);
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
+          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
           msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(r.dup?' ('+r.dup+' já existiam)':''));
         }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
-      }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));}
+      }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));REL.push({tipo:'erro',arquivo:i.file.name,erro:e.message||String(e)});}
     }
     for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';await carregarLoja(LJ[k]);}
     for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';await carregarVendasLoja(LJ[k]);}
@@ -2361,6 +2457,9 @@ async function cgGravar(){
     cgRender();
     log.innerHTML=msgs.join('<br>')+'<br><b>'+addE.toLocaleString('pt-BR')+' itens de compra</b> e <b>'+addV.toLocaleString('pt-BR')+' linhas de venda</b> gravados.'
       +(dupE+dupV?' · '+(dupE+dupV).toLocaleString('pt-BR')+' duplicados ignorados.':'');
+    try{await carregarMarcas()}catch(e){}
+    const novasMarcas=ROT_PEND.filter(r=>!pendAntes.has(r.rotulo));
+    if(REL.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
   }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
 }
 
