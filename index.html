@@ -353,7 +353,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.17 · boot paralelo</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.18 · correção de paginação</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -836,9 +836,15 @@ async function emParalelo(itens,limite,tarefa){
   if(erros.length)throw erros[0];
 }
 async function carregarLoja(l){
-  const rows=[];let apos=0;const lim=25000;
+  // O servidor tem teto próprio de linhas por resposta (menor que o p_limit pedido).
+  // Por isso a única parada segura é "veio página vazia" — nunca "veio menos que pedi".
+  const rows=[];let apos=0;const lim=10000;let voltas=0;
   while(true){const {data,error}=await sb.rpc('entradas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
-    data.forEach(r=>rows.push(mapRow(r,l.key)));if(data.length<lim)break;apos=data[data.length-1].id;$('#status').textContent=`Carregando ${l.key}: ${rows.length.toLocaleString('pt-BR')} itens…`}
+    if(!data||!data.length)break;
+    data.forEach(r=>rows.push(mapRow(r,l.key)));
+    apos=data[data.length-1].id;
+    $('#status').textContent=`Carregando ${l.key}: ${rows.length.toLocaleString('pt-BR')} itens…`;
+    if(++voltas>200)break}
   rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
   UNIDADES[l.key]={u:l.key,id:l.id,rows,arqs:[...new Set(rows.map(r=>r.arq).filter(Boolean))]};
 }
@@ -1668,9 +1674,13 @@ async function carregarMestre(){const {data,error}=await sb.from('produtos_mestr
 /* FASE 2: as vendas chegam AGREGADAS por loja × mês × produto (tabela vendas_mes_sku), 4× menos linhas que o BI Global bruto.
    Cada linha traz n (linhas originais), np (pedidos distintos), nc0/tc0 (linhas e valor sem custo), nneg/pneg (venda abaixo do custo) e inst (regra composta calculada no banco). */
 const mapV=(r,key)=>({u:key,d:r.primeira||(r.mes+'-01'),m:r.mes,ped:'',seq:0,cod:r.cod_produto,ean:r.ean||'',p:r.produto,gr:r.grupo||'',sg:r.subgrupo||'',faL:normFab(r.fabricante_loja),fo:r.fornecedor||'',tipo:r.tipo||'Produto',bal:!!r.balanca,q:+r.qtd,pb:0,pl:0,t:+r.total,c:+r.custo,l:+r.lucro,cc:'',cl:'',ba:'',ve:'',n:+r.n||1,np:+r.pedidos||0,instS:!!r.inst,nc0:+r.n_custo0||0,tc0:+r.total_custo0||0,nneg:+r.n_neg||0,pneg:+r.perda_neg||0,ult:r.ultima||''});
-async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=25000;
+async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=10000;let voltas=0;
   while(true){const {data,error}=await sb.rpc('vendas_agg_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
-    data.forEach(r=>rows.push(mapV(r,l.key)));if(!data.length)break;apos=data[data.length-1].id;$('#status').textContent=`Carregando vendas ${l.key}: ${rows.length.toLocaleString('pt-BR')} produtos-mês…`;if(data.length<lim)break}
+    if(!data||!data.length)break;
+    data.forEach(r=>rows.push(mapV(r,l.key)));
+    apos=data[data.length-1].id;
+    $('#status').textContent=`Carregando vendas ${l.key}: ${rows.length.toLocaleString('pt-BR')} produtos-mês…`;
+    if(++voltas>200)break}
   rows.sort((a,b)=>a.m<b.m?-1:a.m>b.m?1:0);
   VENDAS[l.key]={u:l.key,id:l.id,rows}}
 let VMES={};   // loja -> mês -> resumo (pedidos, clientes, venda, identificação) da tabela vendas_mes_loja
