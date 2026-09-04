@@ -353,7 +353,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.19 · conferência banco × painel</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.21 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -641,11 +641,6 @@ body.filtrosOff .filters{display:none}
   <h3 style="margin:22px 0 10px;font-size:15px;color:var(--vd)">Cobertura da rede <small id="cResumo" style="font-weight:400"></small></h3>
   <div class="kpis" id="kpisCarga" style="margin-bottom:14px"></div>
 
-  <div class="card full" id="cardConf" style="margin-bottom:16px">
-    <h3>Conferência banco × painel <small id="confResumo"></small>
-      <button class="btn g" id="btnConf" style="float:right;padding:5px 11px;font-size:12px">Conferir agora</button></h3>
-    <p class="note">Compara, loja por loja, o que está gravado no banco com o que o painel carregou na memória. Se divergir, algum número na tela está errado — e aqui você vê qual e quanto.</p>
-    <div class="tw" id="tbConf"></div>
   </div>
 
   <div class="card full">
@@ -657,6 +652,12 @@ body.filtrosOff .filters{display:none}
   </div>
 
   <details class="cg-manut">
+  <div class="card full" id="cardConf" style="margin-bottom:16px">
+    <h3>Conferência banco × painel <small id="confResumo"></small>
+      <button class="btn g" id="btnConf" style="float:right;padding:5px 11px;font-size:12px">Conferir agora</button></h3>
+    <p class="note">Compara, loja por loja, o que está gravado no banco com o que o painel carregou na memória. Se divergir, algum número na tela está errado — e aqui você vê qual e quanto.</p>
+    <div class="tw" id="tbConf"></div>
+
     <summary>Preferências e manutenção <span class="note" style="margin:0">ordem do menu · backup · apagar tudo</span></summary>
     <div style="margin-top:14px">
       <h3 style="font-size:14px;color:var(--vd);margin-bottom:8px">Ordem do menu <small style="font-weight:400">arraste ou use as setas · vale para este navegador</small></h3>
@@ -1935,7 +1936,7 @@ function renderTV(){
   const chart=`<svg viewBox="0 0 ${W} ${H}" width="100%">${ult12.map((m,i)=>{const hv=(H-40)*serieV[i]/mx,hc=(H-40)*serieC[i]/mx;const x=pl+i*bw;return `<rect x="${x+bw*.12}" y="${H-30-hv}" width="${bw*.36}" height="${hv}" rx="3" fill="#00573F"/><rect x="${x+bw*.52}" y="${H-30-hc}" width="${bw*.36}" height="${hc}" rx="3" fill="#D3DED8"/><text x="${x+bw/2}" y="${H-12}" font-size="12" text-anchor="middle" fill="#5E6F69">${mesLabel(m)}</text><text x="${x+bw*.3}" y="${H-34-hv}" font-size="10" text-anchor="middle" fill="#5E6F69">${Math.round(serieV[i]/1000)}k</text>`}).join('')}</svg>`;
 
   el.innerHTML=`
-   <div class="tvhead"><h2>Rede Pop Pet Center <small>painel executivo · ${mv?mesNome(mv):''}</small></h2><span class="clock" id="tvClock">${new Date().toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</span></div>
+   <div class="tvhead"><h2>Rede Pop Pet Center <small>painel executivo · ${mv?mesNome(mv):''}</small></h2><span class="clock" id="tvClock">${TV.erro?`<span style="color:#FDAE25">⚠ sem atualizar há ${TV.erro} ciclo(s)</span> · `:''}${new Date().toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</span></div>
    <div class="tvcov"><span><b style="color:var(--vd)">${comDados}</b>/${ativas} lojas ativas com dados · <b style="color:var(--vd)">${emDia}</b> em dia</span>${covHtml}<span style="margin-left:auto">* mês parcial · vermelho = atrasada</span></div>
    <div class="tvkpis">
     ${card('o','Vendas · '+(mv?mesNome(mv):'—'),fmtK(vendaMes),`<i>${dvA.html} vs mês anterior</i><i>${dvY.html} vs ${mv?mesLabel(mesAnoAnt(mv)):''}</i><i>${lojasV} loja(s) · base ${dvA.n}/${dvY.n}</i>`)}
