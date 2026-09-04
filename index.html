@@ -353,7 +353,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.18 · correção de paginação</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.19 · conferência banco × painel</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -641,6 +641,13 @@ body.filtrosOff .filters{display:none}
   <h3 style="margin:22px 0 10px;font-size:15px;color:var(--vd)">Cobertura da rede <small id="cResumo" style="font-weight:400"></small></h3>
   <div class="kpis" id="kpisCarga" style="margin-bottom:14px"></div>
 
+  <div class="card full" id="cardConf" style="margin-bottom:16px">
+    <h3>Conferência banco × painel <small id="confResumo"></small>
+      <button class="btn g" id="btnConf" style="float:right;padding:5px 11px;font-size:12px">Conferir agora</button></h3>
+    <p class="note">Compara, loja por loja, o que está gravado no banco com o que o painel carregou na memória. Se divergir, algum número na tela está errado — e aqui você vê qual e quanto.</p>
+    <div class="tw" id="tbConf"></div>
+  </div>
+
   <div class="card full">
     <div class="filters" style="padding:0 0 12px;border:none;background:none">
       <div style="flex:1;min-width:180px"><label>Filtrar</label><input id="cFiltro" placeholder="FRA, nome ou cidade"></div>
@@ -860,6 +867,7 @@ async function carregarTudo(){
     await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
     await carregarVendasTodas();$('#status').textContent='';recompor();recomporVendas();montarFiltros();renderAcordos();render();
     carregarFinanceiroIC().catch(e=>console.error('financeiro',e));
+    conferir().catch(e=>console.warn('conferencia',e));
     LOADER.fechar();
   }catch(e){LOADER.fechar();$('#status').textContent='';sbErr(e,/entradas_lote2|vendas_lote2|function/i.test(e.message||'')?'Erro ao carregar: rode o script supabase_fix_timeout.sql no SQL Editor do Supabase':'Erro ao carregar do Supabase')}
 }
@@ -1264,6 +1272,7 @@ function renderDistrib(){
   const ca=$('#ciAdd');if(ca)ca.onclick=async()=>{const n=$('#ciNome');
     if(await criarIndustria(n.value,$('#ciCnpj').value,$('#ciObs').value)){n.value='';$('#ciCnpj').value='';$('#ciObs').value=''}};
   const g=$('#sinoBg');if(g)g.onclick=fecharSino;
+  const bc=$('#btnConf');if(bc)bc.onclick=()=>conferir();
   const rg=$('#relBg');if(rg)rg.onclick=fecharRel;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharSino()});})();
 /* ---------- acordos (persistência) ---------- */
@@ -1533,6 +1542,73 @@ $('#uN').onchange=()=>renderUnid(filtrado());
 function ligarAcoesCarga(ctx){
   ctx.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
   ctx.querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
+}
+/* ---------- conferência banco × memória ----------
+   Existe porque erro de paginação/leitura é silencioso: a tela mostra um número
+   menor e parece certo. Aqui o banco é a verdade e a memória é a suspeita.      */
+let CONF=[];
+async function conferir(){
+  const btn=$('#btnConf');if(btn){btn.textContent='conferindo…';btn.disabled=true}
+  try{
+    const {data,error}=await sb.rpc('conferencia_carga');
+    if(error)throw error;
+    const porLoja={};
+    (data||[]).forEach(r=>{(porLoja[r.loja_id]=porLoja[r.loja_id]||{})[r.fonte]=r});
+    CONF=[];
+    LOJAS.forEach(l=>{
+      const b=porLoja[l.id];if(!b)return;
+      const memC=UNIDADES[l.key],memV=VENDAS[l.key];
+      const bc=b.compras,bv=b.vendas;
+      if(bc){
+        const na=memC?memC.rows.length:null;
+        const va=memC?sum(memC.rows,r=>r.t):null;
+        const ma=memC?new Set(memC.rows.map(r=>r.m)).size:null;
+        CONF.push({loja:l.key,fonte:'compras',carregada:!!memC,
+          banco:+bc.linhas,mem:na,bancoV:+bc.total,memV:va,
+          bancoM:+bc.meses,memM:ma,fim:bc.mes_fim});
+      }
+      if(bv){
+        const na=memV?memV.rows.length:null;
+        const va=memV?sum(memV.rows,r=>r.t):null;
+        const ma=memV?new Set(memV.rows.map(r=>r.m)).size:null;
+        CONF.push({loja:l.key,fonte:'vendas',carregada:!!memV,
+          banco:+bv.linhas,mem:na,bancoV:+bv.total,memV:va,
+          bancoM:+bv.meses,memM:ma,fim:bv.mes_fim});
+      }
+    });
+  }catch(e){alert('Não consegui conferir: '+(e.message||e))}
+  if(btn){btn.textContent='Conferir agora';btn.disabled=false}
+  renderConferencia();
+}
+function renderConferencia(){
+  const el=$('#tbConf');if(!el)return;
+  if(!CONF.length){el.innerHTML='<p class="note" style="padding:12px 0">Clique em <b>Conferir agora</b> para comparar o banco com o que está na tela.</p>';
+    const r=$('#confResumo');if(r)r.textContent='';return}
+  const carregadas=CONF.filter(c=>c.carregada);
+  const ruins=carregadas.filter(c=>c.banco!==c.mem||Math.abs(c.bancoV-c.memV)>1||c.bancoM!==c.memM);
+  const naoCarreg=CONF.filter(c=>!c.carregada).length;
+  const lin=c=>{
+    const ok=c.banco===c.mem&&Math.abs(c.bancoV-c.memV)<=1&&c.bancoM===c.memM;
+    const falta=c.banco-c.mem;
+    return `<tr>
+      <td><b>${esc(c.loja)}</b><br><small style="color:var(--mu)">${c.fonte}</small></td>
+      <td>${!c.carregada?'<span class="tag nt">não carregada</span>':ok?'<span class="tag ok">confere</span>':'<span class="tag no">divergente</span>'}</td>
+      <td style="text-align:right">${c.banco.toLocaleString('pt-BR')}</td>
+      <td style="text-align:right">${c.mem==null?'—':c.mem.toLocaleString('pt-BR')}</td>
+      <td style="text-align:right;font-weight:${falta&&c.carregada?'800':'400'};color:${falta&&c.carregada?'#C0392B':'var(--mu)'}">${!c.carregada?'—':falta?(falta>0?'faltam '+falta.toLocaleString('pt-BR'):'sobram '+(-falta).toLocaleString('pt-BR')):'0'}</td>
+      <td style="text-align:right">${fmt0(c.bancoV)}</td>
+      <td style="text-align:right">${c.memV==null?'—':fmt0(c.memV)}</td>
+      <td style="text-align:right">${c.bancoM}${c.carregada&&c.memM!==c.bancoM?` <span style="color:#C0392B;font-weight:800">≠ ${c.memM}</span>`:''}</td>
+      <td>${esc(c.fim||'')}</td></tr>`};
+  const ordem=[...CONF].sort((a,b)=>{
+    const pa=(!a.carregada?2:(a.banco!==a.mem?0:1)),pb=(!b.carregada?2:(b.banco!==b.mem?0:1));
+    return pa-pb||a.loja.localeCompare(b.loja)});
+  el.innerHTML=`<table><thead><tr><th>Loja</th><th>Situação</th><th style="text-align:right">no banco</th><th style="text-align:right">no painel</th><th style="text-align:right">diferença</th><th style="text-align:right">valor banco</th><th style="text-align:right">valor painel</th><th style="text-align:right">meses</th><th>até</th></tr></thead>
+    <tbody>${ordem.map(lin).join('')}</tbody></table>`;
+  const r=$('#confResumo');
+  if(r)r.innerHTML=ruins.length
+    ? `<span style="color:#C0392B;font-weight:800">${ruins.length} divergência(s)</span> em ${carregadas.length} conferida(s)${naoCarreg?` · ${naoCarreg} não carregada(s)`:''}`
+    : `${carregadas.length} conferida(s), tudo batendo${naoCarreg?` · ${naoCarreg} não carregada(s)`:''}`;
 }
 function renderCarga(){
   // conta pelo BANCO (RESUMO/RESUMO_V), não pelo que está na memória do navegador.
