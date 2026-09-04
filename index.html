@@ -333,7 +333,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.3 · marca→indústria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.5 · marca→indústria</span></div></aside>
 <div id="sinoBg"></div>
 <aside id="sinoBox"></aside>
 <div id="status"></div>
@@ -486,6 +486,7 @@ body.filtrosOff .filters{display:none}
   <div class="card full">
     <h3>Parametrização de marcas <small>rótulo que vem dos arquivos das lojas → marca canônica → indústria</small></h3>
     <p class="note">Os rótulos abaixo vêm sozinhos do <b>relatório de entradas</b> e do <b>BI Global</b>: nada aqui altera esses dados, é só uma camada de leitura por cima. Toda vez que uma loja sobe um arquivo com um fabricante novo, ele aparece aqui como pendente. Digite a indústria e clique em Relacionar. A <b>marca canônica</b> só precisa ser preenchida quando o rótulo da loja for variação de grafia de uma marca que já existe.</p>
+    <p class="note"><b>Quando vale pesquisar a indústria:</b> só quando <u>várias marcas pertencem ao mesmo dono</u> — é isso que muda a leitura (ex.: Fórmula Natural + Magnus + BomGuy = Adimax). Fabricante pequeno cujo nome da marca é o nome da empresa não ganha nada em ser pesquisado: use o botão <b>"É a própria"</b> e siga em frente.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:12px 0">
       <div><label class="note">Buscar</label><input id="pmBusca" placeholder="rótulo, marca ou indústria" style="min-width:200px"></div>
       <div><label class="note">Mostrar</label><select id="pmFiltro" style="min-width:190px">
@@ -498,9 +499,15 @@ body.filtrosOff .filters{display:none}
         <option value="0">Qualquer</option><option value="1000">R$ 1 mil</option>
         <option value="5000" selected>R$ 5 mil</option><option value="20000">R$ 20 mil</option></select></div>
       <button class="btn g" id="pmSync">Revarrer arquivos</button>
+      <button class="btn" id="pmLote" style="display:none">É a própria indústria</button>
       <span class="note" id="pmResumo" style="margin-left:auto"></span>
     </div>
     <div class="tw" id="pmTab"></div>
+  </div>
+  <div class="card full">
+    <h3>Integridade do cruzamento <small>o que está furado entre rótulo, marca, indústria e acordo</small></h3>
+    <div class="tw" id="pmInteg"></div>
+    <p class="note">Enquanto houver linha aqui, algum valor de compra ou venda está ficando de fora da leitura por indústria ou do cálculo de rebate.</p>
   </div>
   <div class="card full">
     <h3>Indústrias cadastradas <small>quem é dona de quais marcas</small></h3>
@@ -698,7 +705,7 @@ $('#lEntrar').onclick=async()=>{try{
   try{localStorage.setItem('pop_email',$('#lEmail').value.trim())}catch(x){}USER=data.user;hideLogin();await carregarTudo();
  }catch(e){console.error(e);$('#lMsg').textContent='Erro: '+(e.message||e)+(/fetch/i.test(e.message||'')?' — confira a URL do projeto.':'')}};
 ['#lEmail','#lSenha','#lUrl','#lKey'].forEach(s=>$(s).addEventListener('keydown',e=>{if(e.key==='Enter')$('#lEntrar').click()}));
-function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
+function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];INTEG=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
   Object.assign(F,{de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''});$('#fBusca').value='';$('#hUser').textContent='—';$('#status').textContent='';
   montarFiltros();renderAcordos();render();document.body.classList.add('deslogado')}
 $('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
@@ -903,7 +910,7 @@ const kgLinha=r=>{const k=pesoKg(r);return k==null?null:k*r.q};
 /* MARCAMAP: rótulo cru normalizado -> {marca, industria}. Alimentado pela tabela
    marca_rotulos, que por sua vez recebe automaticamente todo rótulo novo que
    entra pelos arquivos das lojas (trigger sync_rotulos no banco).             */
-let MARCAMAP={},ROT_PEND=[],ROT_REV=[],ROT_PARAM=[],MARCAS_CAD=[],INDUSTRIAS_CAD=[];
+let MARCAMAP={},ROT_PEND=[],ROT_REV=[],ROT_PARAM=[],MARCAS_CAD=[],INDUSTRIAS_CAD=[],INTEG=[];
 /* o sininho só avisa marca de ração relevante: o resto vive na aba Parametrização */
 const SINO_MIN=5000,SINO_RACAO=50;
 const rotRacao=r=>r.pct_racao>=SINO_RACAO&&r.relevancia>=SINO_MIN;
@@ -913,17 +920,18 @@ const industriaCanon=fa=>{const m=MARCAMAP[rotNorm(fa)];return (m&&m.industria)|
 const semRelacao=fa=>{const n=rotNorm(fa);return !!n&&!(MARCAMAP[n]||{}).marca};
 async function carregarMarcas(){
   MARCAMAP={};ROT_PEND=[];ROT_REV=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];
-  const [mp,pd,mc,ind]=await Promise.all([
+  const [mp,pd,mc,ind,ig]=await Promise.all([
     sb.from('v_marca_mapa').select('rotulo,exemplo,marca,industria,confianca,status'),
     sb.from('v_rotulos_param').select('*'),
     sb.from('marcas').select('id,nome,industria_id').order('nome'),
-    sb.from('industrias').select('id,nome').order('nome')]);
+    sb.from('industrias').select('id,nome').order('nome'),
+    sb.from('v_integridade_marca').select('*')]);
   if(mp.error){console.warn('marca_mapa',mp.error.message);return}
   (mp.data||[]).forEach(r=>{MARCAMAP[r.rotulo]={marca:r.marca,industria:r.industria,conf:r.confianca,st:r.status}});
   ROT_PARAM=(pd.data||[]).sort((a,b)=>b.relevancia-a.relevancia);
   ROT_PEND=ROT_PARAM.filter(r=>r.status==='pendente'&&r.relevancia>0);
   ROT_REV=ROT_PARAM.filter(r=>r.status==='mapeado'&&r.confianca==='revisar');
-  MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];
+  MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];INTEG=ig.data||[];
   renderSino();renderParam();
 }
 async function sincronizarRotulos(){const {error}=await sb.rpc('sync_rotulos');if(error)throw error;await carregarMarcas()}
@@ -931,12 +939,32 @@ async function relacionarRotulo(rotulo,industria,marca){
   industria=(industria||'').trim().toUpperCase();if(!industria)return alert('Informe a indústria.');
   marca=((marca||'').trim()||rotulo).toUpperCase();
   let i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(industria));
-  if(!i){const r=await sb.from('industrias').insert({nome:industria}).select('id,nome').single();if(r.error)return alert('Indústria: '+r.error.message);i=r.data}
+  if(!i){const r=await sb.from('industrias').insert({nome:industria}).select('id,nome').single();
+    if(r.error)return alert(r.error.code==='23505'?`Já existe uma indústria com nome equivalente a "${industria}" (acentos e pontuação são ignorados na comparação). Escolha-a na lista em vez de criar outra.`:'Indústria: '+r.error.message);i=r.data}
   let m=MARCAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(marca));
-  if(!m){const r=await sb.from('marcas').insert({nome:marca,industria_id:i.id}).select('id,nome').single();if(r.error)return alert('Marca: '+r.error.message);m=r.data}
+  if(!m){const r=await sb.from('marcas').insert({nome:marca,industria_id:i.id}).select('id,nome').single();
+    if(r.error)return alert(r.error.code==='23505'?`A marca "${marca}" já existe e pertence a outra indústria. Uma marca só pode ter um dono: ou você escolhe a indústria já cadastrada, ou dá um nome distinto (ex.: "${marca} ${industria}").`:'Marca: '+r.error.message);m=r.data}
   else if(m.industria_id!==i.id){await sb.from('marcas').update({industria_id:i.id}).eq('id',m.id)}
   const u=await sb.from('marca_rotulos').update({marca_id:m.id,confianca:'ok'}).eq('rotulo',rotulo);
   if(u.error)return alert(u.error.message);
+  await carregarMarcas();render();
+}
+async function proprioRotulo(rotulos){
+  const lista=Array.isArray(rotulos)?rotulos:[rotulos];
+  if(!lista.length)return;
+  const alvo=lista.map(r=>ROT_PARAM.find(x=>x.rotulo===r)).filter(Boolean);
+  const nomes=[...new Set(alvo.map(r=>(r.exemplo||r.rotulo).toUpperCase().trim()))];
+  const faltaI=nomes.filter(n=>!INDUSTRIAS_CAD.some(x=>rotNorm(x.nome)===rotNorm(n)));
+  if(faltaI.length){const r=await sb.from('industrias').insert(faltaI.map(n=>({nome:n}))).select('id,nome');
+    if(r.error)return alert('Indústria: '+r.error.message);INDUSTRIAS_CAD=INDUSTRIAS_CAD.concat(r.data)}
+  const faltaM=nomes.filter(n=>!MARCAS_CAD.some(x=>rotNorm(x.nome)===rotNorm(n)));
+  if(faltaM.length){const r=await sb.from('marcas').insert(faltaM.map(n=>({nome:n,
+      industria_id:INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(n)).id}))).select('id,nome,industria_id');
+    if(r.error)return alert('Marca: '+r.error.message);MARCAS_CAD=MARCAS_CAD.concat(r.data)}
+  for(const r of alvo){const nome=(r.exemplo||r.rotulo).toUpperCase().trim();
+    const m=MARCAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(nome));if(!m)continue;
+    const u=await sb.from('marca_rotulos').update({marca_id:m.id,confianca:'ok'}).eq('rotulo',r.rotulo);
+    if(u.error){alert(u.error.message);break}}
   await carregarMarcas();render();
 }
 async function ignorarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({status:'ignorado'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
@@ -1002,6 +1030,7 @@ function renderParam(){
    <td><input list="dlIndP" data-pind="${esc(r.rotulo)}" value="${esc(r.industria||'')}" placeholder="indústria" style="min-width:150px"></td>
    <td><input list="dlMarP" data-pmar="${esc(r.rotulo)}" value="${esc(r.marca||'')}" placeholder="= o próprio rótulo" style="min-width:150px"></td>
    <td style="white-space:nowrap"><button class="btn o" data-prel="${esc(r.rotulo)}" style="padding:5px 10px;font-size:12px">Salvar</button>
+   ${r.status==='pendente'?`<button class="btn" data-pprop="${esc(r.rotulo)}" style="padding:5px 8px;font-size:11px" title="a marca é a própria indústria (fabricante sem marca-mãe)">É a própria</button>`:''}
    ${r.status==='mapeado'&&r.confianca==='revisar'?`<button class="btn" data-pok="${esc(r.rotulo)}" style="padding:5px 8px;font-size:11px">Confirmar</button>`:''}
    <button class="btn g" data-pign="${esc(r.rotulo)}" style="padding:5px 8px;font-size:11px" title="não é marca / não interessa">Ignorar</button></td></tr>`;
   tb.innerHTML=dl+`<table><thead><tr><th>Rótulo do arquivo</th><th style="text-align:right">Valor 12 m</th><th style="text-align:right">% ração</th><th>Situação</th><th>Indústria</th><th>Marca canônica</th><th></th></tr></thead>
@@ -1010,8 +1039,19 @@ function renderParam(){
   tb.querySelectorAll('[data-prel]').forEach(b=>b.onclick=()=>relacionarRotulo(b.dataset.prel,v('pind',b.dataset.prel),v('pmar',b.dataset.prel)));
   tb.querySelectorAll('[data-pok]').forEach(b=>b.onclick=()=>confirmarRotulo(b.dataset.pok));
   tb.querySelectorAll('[data-pign]').forEach(b=>b.onclick=()=>ignorarRotulo(b.dataset.pign));
+  tb.querySelectorAll('[data-pprop]').forEach(b=>b.onclick=()=>proprioRotulo(b.dataset.pprop));
+  const lote=$('#pmLote');
+  if(lote){const pend=rows.filter(r=>r.status==='pendente');
+    lote.style.display=pend.length?'':'none';lote.textContent=`É a própria indústria · ${pend.length} linha(s)`;
+    lote.onclick=async()=>{if(!confirm(`Criar ${pend.length} indústria(s) com o próprio nome do rótulo e relacionar cada marca a ela?\n\nUse quando o fabricante não pertence a um grupo maior. Dá para corrigir depois.`))return;
+      lote.textContent='aplicando…';await proprioRotulo(pend.map(r=>r.rotulo))}}
   const pendR=ROT_PEND.filter(r=>r.pct_racao>=SINO_RACAO).length;
   const el=$('#pmResumo');if(el)el.innerHTML=`${rows.length} linha(s) no filtro · <b>${pendR}</b> pendente(s) de ração · ${ROT_PEND.length} pendente(s) no total · ${ROT_REV.length} a confirmar`;
+  const ig=$('#pmInteg');
+  if(ig)ig.innerHTML=INTEG.length
+    ?`<table><thead><tr><th>Problema</th><th>Item</th><th>Detalhe</th><th style="text-align:right">Valor 12 m</th></tr></thead><tbody>
+      ${INTEG.slice(0,60).map(x=>`<tr><td><span class="tag ${/acordo/.test(x.problema)?'no':'at'}">${esc(x.problema)}</span></td><td><b>${esc(x.item||'')}</b></td><td><small>${esc(x.detalhe||'')}</small></td><td style="text-align:right">${+x.valor_12m?fmt0(+x.valor_12m):'—'}</td></tr>`).join('')}</tbody></table>`
+    :'<p class="note" style="padding:14px 0">Nenhuma inconsistência. Todo rótulo com peso está ligado a uma indústria e todo acordo aponta para a indústria certa.</p>';
   // indústrias × marcas
   const pi=$('#pmInd');if(pi){
     const porInd=new Map();MARCAS_CAD.forEach(m=>{const i=INDUSTRIAS_CAD.find(x=>x.id===m.industria_id);const k=i?i.nome:'(sem indústria)';
