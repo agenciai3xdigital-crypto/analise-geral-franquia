@@ -353,7 +353,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.11 · relatório + progresso de carga</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.13 · carga em lote</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -863,9 +863,10 @@ async function enviarEntradas(loja,linhas,arquivo){
     const a=arq.meses[m]||(arq.meses[m]={n:0,valor:0});a.n++;a.valor+=v;arq.valor+=v;
     if(v<=0)arq.zerados++;if(!(+r.q>0))arq.qtdZero++;
     if(r.fa)arq.fabricantes.add(normFab(r.fa));if(r.fo)arq.fornecedores.add(normFab(r.fo));if(r.nf)arq.nfs.add(r.nf)});
-  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);
+  const LOTE=2500;
+  let ins=0;for(let i=0;i<rows.length;i+=LOTE){const lote=rows.slice(i,i+LOTE);
     const {data,error}=await sb.from('entradas').upsert(lote,{onConflict:'loja_id,data,nf,cod_produto,quantidade,custo',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;
-    const feito=Math.min(i+1000,rows.length);
+    const feito=Math.min(i+LOTE,rows.length);
     $('#status').textContent=`Enviando ${loja.key}: ${feito}/${rows.length}…`;
     PROG.set(PROG._tit||('Enviando '+loja.key),`${feito.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas`,PROG._base+(PROG._fatia||0)*feito/rows.length);
     await respira()}
@@ -1008,7 +1009,7 @@ async function carregarMarcas(){
   MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];INTEG=ig.data||[];IND_DIST=(idi.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);DIST_MARCA=(dm.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);
   renderSino();renderParam();renderDistrib();
 }
-async function sincronizarRotulos(){const {error}=await sb.rpc('sync_rotulos');if(error)throw error;await carregarMarcas()}
+async function sincronizarRotulos(){const {error}=await sb.rpc('sync_rotulos_admin');if(error)throw error;await carregarMarcas()}
 async function relacionarRotulo(rotulo,industria,marca){
   industria=(industria||'').trim().toUpperCase();if(!industria)return alert('Informe a indústria.');
   marca=((marca||'').trim()||rotulo).toUpperCase();
@@ -2453,15 +2454,18 @@ async function cgGravar(){
   const tocadasE=new Set(),tocadasV=new Set();
   try{
     PROG.abrir();let _n=0;const _tot=fila.length;
-    for(const i of fila){
-      _n++;PROG._base=100*(_n-1)/_tot;PROG._fatia=100/_tot;
-      PROG._tit=`Arquivo ${_n} de ${_tot} · ${i.file.name}`;
-      PROG.set(PROG._tit,'lendo o arquivo…',PROG._base);await respira();
+    const LOTEAO=fila.length>=6;const PAR=LOTEAO?3:1;
+    const processar=async i=>{
+      _n++;const meu=_n;
+      PROG._tit=`Arquivo ${meu} de ${_tot} · ${i.file.name}`;
+      if(!LOTEAO){PROG._base=100*(meu-1)/_tot;PROG._fatia=100/_tot}
+      else{PROG._base=100*(_n-1)/_tot;PROG._fatia=0}
+      PROG.set(PROG._tit,'lendo o arquivo…',100*(_n-1)/_tot);await respira();
       $('#cgStatus').textContent='Processando '+i.file.name+'…';
       try{
         if(i.tipo==='entradas'){
           let loja=LJ[i.lojaKey];
-          if(!loja){msgs.push('✖ '+esc(i.file.name)+': loja "'+esc(i.lojaKey)+'" não está no cadastro');continue;}
+          if(!loja){msgs.push('✖ '+esc(i.file.name)+': loja "'+esc(i.lojaKey)+'" não está no cadastro');return;}
           const txt=await i.file.text();const ls=csvParaLinhas(txt,loja.key);
           const r=await enviarEntradas(loja,ls,i.file.name);
           addE+=r.ins;dupE+=r.dup;tocadasE.add(loja.key);
@@ -2470,7 +2474,7 @@ async function cgGravar(){
         }else if(i.tipo==='bi'){
           const txt=await i.file.text();const{linhas,filial}=biParaLinhas(txt);
           const loja=lojaPorFilial(filial);
-          if(!loja){msgs.push('✖ '+esc(i.file.name)+': filial "'+esc(filial)+'" não encontrada no cadastro');continue;}
+          if(!loja){msgs.push('✖ '+esc(i.file.name)+': filial "'+esc(filial)+'" não encontrada no cadastro');return;}
           const r=await enviarVendas(loja,linhas,i.file.name);
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
           REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
@@ -2479,11 +2483,19 @@ async function cgGravar(){
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
       }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));REL.push({tipo:'erro',arquivo:i.file.name,erro:e.message||String(e)});}
-    }
+    };
+    let cursor=0;
+    await Promise.all(Array.from({length:Math.min(PAR,fila.length)},async()=>{
+      while(cursor<fila.length)await processar(fila[cursor++]);
+    }));
     PROG._fatia=0;PROG._base=100;
-    for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';PROG.set('Recarregando compras · '+k,'',100);await respira();await carregarLoja(LJ[k]);}
-    for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';PROG.set('Recarregando vendas · '+k,'',100);await respira();await carregarVendasLoja(LJ[k]);}
+    const puxar=!LOTEAO&&tocadasE.size<=3;
+    if(puxar){
+      for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';PROG.set('Recarregando compras · '+k,'',100);await respira();await carregarLoja(LJ[k]);}
+      for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';PROG.set('Recarregando vendas · '+k,'',100);await respira();await carregarVendasLoja(LJ[k]);}
+    }else{PROG.set('Atualizando o resumo da rede','sem trazer os itens para a memória',100);await respira();}
     if(tocadasE.size){const{data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);}
+    if(!puxar)msgs.push('<i>Carga em lote: '+tocadasE.size+' loja(s) gravadas. Os itens não foram trazidos para a memória — use "+ carregar" na aba de cobertura para abrir a loja que quiser analisar.</i>');
     if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);}
     $('#cgStatus').textContent='';
     recompor();recomporVendas();montarFiltros(true);render();
