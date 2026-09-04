@@ -25,6 +25,12 @@ header small{display:block;font-weight:500;opacity:.85;font-size:12px}
 #sinoN:empty{display:none}
 #relBg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:70;display:none}
 #relBg.on{display:block}
+#cgProg{position:fixed;left:0;right:0;bottom:0;z-index:80;background:var(--vd);color:#fff;padding:10px 16px;display:none;box-shadow:0 -6px 22px rgba(0,0,0,.25)}
+#cgProg.on{display:block}
+#cgProg .l{display:flex;gap:12px;align-items:center;font-size:13px;font-weight:600}
+#cgProg .l span:last-child{margin-left:auto;font-variant-numeric:tabular-nums}
+#cgProg .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.22);margin-top:7px;overflow:hidden}
+#cgProg .bar i{display:block;height:100%;background:var(--la);width:0;transition:width .25s ease}
 #relBox{position:fixed;top:4vh;left:50%;transform:translateX(-50%);width:min(880px,calc(100vw - 28px));max-height:92vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 22px 60px rgba(0,0,0,.32);z-index:71;display:none;padding:20px}
 #relBox.on{display:block}
 #relBox h3{margin:0;font-size:19px;color:var(--vd)}
@@ -347,9 +353,10 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.8 · relatório de carga</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.11 · relatório + progresso de carga</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
+<div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
 <aside id="relBox"></aside>
 <aside id="sinoBox"></aside>
 <div id="status"></div>
@@ -841,7 +848,15 @@ async function carregarTudo(){
   }catch(e){LOADER.fechar();$('#status').textContent='';sbErr(e,/entradas_lote2|vendas_lote2|function/i.test(e.message||'')?'Erro ao carregar: rode o script supabase_fix_timeout.sql no SQL Editor do Supabase':'Erro ao carregar do Supabase')}
 }
 async function enviarEntradas(loja,linhas,arquivo){
-  const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,nf:r.nf,fornecedor:r.fo,fabricante:r.fa,cod_produto:r.cod,ean:r.ean||null,produto:r.p,categoria:r.cat,quantidade:r.q,custo:r.c,arquivo}));
+  // Linha idêntica dentro da mesma NF é descartada pela chave única (decisão de 04/09/2026:
+  // em dados antigos do OnePet isso é defeito de exportação, não compra real).
+  // Contamos as ocorrências só para avisar no relatório de carga.
+  const vistos={};
+  const rows=linhas.map(r=>{
+    const k=[r.d,r.nf,r.cod,r.q,r.c].join('|');
+    vistos[k]=(vistos[k]||0)+1;
+    return {loja_id:loja.id,data:r.d,nf:r.nf,fornecedor:r.fo,fabricante:r.fa,cod_produto:r.cod,ean:r.ean||null,produto:r.p,categoria:r.cat,quantidade:r.q,custo:r.c,arquivo}});
+  const repetidas=Object.values(vistos).reduce((t,n)=>t+(n>1?n-1:0),0);
   // radiografia do arquivo, antes de gravar
   const arq={meses:{},valor:0,zerados:0,qtdZero:0,fabricantes:new Set(),fornecedores:new Set(),nfs:new Set()};
   linhas.forEach(r=>{const m=String(r.d||'').slice(0,7),v=(+r.q||0)*(+r.c||0);
@@ -850,7 +865,11 @@ async function enviarEntradas(loja,linhas,arquivo){
     if(r.fa)arq.fabricantes.add(normFab(r.fa));if(r.fo)arq.fornecedores.add(normFab(r.fo));if(r.nf)arq.nfs.add(r.nf)});
   let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);
     const {data,error}=await sb.from('entradas').upsert(lote,{onConflict:'loja_id,data,nf,cod_produto,quantidade,custo',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;
-    $('#status').textContent=`Enviando ${loja.key}: ${Math.min(i+1000,rows.length)}/${rows.length}…`}
+    const feito=Math.min(i+1000,rows.length);
+    $('#status').textContent=`Enviando ${loja.key}: ${feito}/${rows.length}…`;
+    PROG.set(PROG._tit||('Enviando '+loja.key),`${feito.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas`,PROG._base+(PROG._fatia||0)*feito/rows.length);
+    await respira()}
+  PROG.set(PROG._tit||'Conferindo…','conferindo o que foi gravado…');
   // o que de fato ficou gravado com o nome deste arquivo
   let gravadas=[];
   try{const g=await sb.from('entradas').select('data,total').eq('loja_id',loja.id).eq('arquivo',arquivo);
@@ -858,7 +877,7 @@ async function enviarEntradas(loja,linhas,arquivo){
   const grav={};let gravValor=0;
   gravadas.forEach(r=>{const m=String(r.data).slice(0,7);const a=grav[m]||(grav[m]={n:0,valor:0});a.n++;a.valor+=+r.total||0;gravValor+=+r.total||0});
   $('#status').textContent='';
-  return {ins,dup:rows.length-ins,lidas:rows.length,arq,grav,gravValor,
+  return {ins,dup:rows.length-ins,lidas:rows.length,arq,grav,gravValor,repetidas,
           fabricantes:arq.fabricantes.size,fornecedores:arq.fornecedores.size,nfs:arq.nfs.size};
 }
 
@@ -1628,7 +1647,8 @@ async function carregarVendasTodas(){
 function recomporVendas(){VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
 async function enviarVendas(loja,linhas,arquivo){
   const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,pedido:r.ped,seq:r.seq,cod_produto:r.cod,ean:r.ean||null,produto:r.p,grupo:r.gr||null,subgrupo:r.sg||null,fabricante_loja:r.faL||null,fornecedor:r.fo||null,tipo:r.tipo,balanca:r.bal,qtd:r.q,preco_bruto:r.pb,preco_liq:r.pl,total:r.t,custo:r.c,lucro:r.l,cliente_cod:r.cc||null,cliente:r.cl||null,bairro:r.ba||null,vendedor:r.ve||null,arquivo}));
-  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;$('#status').textContent=`Enviando vendas ${loja.key}: ${Math.min(i+1000,rows.length)}/${rows.length}…`}
+  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
+    PROG.set(PROG._tit||('Enviando vendas '+loja.key),`${feito.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas`,PROG._base+(PROG._fatia||0)*feito/rows.length);await respira()}
   $('#status').textContent='Atualizando resumos de '+loja.key+'…';const rf=await sb.rpc('refresh_vendas_agg',{p_loja:loja.id});if(rf.error)throw rf.error;
   $('#status').textContent='';return {ins,dup:rows.length-ins}}
 async function salvarMestre(ean,campos){const rec={ean,...campos,atualizado_em:new Date().toISOString()};const {error}=await sb.from('produtos_mestre').upsert(rec,{onConflict:'ean'});if(error)throw error;MESTRE[ean]={...(MESTRE[ean]||{}),...rec}}
@@ -2376,6 +2396,7 @@ function abrirRelCarga(REL,tot){
     if(!r.ins)avisos.push('<div class="relav ruim">Nenhuma linha nova. Este arquivo já tinha sido carregado por inteiro.</div>');
     if(r.arq?.zerados)avisos.push(`<div class="relav">${r.arq.zerados} linha(s) com valor zero ou negativo (bonificação, brinde ou devolução). Entram no banco, mas não somam custo.</div>`);
     if(r.arq?.qtdZero)avisos.push(`<div class="relav ruim">${r.arq.qtdZero} linha(s) com quantidade zerada — vale conferir no relatório de origem.</div>`);
+    if(r.repetidas)avisos.push(`<div class="relav ruim"><b>Conferir:</b> ${r.repetidas} linha(s) idêntica(s) dentro da mesma NF — mesmo produto, mesma quantidade, mesmo custo. Em dados antigos do OnePet isso costuma ser defeito de exportação, não compra real. Abra a NF no ERP e compare o valor total antes de confiar neste número.</div>`);
     return `<div class="relf">
       <div class="rt">${esc(r.arquivo)}</div>
       <div class="rs">${esc(r.loja)} · ${mesesArq.length?relMes(mesesArq[0])+' a '+relMes(mesesArq[mesesArq.length-1]):'sem período'} · ${r.nfs||0} NF(s) · ${r.fornecedores||0} fornecedor(es) · ${r.fabricantes||0} fabricante(s)</div>
@@ -2414,6 +2435,14 @@ function abrirRelCarga(REL,tot){
   const lp=$('#relParam');if(lp)lp.onclick=()=>{fecharRel();const nb=document.querySelector('nav button[data-t="param"]');if(nb&&!document.body.classList.contains('leitura'))nb.click();setTimeout(()=>irPara('param'),60)};
 }
 function fecharRel(){$('#relBox').classList.remove('on');$('#relBg').classList.remove('on')}
+/* ---- barra de progresso da carga ---- */
+const PROG={
+  abrir(){$('#cgProg').classList.add('on')},
+  fechar(){$('#cgProg').classList.remove('on');$('#cgProgBar').style.width='0'},
+  set(tit,sub,pct){$('#cgProgTit').textContent=tit;$('#cgProgSub').textContent=sub||'';
+    if(pct!=null)$('#cgProgBar').style.width=Math.max(2,Math.min(100,pct))+'%'},
+};
+const respira=()=>new Promise(r=>setTimeout(r,0));
 
 /* ---- gravar ---- */
 async function cgGravar(){
@@ -2423,7 +2452,11 @@ async function cgGravar(){
   const pendAntes=new Set(ROT_PEND.map(r=>r.rotulo));
   const tocadasE=new Set(),tocadasV=new Set();
   try{
+    PROG.abrir();let _n=0;const _tot=fila.length;
     for(const i of fila){
+      _n++;PROG._base=100*(_n-1)/_tot;PROG._fatia=100/_tot;
+      PROG._tit=`Arquivo ${_n} de ${_tot} · ${i.file.name}`;
+      PROG.set(PROG._tit,'lendo o arquivo…',PROG._base);await respira();
       $('#cgStatus').textContent='Processando '+i.file.name+'…';
       try{
         if(i.tipo==='entradas'){
@@ -2447,8 +2480,9 @@ async function cgGravar(){
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
       }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));REL.push({tipo:'erro',arquivo:i.file.name,erro:e.message||String(e)});}
     }
-    for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';await carregarLoja(LJ[k]);}
-    for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';await carregarVendasLoja(LJ[k]);}
+    PROG._fatia=0;PROG._base=100;
+    for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';PROG.set('Recarregando compras · '+k,'',100);await respira();await carregarLoja(LJ[k]);}
+    for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';PROG.set('Recarregando vendas · '+k,'',100);await respira();await carregarVendasLoja(LJ[k]);}
     if(tocadasE.size){const{data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);}
     if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);}
     $('#cgStatus').textContent='';
@@ -2459,8 +2493,9 @@ async function cgGravar(){
       +(dupE+dupV?' · '+(dupE+dupV).toLocaleString('pt-BR')+' duplicados ignorados.':'');
     try{await carregarMarcas()}catch(e){}
     const novasMarcas=ROT_PEND.filter(r=>!pendAntes.has(r.rotulo));
+    PROG.fechar();
     if(REL.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
-  }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
+  }catch(e){$('#cgStatus').textContent='';PROG.fechar();sbErr(e,'Erro na carga');}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
