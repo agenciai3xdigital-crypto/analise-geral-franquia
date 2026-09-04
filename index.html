@@ -333,7 +333,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.6 · marca→indústria→distribuidor</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.7 · marca→indústria→distribuidor</span></div></aside>
 <div id="sinoBg"></div>
 <aside id="sinoBox"></aside>
 <div id="status"></div>
@@ -539,7 +539,7 @@ body.filtrosOff .filters{display:none}
   <div class="card">
     <h3>Cadastro de acordos comerciais <small>preenchimento manual · salvo no banco central · visível para todos os usuários</small></h3>
     <div class="tw"><table class="acordos" id="tbAcordos">
-      <thead><tr><th>Indústria</th><th>Marcas incluídas <small style="font-weight:400">(preenche sozinho)</small></th><th>Base</th><th>Filtro produto (opcional)</th><th>Distribuidor homologado</th><th>Início</th><th>Fim</th><th>Meta</th><th>Faixa 1 piso</th><th>% reb.</th><th>Faixa 2 piso</th><th>% reb.</th><th>Faixa 3 piso</th><th>% reb.</th><th>Obs.</th><th></th></tr></thead>
+      <thead><tr><th>Acordo <small style="font-weight:400">(nome livre)</small></th><th>Indústria</th><th>Marcas incluídas <small style="font-weight:400">(preenche sozinho)</small></th><th>Base</th><th>Filtro produto (opcional)</th><th>Distribuidor homologado</th><th>Início</th><th>Fim</th><th>Meta</th><th>Faixa 1 piso</th><th>% reb.</th><th>Faixa 2 piso</th><th>% reb.</th><th>Faixa 3 piso</th><th>% reb.</th><th>Obs.</th><th></th></tr></thead>
       <tbody></tbody></table></div>
     <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="acAdd">+ Adicionar acordo</button>
@@ -738,15 +738,18 @@ async function carregarLojas(){
 }
 async function carregarAcordos(){
   const {data,error}=await sb.from('acordos').select('*').order('fabricante');if(error)throw error;
-  ACORDOS=data.map(r=>({id:r.id,fab:r.fabricante,marcas:r.marcas||r.fabricante||'',filtro:r.filtro_produto||'',base:r.base||'valor',dist:r.distribuidor||'',ini:r.inicio||'',fim:r.fim||'',meta:r.meta||'',f1:r.f1||'',p1:r.p1||'',f2:r.f2||'',p2:r.p2||'',f3:r.f3||'',p3:r.p3||'',obs:r.obs||''}));
+  ACORDOS=data.map(r=>({id:r.id,rot:r.rotulo||r.fabricante,fab:r.fabricante,marcas:r.marcas||r.fabricante||'',filtro:r.filtro_produto||'',base:r.base||'valor',dist:r.distribuidor||'',ini:r.inicio||'',fim:r.fim||'',meta:r.meta||'',f1:r.f1||'',p1:r.p1||'',f2:r.f2||'',p2:r.p2||'',f3:r.f3||'',p3:r.p3||'',obs:r.obs||''}));
 }
 async function salvarAcordos(){
   const ok=ACORDOS.filter(a=>a.fab);const nomes=ok.map(a=>a.fab);
   const idInd=n=>{const i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(n));return i?i.id:null};
-  const rows=ok.map(a=>({fabricante:a.fab,industria_id:idInd(a.fab),marcas:a.marcas||a.fab,filtro_produto:a.filtro||null,base:a.base||'valor',distribuidor:a.dist||null,inicio:a.ini||null,fim:a.fim||null,meta:+a.meta||null,f1:+a.f1||null,p1:+a.p1||null,f2:+a.f2||null,p2:+a.p2||null,f3:+a.f3||null,p3:+a.p3||null,obs:a.obs||null,atualizado_em:new Date().toISOString()}));
-  if(rows.length){const {error}=await sb.from('acordos').upsert(rows,{onConflict:'fabricante'});if(error)throw error}
-  const del=await sb.from('acordos').select('id,fabricante');if(del.error)throw del.error;
-  const apagar=del.data.filter(r=>!nomes.includes(r.fabricante)).map(r=>r.id);
+  const rows=ok.map(a=>({...(a.id?{id:a.id}:{}),rotulo:a.rot||a.fab,fabricante:a.fab,industria_id:idInd(a.fab),marcas:a.marcas||a.fab,filtro_produto:a.filtro||null,base:a.base||'valor',distribuidor:a.dist||null,inicio:a.ini||null,fim:a.fim||null,meta:+a.meta||null,f1:+a.f1||null,p1:+a.p1||null,f2:+a.f2||null,p2:+a.p2||null,f3:+a.f3||null,p3:+a.p3||null,obs:a.obs||null,atualizado_em:new Date().toISOString()}));
+  const comId=rows.filter(r=>r.id),semId=rows.filter(r=>!r.id);
+  if(comId.length){const {error}=await sb.from('acordos').upsert(comId,{onConflict:'id'});if(error)throw error}
+  if(semId.length){const {error}=await sb.from('acordos').insert(semId);if(error)throw error}
+  const del=await sb.from('acordos').select('id');if(del.error)throw del.error;
+  const vivos=ACORDOS.filter(a=>a.id).map(a=>a.id);
+  const apagar=del.data.filter(r=>!vivos.includes(r.id)).map(r=>r.id);
   if(apagar.length){const {error}=await sb.from('acordos').delete().in('id',apagar);if(error)throw error}
   await carregarAcordos();
 }
@@ -1207,6 +1210,7 @@ function renderAcordos(){
   const opts='<datalist id="dlFab">'+INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')+'</datalist><datalist id="dlFor">'+FORS.map(f=>`<option value="${esc(f)}">`).join('')+'</datalist>';
   const marcasDaInd=nome=>{const i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(nome));return i?MARCAS_CAD.filter(m=>m.industria_id===i.id).map(m=>m.nome).sort():[]};
   tb.innerHTML=opts+ACORDOS.map((a,i)=>`<tr>
+   <td><input data-i="${i}" data-k="rot" value="${esc(a.rot||'')}" placeholder="ex.: ADIMAX · MAGNUS (R$)" style="min-width:150px;font-weight:700"></td>
    <td><input list="dlFab" data-i="${i}" data-k="fab" data-ind-ac="${i}" value="${esc(a.fab||'')}" placeholder="ex.: ADIMAX" style="min-width:130px"></td>
    <td><div style="display:flex;gap:4px;align-items:center;min-width:190px"><input data-i="${i}" data-k="marcas" value="${esc(a.marcas||'')}" placeholder="MARCA1; MARCA2" style="flex:1"><button class="btn g" data-marcas="${i}" style="padding:5px 8px" title="escolher da lista">▾</button></div></td>
    <td><select data-i="${i}" data-k="base" style="min-width:78px"><option value="valor" ${a.base!=='kg'?'selected':''}>R$</option><option value="kg" ${a.base==='kg'?'selected':''}>kg</option></select></td>
@@ -1223,7 +1227,7 @@ function renderAcordos(){
   tb.querySelectorAll('[data-ind-ac]').forEach(inp=>inp.addEventListener('change',()=>{
     const i=+inp.dataset.indAc,ms=marcasDaInd(inp.value);
     const campo=tb.querySelector(`[data-i="${i}"][data-k="marcas"]`);
-    if(ms.length&&campo&&(!campo.value.trim()||confirm(`A indústria ${inp.value.toUpperCase()} tem ${ms.length} marca(s) cadastrada(s):\n\n${ms.join('; ')}\n\nSubstituir a lista de marcas incluídas?`))){
+    if(ms.length&&campo&&(!campo.value.trim()||confirm(`A indústria ${inp.value.toUpperCase()} tem ${ms.length} marca(s) cadastrada(s):\n\n${ms.join('; ')}\n\nSubstituir a lista deste acordo por TODAS elas?\n\nAtenção: só faça isso se a meta deste acordo valer para as ${ms.length} marcas juntas. Se cada marca tem meta própria, cancele e crie um acordo por meta — várias linhas podem ter a mesma indústria.`))){
       campo.value=ms.join('; ');campo.dispatchEvent(new Event('input',{bubbles:true}));ACORDOS[i].marcas=campo.value}
     else if(!ms.length)alert(`A indústria "${inp.value.toUpperCase()}" ainda não tem marcas relacionadas.\n\nRelacione as marcas na aba "🏭 Parametrização de marcas" e volte aqui — a lista preenche sozinha.`)}));
   tb.querySelectorAll('[data-marcas]').forEach(b=>b.onclick=()=>{const i=+b.dataset.marcas;const atual=(ACORDOS[i].marcas||'').split(';').map(s=>normFab(s)).filter(Boolean);
@@ -1240,7 +1244,7 @@ function renderAcordos(){
   tb.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ACORDOS.splice(+b.dataset.del,1);renderAcordos()});
 }
 $('#acAdd').onclick=()=>{ACORDOS.push({fab:'',dist:'',ini:MESES[0],fim:MESES[MESES.length-1]});renderAcordos()};
-$('#acSalvar').onclick=async()=>{try{await salvarAcordos();renderAcordos();render();alert('Acordos salvos no banco central.')}catch(e){sbErr(e,'Erro ao salvar acordos')}};
+$('#acSalvar').onclick=async()=>{try{await salvarAcordos();await carregarAcordos();await carregarMarcas();renderAcordos();render();alert('Acordos salvos no banco central.')}catch(e){sbErr(e,'Erro ao salvar acordos')}};
 $('#acExp').onclick=()=>{const b=new Blob([JSON.stringify(ACORDOS,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='acordos_pop.json';a.click()};
 $('#homImp').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const n=await importarHomologCSV(await f.text());$('#homInfo').textContent=`${n} preço(s) importado(s) · ${HOMOLOG.length} no total`;render()}catch(x){sbErr(x,'Erro ao importar preços homologados')}e.target.value=''};
 $('#homLimpar').onclick=async()=>{if(!confirm('Apagar TODOS os preços homologados cadastrados?'))return;try{const {error}=await sb.from('precos_homologados').delete().gte('id',0);if(error)throw error;await carregarHomolog();render()}catch(x){sbErr(x,'Erro ao apagar')}};
