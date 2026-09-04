@@ -353,7 +353,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.13 · carga em lote</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.15 · carga em lote por pasta</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -615,8 +615,9 @@ body.filtrosOff .filters{display:none}
   <div id="cgZona" class="cg-zona">
     <div style="font-size:26px;line-height:1">⬆️</div>
     <div style="font-size:16px;font-weight:700;color:var(--vd);margin-top:6px">Arraste os arquivos ou clique para escolher</div>
-    <div class="note" style="margin-top:4px">Relatório de entradas · BI Global · faturamento · inadimplência · recebidos<br>Pode soltar a pasta do mês inteira, de várias lojas de uma vez.</div>
+    <div class="note" style="margin-top:4px">Relatório de entradas · BI Global · faturamento · inadimplência · recebidos<br>Pode soltar a pasta inteira, com subpastas por loja — ele varre tudo sozinho.</div>
     <input type="file" id="cgArq" accept=".csv,.txt,.xls,.xlsx" multiple style="display:none">
+    <label class="btn g" id="cgPastaBtn" style="margin-top:10px;cursor:pointer;font-size:12px;padding:6px 12px">📁 ou escolher uma pasta<input type="file" id="cgPasta" webkitdirectory directory multiple style="display:none"></label>
   </div>
   <p class="note" id="cgDica" style="margin-top:8px;text-align:center">Depois de soltar, aparece a lista de conferência: cada arquivo com o <b>tipo</b> (entradas ⇄ BI Global, editável), o <b>período</b> e a <b>loja</b> — que você pode digitar ou corrigir. Nada é gravado antes de você confirmar.</p>
 
@@ -925,7 +926,8 @@ function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
 const LEI_SECS=['agir','visao','financeiro','precos','rebate','fornec','unid','mercado','itens'];
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro')});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro');
+  if(b.dataset.t==='param')carregarDistribuidores().catch(e=>console.warn('distribuidores',e));});
 
 /* ---------- tabelas genéricas com ordenação ---------- */
 function tabela(el,cols,rows,opts={}){
@@ -991,23 +993,44 @@ const rotNorm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').t
 const marcaCanon=fa=>{const m=MARCAMAP[rotNorm(fa)];return (m&&m.marca)||rotNorm(fa)};
 const industriaCanon=fa=>{const m=MARCAMAP[rotNorm(fa)];return (m&&m.industria)||rotNorm(fa)};
 const semRelacao=fa=>{const n=rotNorm(fa);return !!n&&!(MARCAMAP[n]||{}).marca};
+// PostgREST corta em 1000 linhas por padrão. Sem paginar, a tela mente calada.
+async function tudoDe(tabela,cols,ordem){
+  const R=1000;let ini=0,acc=[];
+  while(true){
+    let q=sb.from(tabela).select(cols||'*');if(ordem)q=q.order(ordem);
+    const {data,error}=await q.range(ini,ini+R-1);
+    if(error)return {data:acc,error};
+    acc=acc.concat(data||[]);
+    if(!data||data.length<R||ini>60000)return {data:acc,error:null};
+    ini+=R;
+  }
+}
+let PARAM_PESADO=false;
 async function carregarMarcas(){
-  MARCAMAP={};ROT_PEND=[];ROT_REV=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];
-  const [mp,pd,mc,ind,ig,idi,dm]=await Promise.all([
-    sb.from('v_marca_mapa').select('rotulo,exemplo,marca,industria,confianca,status'),
-    sb.from('v_rotulos_param').select('*'),
-    sb.from('marcas').select('id,nome,industria_id').order('nome'),
-    sb.from('industrias').select('id,nome').order('nome'),
-    sb.from('v_integridade_marca').select('*'),
-    sb.from('v_industria_distribuidor').select('*'),
-    sb.from('v_distribuidor_marca').select('*')]);
+  MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];
+  const [mp,pd,mc,ind,ig]=await Promise.all([
+    tudoDe('v_marca_mapa','rotulo,exemplo,marca,industria,confianca,status'),
+    tudoDe('v_rotulos_param'),
+    tudoDe('marcas','id,nome,industria_id','nome'),
+    tudoDe('industrias','id,nome','nome'),
+    tudoDe('v_integridade_marca')]);
   if(mp.error){console.warn('marca_mapa',mp.error.message);return}
   (mp.data||[]).forEach(r=>{MARCAMAP[r.rotulo]={marca:r.marca,industria:r.industria,conf:r.confianca,st:r.status}});
   ROT_PARAM=(pd.data||[]).sort((a,b)=>b.relevancia-a.relevancia);
   ROT_PEND=ROT_PARAM.filter(r=>r.status==='pendente'&&r.relevancia>0);
   ROT_REV=ROT_PARAM.filter(r=>r.status==='mapeado'&&r.confianca==='revisar');
-  MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];INTEG=ig.data||[];IND_DIST=(idi.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);DIST_MARCA=(dm.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);
+  MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];INTEG=ig.data||[];
   renderSino();renderParam();renderDistrib();
+}
+/* Distribuidores: duas agregações pesadas sobre entradas. Só quando a aba abre. */
+async function carregarDistribuidores(forcar){
+  if(PARAM_PESADO&&!forcar)return;
+  const el=$('#pmDist');
+  if(el&&!IND_DIST.length)el.innerHTML='<p class="note" style="padding:14px 0">Somando as notas dos últimos 12 meses…</p>';
+  const [idi,dm]=await Promise.all([tudoDe('v_industria_distribuidor'),tudoDe('v_distribuidor_marca')]);
+  IND_DIST=(idi.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);
+  DIST_MARCA=(dm.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);
+  PARAM_PESADO=true;renderDistrib();
 }
 async function sincronizarRotulos(){const {error}=await sb.rpc('sync_rotulos_admin');if(error)throw error;await carregarMarcas()}
 async function relacionarRotulo(rotulo,industria,marca){
@@ -1074,7 +1097,7 @@ async function papelDistribuidor(industriaId,distribuidor,papel){
       if(ins.error&&ins.error.code==='23505'){await sb.from('industria_distribuidores').update({papel}).eq('industria_id',industriaId).eq('distribuidor',distribuidor)}
       else if(ins.error)return alert(ins.error.message)}}
   if(atual)atual.papel=papel;
-  await carregarMarcas();
+  await carregarDistribuidores(true);
 }
 async function ignorarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({status:'ignorado'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
 async function confirmarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({confianca:'ok'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
@@ -2314,6 +2337,26 @@ function cgLojaPeloNome(nome){
   return melhor;
 }
 
+/* ---- varredura de pastas arrastadas (inclui subpastas por loja) ---- */
+const cgEhPlanilha=n=>/\.(csv|txt|xls|xlsx)$/i.test(n)&&!/^[._]/.test(n.split('/').pop());
+async function cgVarrer(entry,saida,nivel){
+  nivel=nivel||0;
+  if(nivel>4||saida.length>3000)return;
+  if(entry.isFile){
+    if(!cgEhPlanilha(entry.name))return;
+    await new Promise(r=>entry.file(f=>{saida.push(f);r()},()=>r()));
+    if(saida.length%25===0)$('#status').textContent=`Varrendo pastas… ${saida.length} arquivo(s)`;
+    return;
+  }
+  if(!entry.isDirectory)return;
+  const leitor=entry.createReader();
+  while(true){
+    const lote=await new Promise(r=>leitor.readEntries(r,()=>r([])));
+    if(!lote.length)break;
+    for(const e of lote)await cgVarrer(e,saida,nivel+1);
+  }
+}
+
 /* ---- receber arquivos ---- */
 async function cgReceber(files){
   if(!files||!files.length)return;
@@ -2503,11 +2546,12 @@ async function cgGravar(){
     cgRender();
     log.innerHTML=msgs.join('<br>')+'<br><b>'+addE.toLocaleString('pt-BR')+' itens de compra</b> e <b>'+addV.toLocaleString('pt-BR')+' linhas de venda</b> gravados.'
       +(dupE+dupV?' · '+(dupE+dupV).toLocaleString('pt-BR')+' duplicados ignorados.':'');
-    try{await carregarMarcas()}catch(e){}
+    PROG.set('Atualizando o mapa de marcas','',100);await respira();
+    try{await carregarMarcas()}catch(e){console.warn('marcas',e)}
     const novasMarcas=ROT_PEND.filter(r=>!pendAntes.has(r.rotulo));
-    PROG.fechar();
     if(REL.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
-  }catch(e){$('#cgStatus').textContent='';PROG.fechar();sbErr(e,'Erro na carga');}
+  }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
+  finally{PROG.fechar();$('#cgStatus').textContent='';}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -2515,9 +2559,26 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(z&&inp){
     z.onclick=()=>inp.click();
     inp.onchange=ev=>{cgReceber([...ev.target.files]);ev.target.value='';};
+    const pst=document.getElementById('cgPasta');
+    if(pst){pst.onchange=ev=>{const fs=[...ev.target.files].filter(f=>cgEhPlanilha(f.name));ev.target.value='';
+      if(fs.length)cgReceber(fs);else alert('Nenhum arquivo .csv, .txt, .xls ou .xlsx nessa pasta.');};
+      document.getElementById('cgPastaBtn').addEventListener('click',e=>e.stopPropagation());}
     ['dragenter','dragover'].forEach(e=>z.addEventListener(e,ev=>{ev.preventDefault();z.classList.add('drag');}));
     ['dragleave','drop'].forEach(e=>z.addEventListener(e,ev=>{ev.preventDefault();z.classList.remove('drag');}));
-    z.addEventListener('drop',ev=>{const fs=[...(ev.dataTransfer?.files||[])];if(fs.length)cgReceber(fs);});
+    z.addEventListener('drop',async ev=>{
+      const itens=[...(ev.dataTransfer?.items||[])];
+      // pasta arrastada vira uma "entry"; sem isso o navegador entrega a pasta
+      // como se fosse arquivo e a leitura falha.
+      const entries=itens.map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+      if(entries.length&&entries.some(e=>e.isDirectory)){
+        $('#status').textContent='Varrendo pastas…';
+        const fs=[];
+        for(const e of entries)await cgVarrer(e,fs);
+        $('#status').textContent='';
+        if(fs.length)cgReceber(fs);else alert('Nenhum arquivo .csv, .txt, .xls ou .xlsx encontrado nas pastas.');
+        return;
+      }
+      const fs=[...(ev.dataTransfer?.files||[])];if(fs.length)cgReceber(fs);});
   }
   const g=document.getElementById('cgGravar'); if(g)g.onclick=cgGravar;
   const ap=document.getElementById('cgAplicaBtn');
