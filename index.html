@@ -313,6 +313,10 @@ body.filtrosOff .filters{display:none}
     <div style="height:10px;background:var(--bg);border-radius:99px;overflow:hidden"><div id="loadBar" style="height:100%;width:0;background:linear-gradient(90deg,var(--v),var(--la));border-radius:99px;transition:width .25s ease"></div></div>
     <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--mu)"><span id="loadSub">iniciando…</span><span id="loadPct">0%</span></div>
     <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px"><span>Decorrido: <b id="loadElapsed" style="color:var(--tx)">0s</b></span><span>Restante estimado: <b id="loadEta" style="color:var(--v)">—</b></span></div>
+    <div id="loadSalmo" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--bd);min-height:76px;opacity:0;transition:opacity .7s ease">
+      <div id="loadSalmoTx" style="font-size:14px;line-height:1.5;color:var(--vd);font-style:italic"></div>
+      <div id="loadSalmoRef" style="margin-top:7px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--la)"></div>
+    </div>
   </div>
 </div>
 <header>
@@ -329,7 +333,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.1 · marca→indústria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.3 · marca→indústria</span></div></aside>
 <div id="sinoBg"></div>
 <aside id="sinoBox"></aside>
 <div id="status"></div>
@@ -352,6 +356,7 @@ body.filtrosOff .filters{display:none}
   <button data-t="qual">⚠ Qualidade de dados por loja</button>
   <button data-t="itens">Explorar itens</button>
   <button data-t="acordos">⚙ Cadastro de acordos</button>
+  <button data-t="param">🏭 Parametrização de marcas</button>
   <button data-t="lojas">🏬 Cadastro de lojas</button>
   <button data-t="carga">📂 Unidades e carga de dados</button>
 </nav>
@@ -477,11 +482,37 @@ body.filtrosOff .filters{display:none}
   <p class="note"><button class="btn g" id="btnCsv">Exportar seleção (CSV)</button></p></div>
 </section>
 
+<section class="tab" id="t-param">
+  <div class="card full">
+    <h3>Parametrização de marcas <small>rótulo que vem dos arquivos das lojas → marca canônica → indústria</small></h3>
+    <p class="note">Os rótulos abaixo vêm sozinhos do <b>relatório de entradas</b> e do <b>BI Global</b>: nada aqui altera esses dados, é só uma camada de leitura por cima. Toda vez que uma loja sobe um arquivo com um fabricante novo, ele aparece aqui como pendente. Digite a indústria e clique em Relacionar. A <b>marca canônica</b> só precisa ser preenchida quando o rótulo da loja for variação de grafia de uma marca que já existe.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:12px 0">
+      <div><label class="note">Buscar</label><input id="pmBusca" placeholder="rótulo, marca ou indústria" style="min-width:200px"></div>
+      <div><label class="note">Mostrar</label><select id="pmFiltro" style="min-width:190px">
+        <option value="pend_racao">Pendentes de ração</option>
+        <option value="pend">Todos os pendentes</option>
+        <option value="rev">A confirmar</option>
+        <option value="map">Já relacionados</option>
+        <option value="tudo">Tudo</option></select></div>
+      <div><label class="note">Valor mínimo em 12 m</label><select id="pmMin" style="min-width:130px">
+        <option value="0">Qualquer</option><option value="1000">R$ 1 mil</option>
+        <option value="5000" selected>R$ 5 mil</option><option value="20000">R$ 20 mil</option></select></div>
+      <button class="btn g" id="pmSync">Revarrer arquivos</button>
+      <span class="note" id="pmResumo" style="margin-left:auto"></span>
+    </div>
+    <div class="tw" id="pmTab"></div>
+  </div>
+  <div class="card full">
+    <h3>Indústrias cadastradas <small>quem é dona de quais marcas</small></h3>
+    <div class="tw" id="pmInd"></div>
+  </div>
+</section>
+
 <section class="tab" id="t-acordos">
   <div class="card">
     <h3>Cadastro de acordos comerciais <small>preenchimento manual · salvo no banco central · visível para todos os usuários</small></h3>
     <div class="tw"><table class="acordos" id="tbAcordos">
-      <thead><tr><th>Indústria (nome do acordo)</th><th>Marcas incluídas</th><th>Base</th><th>Filtro produto (opcional)</th><th>Distribuidor homologado</th><th>Início</th><th>Fim</th><th>Meta</th><th>Faixa 1 piso</th><th>% reb.</th><th>Faixa 2 piso</th><th>% reb.</th><th>Faixa 3 piso</th><th>% reb.</th><th>Obs.</th><th></th></tr></thead>
+      <thead><tr><th>Indústria</th><th>Marcas incluídas <small style="font-weight:400">(preenche sozinho)</small></th><th>Base</th><th>Filtro produto (opcional)</th><th>Distribuidor homologado</th><th>Início</th><th>Fim</th><th>Meta</th><th>Faixa 1 piso</th><th>% reb.</th><th>Faixa 2 piso</th><th>% reb.</th><th>Faixa 3 piso</th><th>% reb.</th><th>Obs.</th><th></th></tr></thead>
       <tbody></tbody></table></div>
     <p style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="acAdd">+ Adicionar acordo</button>
@@ -491,7 +522,7 @@ body.filtrosOff .filters{display:none}
       <label class="btn g" style="cursor:pointer" title="CSV com colunas Fornecedor, EAN (ou Cód. Produto), Produto, Preço, Início, Fim">Importar preços homologados (CSV)<input type="file" id="homImp" accept=".csv,.txt" style="display:none"></label>
       <button class="btn g" id="homLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar preços homologados</button> <span class="note" id="homInfo"></span>
     </p>
-    <p class="note"><b>Faixas:</b> "piso" é o valor comprado a partir do qual a indústria paga aquele %. Deixe o piso <b>em branco ou 0</b> quando o % for fixo sobre tudo; use a própria meta como piso quando só paga ao bater a meta. <b>Distribuidor homologado:</b> pode listar mais de um separado por ";" (ex.: FVO ALIMENTOS; FVO - BRASILIA) — variações de grafia são aceitas. <b>Indústria:</b> cadastre um acordo por indústria e liste as marcas em "Marcas incluídas" (ex.: ADIMAX = MAGNUS; FORMULA NATURAL; ORIGENS; CAPITAO DOG; GATAN); o painel reconhece o acordo em todas as abas pela marca.<br>Meta e faixas na <b>base escolhida</b>: R$ (custo de entrada) ou kg (peso extraído da descrição — só ração/petisco; faixas de peso de cão em medicamentos são ignoradas). Marcas incluídas: os nomes de fabricante que somam no acordo (ex.: Adimax = MAGNUS; FORMULA NATURAL; ORIGENS; CAPITAO DOG; GATAN). Se a meta for por volume ou por outra base, registre em Obs. e a leitura da aba Rebate deve ser feita com essa ressalva. O nome do fabricante precisa ser idêntico ao que aparece nos relatórios (a lista sugere os nomes existentes).</p>
+    <p class="note"><b>Faixas:</b> "piso" é o valor comprado a partir do qual a indústria paga aquele %. Deixe o piso <b>em branco ou 0</b> quando o % for fixo sobre tudo; use a própria meta como piso quando só paga ao bater a meta. <b>Distribuidor homologado:</b> pode listar mais de um separado por ";" (ex.: FVO ALIMENTOS; FVO - BRASILIA) — variações de grafia são aceitas. <b>Indústria:</b> é um acordo por indústria, não por marca. Escolha a indústria na primeira coluna e o campo "Marcas incluídas" preenche sozinho com as marcas relacionadas a ela na aba <b>🏭 Parametrização de marcas</b> (ex.: ADIMAX = MAGNUS; FORMULA NATURAL; ORIGENS; BOMGUY; CAPITAO DOG; GATAN). Se faltar marca na lista, o lugar de corrigir é lá, não aqui.<br>Meta e faixas na <b>base escolhida</b>: R$ (custo de entrada) ou kg (peso extraído da descrição — só ração/petisco; faixas de peso de cão em medicamentos são ignoradas). Marcas incluídas: os nomes de fabricante que somam no acordo (ex.: Adimax = MAGNUS; FORMULA NATURAL; ORIGENS; CAPITAO DOG; GATAN). Se a meta for por volume ou por outra base, registre em Obs. e a leitura da aba Rebate deve ser feita com essa ressalva. O nome do fabricante precisa ser idêntico ao que aparece nos relatórios (a lista sugere os nomes existentes).</p>
   </div>
 </section>
 
@@ -667,7 +698,7 @@ $('#lEntrar').onclick=async()=>{try{
   try{localStorage.setItem('pop_email',$('#lEmail').value.trim())}catch(x){}USER=data.user;hideLogin();await carregarTudo();
  }catch(e){console.error(e);$('#lMsg').textContent='Erro: '+(e.message||e)+(/fetch/i.test(e.message||'')?' — confira a URL do projeto.':'')}};
 ['#lEmail','#lSenha','#lUrl','#lKey'].forEach(s=>$(s).addEventListener('keydown',e=>{if(e.key==='Enter')$('#lEntrar').click()}));
-function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
+function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
   Object.assign(F,{de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''});$('#fBusca').value='';$('#hUser').textContent='—';$('#status').textContent='';
   montarFiltros();renderAcordos();render();document.body.classList.add('deslogado')}
 $('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
@@ -684,7 +715,8 @@ async function carregarAcordos(){
 }
 async function salvarAcordos(){
   const ok=ACORDOS.filter(a=>a.fab);const nomes=ok.map(a=>a.fab);
-  const rows=ok.map(a=>({fabricante:a.fab,marcas:a.marcas||a.fab,filtro_produto:a.filtro||null,base:a.base||'valor',distribuidor:a.dist||null,inicio:a.ini||null,fim:a.fim||null,meta:+a.meta||null,f1:+a.f1||null,p1:+a.p1||null,f2:+a.f2||null,p2:+a.p2||null,f3:+a.f3||null,p3:+a.p3||null,obs:a.obs||null,atualizado_em:new Date().toISOString()}));
+  const idInd=n=>{const i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(n));return i?i.id:null};
+  const rows=ok.map(a=>({fabricante:a.fab,industria_id:idInd(a.fab),marcas:a.marcas||a.fab,filtro_produto:a.filtro||null,base:a.base||'valor',distribuidor:a.dist||null,inicio:a.ini||null,fim:a.fim||null,meta:+a.meta||null,f1:+a.f1||null,p1:+a.p1||null,f2:+a.f2||null,p2:+a.p2||null,f3:+a.f3||null,p3:+a.p3||null,obs:a.obs||null,atualizado_em:new Date().toISOString()}));
   if(rows.length){const {error}=await sb.from('acordos').upsert(rows,{onConflict:'fabricante'});if(error)throw error}
   const del=await sb.from('acordos').select('id,fabricante');if(del.error)throw del.error;
   const apagar=del.data.filter(r=>!nomes.includes(r.fabricante)).map(r=>r.id);
@@ -693,12 +725,42 @@ async function salvarAcordos(){
 }
 const mapRow=(r,key)=>({u:key,arq:r.arquivo||'',d:r.data,m:r.data.slice(0,7),nf:r.nf,fo:r.fornecedor,fa:r.fabricante,cod:r.cod_produto,ean:r.ean||'',p:r.produto,q:r.quantidade,c:+r.custo,t:+r.total,cat:r.categoria||categoria(r.produto)});
 /* ---- Tela de espera com progresso e tempo restante estimado ---- */
+/* Salmos de vitória exibidos durante a carga · João Ferreira de Almeida (domínio público) */
+const SALMOS=[
+ ['O Senhor é a minha força e o meu escudo; nele confiou o meu coração, e fui socorrido.','Salmo 28.7'],
+ ['O Senhor é a minha luz e a minha salvação; a quem temerei?','Salmo 27.1'],
+ ['Uns confiam em carros e outros em cavalos, mas nós faremos menção do nome do Senhor nosso Deus.','Salmo 20.7'],
+ ['Deus é o nosso refúgio e fortaleza, socorro bem presente na angústia.','Salmo 46.1'],
+ ['Em Deus faremos proezas, pois ele calcará aos pés os nossos inimigos.','Salmo 60.12'],
+ ['O Senhor está comigo; não temerei o que me possa fazer o homem.','Salmo 118.6'],
+ ['O Senhor é a minha força e o meu cântico; e se fez a minha salvação.','Salmo 118.14'],
+ ['O Senhor é o meu rochedo, e o meu lugar forte, e o meu libertador.','Salmo 18.2'],
+ ['Entrega o teu caminho ao Senhor; confia nele, e ele o fará.','Salmo 37.5'],
+ ['O meu socorro vem do Senhor, que fez o céu e a terra.','Salmo 121.2'],
+ ['Só ele é a minha rocha e a minha salvação; é a minha defesa; não serei abalado.','Salmo 62.6'],
+ ['Cantai ao Senhor um cântico novo, porque fez maravilhas.','Salmo 98.1'],
+ ['Muitas são as aflições do justo, mas o Senhor o livra de todas.','Salmo 34.19'],
+ ['Direi do Senhor: Ele é o meu refúgio e a minha fortaleza, e nele confiarei.','Salmo 91.2'],
+ ['A salvação vem do Senhor; sobre o teu povo seja a tua bênção.','Salmo 3.8'],
+ ['Andando eu no meio da angústia, tu me revivificarás.','Salmo 138.7'],
+ ['Por ti derrubaremos os nossos inimigos; pelo teu nome pisaremos os que se levantam contra nós.','Salmo 44.5'],
+ ['O Senhor é o meu pastor; nada me faltará.','Salmo 23.1']];
 const LOADER={
-  ativo:false,t0:0,tFase:0,total:0,feito:0,_tmr:null,
+  ativo:false,t0:0,tFase:0,total:0,feito:0,_tmr:null,_sTmr:null,_fila:[],_i:0,
   fmt(s){s=Math.max(0,Math.round(s));if(s<60)return s+'s';const m=Math.floor(s/60),r=s%60;return m+'min'+(r?' '+r+'s':'')},
   abrir(){if(document.body.classList.contains('tv'))return;this.ativo=true;this.t0=this.tFase=performance.now();this.total=0;this.feito=0;
     const w=$('#loadWrap');if(w)w.style.display='flex';
-    clearInterval(this._tmr);this._tmr=setInterval(()=>this.pintar(),1000);this.pintar();},
+    clearInterval(this._tmr);this._tmr=setInterval(()=>this.pintar(),1000);this.pintar();this.salmoIniciar();},
+  salmoIniciar(){
+    this._fila=SALMOS.map((v,i)=>[Math.random(),i]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);this._i=0;
+    clearInterval(this._sTmr);this.salmoTrocar();
+    this._sTmr=setInterval(()=>this.salmoTrocar(),9000);},
+  salmoTrocar(){
+    const box=$('#loadSalmo');if(!box||!this._fila.length)return;
+    const [tx,ref]=SALMOS[this._fila[this._i%this._fila.length]];this._i++;
+    box.style.opacity=0;
+    setTimeout(()=>{const t=$('#loadSalmoTx'),r=$('#loadSalmoRef');
+      if(t)t.textContent='“'+tx+'”';if(r)r.textContent=ref;box.style.opacity=1},700);},
   fase(nome,total){if(!this.ativo)return;$('#loadFase').textContent=nome;this.total=total||0;this.feito=0;this.tFase=performance.now();this.pintar();},
   passo(){if(!this.ativo)return;this.feito++;this.pintar();},
   pintar(){if(!this.ativo)return;
@@ -708,7 +770,7 @@ const LOADER={
     const sub=$('#loadSub');if(sub)sub.textContent=this.total?`${this.feito} de ${this.total} lojas`:'preparando…';
     const el=$('#loadElapsed');if(el)el.textContent=this.fmt((performance.now()-this.t0)/1000);
     const eta=$('#loadEta');if(eta){let txt='—';if(this.feito>0&&this.total>0){const perStep=(performance.now()-this.tFase)/this.feito;txt=this.fmt(perStep*(this.total-this.feito)/1000);}eta.textContent=txt;}},
-  fechar(){this.ativo=false;clearInterval(this._tmr);const w=$('#loadWrap');if(w)w.style.display='none';}
+  fechar(){this.ativo=false;clearInterval(this._tmr);clearInterval(this._sTmr);const w=$('#loadWrap');if(w)w.style.display='none';const b=$('#loadSalmo');if(b)b.style.opacity=0;}
 };
 async function carregarLoja(l){
   const rows=[];let apos=0;const lim=10000;
@@ -841,7 +903,10 @@ const kgLinha=r=>{const k=pesoKg(r);return k==null?null:k*r.q};
 /* MARCAMAP: rótulo cru normalizado -> {marca, industria}. Alimentado pela tabela
    marca_rotulos, que por sua vez recebe automaticamente todo rótulo novo que
    entra pelos arquivos das lojas (trigger sync_rotulos no banco).             */
-let MARCAMAP={},ROT_PEND=[],ROT_REV=[],MARCAS_CAD=[],INDUSTRIAS_CAD=[];
+let MARCAMAP={},ROT_PEND=[],ROT_REV=[],ROT_PARAM=[],MARCAS_CAD=[],INDUSTRIAS_CAD=[];
+/* o sininho só avisa marca de ração relevante: o resto vive na aba Parametrização */
+const SINO_MIN=5000,SINO_RACAO=50;
+const rotRacao=r=>r.pct_racao>=SINO_RACAO&&r.relevancia>=SINO_MIN;
 const rotNorm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 const marcaCanon=fa=>{const m=MARCAMAP[rotNorm(fa)];return (m&&m.marca)||rotNorm(fa)};
 const industriaCanon=fa=>{const m=MARCAMAP[rotNorm(fa)];return (m&&m.industria)||rotNorm(fa)};
@@ -850,15 +915,16 @@ async function carregarMarcas(){
   MARCAMAP={};ROT_PEND=[];ROT_REV=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];
   const [mp,pd,mc,ind]=await Promise.all([
     sb.from('v_marca_mapa').select('rotulo,exemplo,marca,industria,confianca,status'),
-    sb.from('v_rotulos_pendentes').select('*').limit(400),
+    sb.from('v_rotulos_param').select('*'),
     sb.from('marcas').select('id,nome,industria_id').order('nome'),
     sb.from('industrias').select('id,nome').order('nome')]);
   if(mp.error){console.warn('marca_mapa',mp.error.message);return}
   (mp.data||[]).forEach(r=>{MARCAMAP[r.rotulo]={marca:r.marca,industria:r.industria,conf:r.confianca,st:r.status}});
-  ROT_PEND=(pd.data||[]).filter(r=>r.relevancia>0);
-  ROT_REV=(mp.data||[]).filter(r=>r.status==='mapeado'&&r.confianca==='revisar');
+  ROT_PARAM=(pd.data||[]).sort((a,b)=>b.relevancia-a.relevancia);
+  ROT_PEND=ROT_PARAM.filter(r=>r.status==='pendente'&&r.relevancia>0);
+  ROT_REV=ROT_PARAM.filter(r=>r.status==='mapeado'&&r.confianca==='revisar');
   MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];
-  renderSino();
+  renderSino();renderParam();
 }
 async function sincronizarRotulos(){const {error}=await sb.rpc('sync_rotulos');if(error)throw error;await carregarMarcas()}
 async function relacionarRotulo(rotulo,industria,marca){
@@ -875,48 +941,90 @@ async function relacionarRotulo(rotulo,industria,marca){
 }
 async function ignorarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({status:'ignorado'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
 async function confirmarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({confianca:'ok'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
-function sinoTotal(){return ROT_PEND.length+ROT_REV.length}
+function sinoTotal(){return ROT_PEND.filter(rotRacao).length}
 function renderSino(){
   const b=$('#btnSino'),n=$('#sinoN');if(!b)return;
-  const t=sinoTotal();n.textContent=t?(t>99?'99+':t):'';b.classList.toggle('tem',ROT_PEND.length>0);
-  b.title=t?`${ROT_PEND.length} marca(s) sem indústria · ${ROT_REV.length} a confirmar`:'Nenhum aviso';
-  const box=$('#sinoBox');if(!box||!box.classList.contains('on'))return;abrirSino(true);
+  const t=sinoTotal();n.textContent=t?(t>99?'99+':t):'';b.classList.toggle('tem',t>0);
+  b.title=t?`${t} marca(s) de ração sem indústria relacionada`:'Nenhum aviso';
+  const box=$('#sinoBox');if(box&&box.classList.contains('on'))abrirSino();
 }
-function abrirSino(manter){
+function abrirSino(){
   const box=$('#sinoBox');
-  const dlI=`<datalist id="dlInd">${INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')}</datalist>`;
-  const dlM=`<datalist id="dlMar">${MARCAS_CAD.map(m=>`<option value="${esc(m.nome)}">`).join('')}</datalist>`;
+  const lista=ROT_PEND.filter(rotRacao).slice(0,12);
+  const restoPend=ROT_PEND.length-lista.length;
+  const dlI=`<datalist id="dlIndS">${INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')}</datalist>`;
   const lin=r=>`<div class="rotlin"><div><div class="rr">${esc(r.exemplo||r.rotulo)}</div>
-    <div class="rv">${fmt0(+r.relevancia||0)} nos últimos 12 meses · ${esc(r.origem||'')}</div></div>
+    <div class="rv">${fmt0(+r.relevancia||0)} em 12 m · ${Math.round(r.pct_racao)}% ração</div></div>
     <div><button class="btn g" data-ign="${esc(r.rotulo)}" style="padding:5px 9px;font-size:11px">Ignorar</button></div>
-    <div class="rf"><input list="dlInd" placeholder="indústria (ex.: ADIMAX)" data-ind="${esc(r.rotulo)}">
-      <input list="dlMar" placeholder="marca canônica (opcional)" data-mar="${esc(r.rotulo)}" value="">
+    <div class="rf"><input list="dlIndS" placeholder="indústria (ex.: ADIMAX)" data-ind="${esc(r.rotulo)}">
       <button class="btn o" data-rel="${esc(r.rotulo)}" style="padding:5px 11px;font-size:12px">Relacionar</button></div></div>`;
-  const rev=r=>`<div class="rotlin"><div><div class="rr">${esc(r.exemplo||r.rotulo)} <small style="color:var(--mu);font-weight:400">→ ${esc(r.industria||'—')}</small></div>
-    <div class="rv">relação sugerida automaticamente, ainda não confirmada</div></div>
-    <div style="display:flex;gap:5px"><button class="btn" data-ok="${esc(r.rotulo)}" style="padding:5px 9px;font-size:11px">Confirmar</button></div>
-    <div class="rf"><input list="dlInd" placeholder="corrigir indústria" data-ind="${esc(r.rotulo)}" value="${esc(r.industria||'')}">
-      <input list="dlMar" placeholder="corrigir marca" data-mar="${esc(r.rotulo)}" value="${esc(r.marca||'')}">
-      <button class="btn o" data-rel="${esc(r.rotulo)}" style="padding:5px 11px;font-size:12px">Corrigir</button></div></div>`;
-  box.innerHTML=dlI+dlM+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <h3 style="flex:1">🔔 Avisos importantes</h3>
-    <button class="btn g" id="sinoSync" style="padding:5px 10px;font-size:11px">Revarrer arquivos</button>
+  box.innerHTML=dlI+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <h3 style="flex:1">🔔 Marcas de ração sem indústria</h3>
     <button class="btn g" id="sinoX" style="padding:5px 10px;font-size:11px">Fechar</button></div>
-   <p class="note">Toda marca que entra pelos arquivos das lojas precisa estar ligada a uma indústria. Sem essa relação ela não soma no card de indústrias nem no acordo de rebate. Digite a indústria e clique em Relacionar; a marca canônica só é necessária quando o rótulo da loja for uma variação de grafia.</p>
-   <h3 style="margin-top:12px">Marcas sem indústria <small style="font-weight:400;color:var(--mu)">${ROT_PEND.length} com movimento nos últimos 12 meses</small></h3>
-   ${ROT_PEND.length?ROT_PEND.slice(0,80).map(lin).join(''):'<p class="note">Nenhuma. Toda marca com movimento está relacionada.</p>'}
-   <h3 style="margin-top:16px">Relações a confirmar <small style="font-weight:400;color:var(--mu)">${ROT_REV.length}</small></h3>
-   ${ROT_REV.length?ROT_REV.slice(0,80).map(rev).join(''):'<p class="note">Nenhuma pendente de confirmação.</p>'}`;
+   <p class="note">Só entram aqui marcas de ração ou petisco com pelo menos ${fmt0(SINO_MIN)} em 12 meses — são as que pesam no acordo de rebate. Digite a indústria e clique em Relacionar.</p>
+   ${lista.length?lista.map(lin).join(''):'<p class="note" style="padding:14px 0">Nenhuma. Toda marca de ração relevante já está relacionada a uma indústria.</p>'}
+   <p class="note" style="margin-top:14px;border-top:1px solid var(--bd);padding-top:12px">
+     ${restoPend>0?`Há mais ${restoPend} rótulo(s) pendente(s) de outras categorias e de valor baixo. `:''}
+     <a id="sinoParam" style="color:var(--v);font-weight:700;cursor:pointer;text-decoration:underline">Abrir a aba Parametrização de marcas →</a></p>`;
   box.classList.add('on');$('#sinoBg').classList.add('on');
-  const val=(k,r)=>(box.querySelector(`[data-${k}="${CSS.escape(r)}"]`)||{}).value||'';
-  box.querySelectorAll('[data-rel]').forEach(b=>b.onclick=()=>relacionarRotulo(b.dataset.rel,val('ind',b.dataset.rel),val('mar',b.dataset.rel)));
+  const val=r=>(box.querySelector(`[data-ind="${CSS.escape(r)}"]`)||{}).value||'';
+  box.querySelectorAll('[data-rel]').forEach(b=>b.onclick=()=>relacionarRotulo(b.dataset.rel,val(b.dataset.rel),''));
   box.querySelectorAll('[data-ign]').forEach(b=>b.onclick=()=>ignorarRotulo(b.dataset.ign));
-  box.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>confirmarRotulo(b.dataset.ok));
-  $('#sinoSync').onclick=async()=>{$('#sinoSync').textContent='varrendo…';try{await sincronizarRotulos()}catch(e){alert(e.message)}};
   $('#sinoX').onclick=fecharSino;
+  $('#sinoParam').onclick=()=>{fecharSino();const nb=document.querySelector('nav button[data-t="param"]');if(nb&&!document.body.classList.contains('leitura'))nb.click();setTimeout(()=>irPara('param'),60)};
 }
 function fecharSino(){$('#sinoBox').classList.remove('on');$('#sinoBg').classList.remove('on')}
+
+/* ---------- aba Parametrização de marcas ---------- */
+function renderParam(){
+  const tb=$('#pmTab');if(!tb)return;
+  const q=rotNorm(($('#pmBusca')||{}).value||'');
+  const f=(($('#pmFiltro')||{}).value)||'pend_racao';
+  const min=+(($('#pmMin')||{}).value||0);
+  let rows=ROT_PARAM.filter(r=>{
+    if(r.status==='ignorado')return false;
+    if(f==='pend_racao'&&!(r.status==='pendente'&&r.pct_racao>=SINO_RACAO))return false;
+    if(f==='pend'&&r.status!=='pendente')return false;
+    if(f==='rev'&&!(r.status==='mapeado'&&r.confianca==='revisar'))return false;
+    if(f==='map'&&r.status!=='mapeado')return false;
+    if(r.relevancia<min)return false;
+    if(q&&!(r.rotulo.includes(q)||rotNorm(r.marca||'').includes(q)||rotNorm(r.industria||'').includes(q)))return false;
+    return true});
+  const dl=`<datalist id="dlIndP">${INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')}</datalist>
+            <datalist id="dlMarP">${MARCAS_CAD.map(m=>`<option value="${esc(m.nome)}">`).join('')}</datalist>`;
+  const tag=r=>r.status==='pendente'?'<span class="tag no">sem indústria</span>'
+    :r.confianca==='revisar'?'<span class="tag at">a confirmar</span>':'<span class="tag ok">relacionada</span>';
+  const linha=r=>`<tr>
+   <td><b>${esc(r.exemplo||r.rotulo)}</b><br><small style="color:var(--mu)">${esc(r.origem)}</small></td>
+   <td style="text-align:right">${fmt0(+r.relevancia||0)}</td>
+   <td style="text-align:right">${Math.round(r.pct_racao)}%</td>
+   <td>${tag(r)}</td>
+   <td><input list="dlIndP" data-pind="${esc(r.rotulo)}" value="${esc(r.industria||'')}" placeholder="indústria" style="min-width:150px"></td>
+   <td><input list="dlMarP" data-pmar="${esc(r.rotulo)}" value="${esc(r.marca||'')}" placeholder="= o próprio rótulo" style="min-width:150px"></td>
+   <td style="white-space:nowrap"><button class="btn o" data-prel="${esc(r.rotulo)}" style="padding:5px 10px;font-size:12px">Salvar</button>
+   ${r.status==='mapeado'&&r.confianca==='revisar'?`<button class="btn" data-pok="${esc(r.rotulo)}" style="padding:5px 8px;font-size:11px">Confirmar</button>`:''}
+   <button class="btn g" data-pign="${esc(r.rotulo)}" style="padding:5px 8px;font-size:11px" title="não é marca / não interessa">Ignorar</button></td></tr>`;
+  tb.innerHTML=dl+`<table><thead><tr><th>Rótulo do arquivo</th><th style="text-align:right">Valor 12 m</th><th style="text-align:right">% ração</th><th>Situação</th><th>Indústria</th><th>Marca canônica</th><th></th></tr></thead>
+   <tbody>${rows.length?rows.slice(0,300).map(linha).join(''):'<tr><td colspan="7" class="note" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody></table>`;
+  const v=(k,r)=>(tb.querySelector(`[data-${k}="${CSS.escape(r)}"]`)||{}).value||'';
+  tb.querySelectorAll('[data-prel]').forEach(b=>b.onclick=()=>relacionarRotulo(b.dataset.prel,v('pind',b.dataset.prel),v('pmar',b.dataset.prel)));
+  tb.querySelectorAll('[data-pok]').forEach(b=>b.onclick=()=>confirmarRotulo(b.dataset.pok));
+  tb.querySelectorAll('[data-pign]').forEach(b=>b.onclick=()=>ignorarRotulo(b.dataset.pign));
+  const pendR=ROT_PEND.filter(r=>r.pct_racao>=SINO_RACAO).length;
+  const el=$('#pmResumo');if(el)el.innerHTML=`${rows.length} linha(s) no filtro · <b>${pendR}</b> pendente(s) de ração · ${ROT_PEND.length} pendente(s) no total · ${ROT_REV.length} a confirmar`;
+  // indústrias × marcas
+  const pi=$('#pmInd');if(pi){
+    const porInd=new Map();MARCAS_CAD.forEach(m=>{const i=INDUSTRIAS_CAD.find(x=>x.id===m.industria_id);const k=i?i.nome:'(sem indústria)';
+      const a=porInd.get(k)||[];a.push(m.nome);porInd.set(k,a)});
+    const val=n=>ROT_PARAM.filter(r=>r.industria===n).reduce((t,r)=>t+(+r.relevancia||0),0);
+    const arr=[...porInd.entries()].map(([n,ms])=>({n,ms,v:val(n)})).sort((a,b)=>b.v-a.v);
+    pi.innerHTML=`<table><thead><tr><th>Indústria</th><th style="text-align:right">Marcas</th><th style="text-align:right">Valor 12 m</th><th>Marcas incluídas</th></tr></thead><tbody>
+     ${arr.map(x=>`<tr><td><b>${esc(x.n)}</b></td><td style="text-align:right">${x.ms.length}</td><td style="text-align:right">${fmt0(x.v)}</td><td><small>${esc(x.ms.sort().join(', '))}</small></td></tr>`).join('')}</tbody></table>`;
+  }
+}
 (()=>{const b=$('#btnSino');if(b)b.onclick=()=>$('#sinoBox').classList.contains('on')?fecharSino():abrirSino();
+  ['#pmBusca','#pmFiltro','#pmMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pmBusca'?'oninput':'onchange']=()=>renderParam()});
+  const sy=$('#pmSync');if(sy)sy.onclick=async()=>{sy.textContent='varrendo…';try{await sincronizarRotulos()}catch(e){alert(e.message)}sy.textContent='Revarrer arquivos'};
   const g=$('#sinoBg');if(g)g.onclick=fecharSino;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharSino()});})();
 /* ---------- acordos (persistência) ---------- */
@@ -948,9 +1056,11 @@ const acordoDe=fa=>{const n=normFab(fa);if(!n)return undefined;return ACORDOS.fi
 /* fornecedor bate com o(s) distribuidor(es) homologado(s)? aceita vários separados por ";" e variações de grafia (contém) */
 const homologOk=(fo,dist)=>{if(!dist)return true;const f=normFab(fo);return String(dist).split(';').map(normFab).filter(Boolean).some(d=>f===d||f.includes(d)||d.includes(f))};
 function renderAcordos(){
-  const tb=$('#tbAcordos tbody');const opts='<datalist id="dlFab">'+FABS.map(f=>`<option value="${esc(f)}">`).join('')+'</datalist><datalist id="dlFor">'+FORS.map(f=>`<option value="${esc(f)}">`).join('')+'</datalist>';
+  const tb=$('#tbAcordos tbody');
+  const opts='<datalist id="dlFab">'+INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')+'</datalist><datalist id="dlFor">'+FORS.map(f=>`<option value="${esc(f)}">`).join('')+'</datalist>';
+  const marcasDaInd=nome=>{const i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(nome));return i?MARCAS_CAD.filter(m=>m.industria_id===i.id).map(m=>m.nome).sort():[]};
   tb.innerHTML=opts+ACORDOS.map((a,i)=>`<tr>
-   <td><input list="dlFab" data-i="${i}" data-k="fab" value="${esc(a.fab||'')}" style="min-width:130px"></td>
+   <td><input list="dlFab" data-i="${i}" data-k="fab" data-ind-ac="${i}" value="${esc(a.fab||'')}" placeholder="ex.: ADIMAX" style="min-width:130px"></td>
    <td><div style="display:flex;gap:4px;align-items:center;min-width:190px"><input data-i="${i}" data-k="marcas" value="${esc(a.marcas||'')}" placeholder="MARCA1; MARCA2" style="flex:1"><button class="btn g" data-marcas="${i}" style="padding:5px 8px" title="escolher da lista">▾</button></div></td>
    <td><select data-i="${i}" data-k="base" style="min-width:78px"><option value="valor" ${a.base!=='kg'?'selected':''}>R$</option><option value="kg" ${a.base==='kg'?'selected':''}>kg</option></select></td>
    <td><input data-i="${i}" data-k="filtro" value="${esc(a.filtro||'')}" placeholder="ex.: LIFE" style="min-width:90px"></td>
@@ -963,11 +1073,18 @@ function renderAcordos(){
    <td><input type="number" data-i="${i}" data-k="f3" value="${a.f3||''}"></td><td><input type="number" step="0.1" data-i="${i}" data-k="p3" value="${a.p3||''}"></td>
    <td><input data-i="${i}" data-k="obs" value="${esc(a.obs||'')}"></td>
    <td><button class="btn g" data-del="${i}" title="Remover">✕</button></td></tr>`).join('');
+  tb.querySelectorAll('[data-ind-ac]').forEach(inp=>inp.addEventListener('change',()=>{
+    const i=+inp.dataset.indAc,ms=marcasDaInd(inp.value);
+    const campo=tb.querySelector(`[data-i="${i}"][data-k="marcas"]`);
+    if(ms.length&&campo&&(!campo.value.trim()||confirm(`A indústria ${inp.value.toUpperCase()} tem ${ms.length} marca(s) cadastrada(s):\n\n${ms.join('; ')}\n\nSubstituir a lista de marcas incluídas?`))){
+      campo.value=ms.join('; ');campo.dispatchEvent(new Event('input',{bubbles:true}));ACORDOS[i].marcas=campo.value}
+    else if(!ms.length)alert(`A indústria "${inp.value.toUpperCase()}" ainda não tem marcas relacionadas.\n\nRelacione as marcas na aba "🏭 Parametrização de marcas" e volte aqui — a lista preenche sozinha.`)}));
   tb.querySelectorAll('[data-marcas]').forEach(b=>b.onclick=()=>{const i=+b.dataset.marcas;const atual=(ACORDOS[i].marcas||'').split(';').map(s=>normFab(s)).filter(Boolean);
     const box=document.createElement('div');box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:70;display:flex;align-items:center;justify-content:center';
     box.innerHTML=`<div style="background:#fff;border-radius:14px;padding:18px;max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column"><h3 style="color:var(--vd);margin-bottom:8px">Marcas do acordo</h3><input id="mBusca" placeholder="buscar marca" style="width:100%;margin-bottom:8px"><div id="mLista" style="overflow:auto;flex:1;display:grid;grid-template-columns:1fr 1fr;gap:2px"></div><p style="margin-top:10px;text-align:right"><button class="btn g" id="mCancel">Cancelar</button> <button class="btn o" id="mOk">Aplicar</button></p></div>`;
     document.body.appendChild(box);const sel=new Set(atual);
-    const desenha=q=>{box.querySelector('#mLista').innerHTML=FABS.filter(f=>!q||normFab(f).includes(normFab(q))).map(f=>`<label style="display:flex;gap:6px;align-items:center;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px"><input type="checkbox" ${sel.has(normFab(f))?'checked':''} data-f="${esc(f)}" style="min-width:0;width:15px;height:15px">${esc(f)}</label>`).join('');
+    const univ=(marcasDaInd(ACORDOS[i].fab).length?marcasDaInd(ACORDOS[i].fab):MARCAS_CAD.map(m=>m.nome)).concat(FABS).filter((v,k,ar)=>ar.indexOf(v)===k);
+    const desenha=q=>{box.querySelector('#mLista').innerHTML=univ.filter(f=>!q||normFab(f).includes(normFab(q))).map(f=>`<label style="display:flex;gap:6px;align-items:center;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px"><input type="checkbox" ${sel.has(normFab(f))?'checked':''} data-f="${esc(f)}" style="min-width:0;width:15px;height:15px">${esc(f)}</label>`).join('');
       box.querySelectorAll('[data-f]').forEach(c=>c.onchange=()=>{c.checked?sel.add(normFab(c.dataset.f)):sel.delete(normFab(c.dataset.f))})};
     desenha('');box.querySelector('#mBusca').oninput=e=>desenha(e.target.value);
     box.querySelector('#mCancel').onclick=()=>box.remove();
