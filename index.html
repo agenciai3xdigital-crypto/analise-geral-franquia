@@ -333,7 +333,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.5 · marca→indústria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.6 · marca→indústria→distribuidor</span></div></aside>
 <div id="sinoBg"></div>
 <aside id="sinoBox"></aside>
 <div id="status"></div>
@@ -510,8 +510,28 @@ body.filtrosOff .filters{display:none}
     <p class="note">Enquanto houver linha aqui, algum valor de compra ou venda está ficando de fora da leitura por indústria ou do cálculo de rebate.</p>
   </div>
   <div class="card full">
-    <h3>Indústrias cadastradas <small>quem é dona de quais marcas</small></h3>
+    <h3>Cadastro de indústrias <small>crie a indústria mesmo que o nome dela nunca apareça na nota</small></h3>
+    <p class="note">A nota traz o nome do <b>produto/marca</b> (BOMGUY, MAGNUS). O nome da <b>indústria</b> (ADIMAX) muitas vezes não aparece em lugar nenhum — cadastre aqui e depois arraste as marcas para ela. Renomear é seguro: o vínculo é por código, não por texto, e o acordo acompanha sozinho.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:12px 0">
+      <div><label class="note">Nova indústria</label><input id="ciNome" placeholder="ex.: ADIMAX" style="min-width:190px"></div>
+      <div><label class="note">CNPJ (opcional)</label><input id="ciCnpj" placeholder="00.000.000/0000-00" style="min-width:160px"></div>
+      <div><label class="note">Obs. (opcional)</label><input id="ciObs" placeholder="contato, condição comercial…" style="min-width:200px"></div>
+      <button class="btn o" id="ciAdd">+ Cadastrar indústria</button>
+    </div>
     <div class="tw" id="pmInd"></div>
+  </div>
+  <div class="card full">
+    <h3>Distribuidores por indústria <small>quem entrega o quê, direto da nota de entrada</small></h3>
+    <p class="note">Sai de <b>fornecedor × fabricante</b> das notas dos últimos 12 meses, agrupado pela indústria. Marque o papel de cada um: <b>indústria direto</b> (venda direta da fábrica), <b>homologado</b>, <b>tolerado</b> ou <b>fora</b> (compra que não deveria acontecer). O papel é cadastro; o valor é o que a nota diz.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:12px 0">
+      <div><label class="note">Buscar</label><input id="pdBusca" placeholder="indústria, marca ou distribuidor" style="min-width:220px"></div>
+      <div><label class="note">Ver</label><select id="pdModo" style="min-width:200px">
+        <option value="ind">Por indústria → distribuidores</option>
+        <option value="dist">Por distribuidor → marcas</option></select></div>
+      <div><label class="note">Valor mínimo</label><select id="pdMin" style="min-width:120px">
+        <option value="0">Qualquer</option><option value="5000" selected>R$ 5 mil</option><option value="20000">R$ 20 mil</option></select></div>
+    </div>
+    <div class="tw" id="pmDist"></div>
   </div>
 </section>
 
@@ -705,7 +725,7 @@ $('#lEntrar').onclick=async()=>{try{
   try{localStorage.setItem('pop_email',$('#lEmail').value.trim())}catch(x){}USER=data.user;hideLogin();await carregarTudo();
  }catch(e){console.error(e);$('#lMsg').textContent='Erro: '+(e.message||e)+(/fetch/i.test(e.message||'')?' — confira a URL do projeto.':'')}};
 ['#lEmail','#lSenha','#lUrl','#lKey'].forEach(s=>$(s).addEventListener('keydown',e=>{if(e.key==='Enter')$('#lEntrar').click()}));
-function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];INTEG=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
+function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];INTEG=[];IND_DIST=[];DIST_MARCA=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
   Object.assign(F,{de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''});$('#fBusca').value='';$('#hUser').textContent='—';$('#status').textContent='';
   montarFiltros();renderAcordos();render();document.body.classList.add('deslogado')}
 $('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
@@ -910,7 +930,7 @@ const kgLinha=r=>{const k=pesoKg(r);return k==null?null:k*r.q};
 /* MARCAMAP: rótulo cru normalizado -> {marca, industria}. Alimentado pela tabela
    marca_rotulos, que por sua vez recebe automaticamente todo rótulo novo que
    entra pelos arquivos das lojas (trigger sync_rotulos no banco).             */
-let MARCAMAP={},ROT_PEND=[],ROT_REV=[],ROT_PARAM=[],MARCAS_CAD=[],INDUSTRIAS_CAD=[],INTEG=[];
+let MARCAMAP={},ROT_PEND=[],ROT_REV=[],ROT_PARAM=[],MARCAS_CAD=[],INDUSTRIAS_CAD=[],INTEG=[],IND_DIST=[],DIST_MARCA=[];
 /* o sininho só avisa marca de ração relevante: o resto vive na aba Parametrização */
 const SINO_MIN=5000,SINO_RACAO=50;
 const rotRacao=r=>r.pct_racao>=SINO_RACAO&&r.relevancia>=SINO_MIN;
@@ -920,19 +940,21 @@ const industriaCanon=fa=>{const m=MARCAMAP[rotNorm(fa)];return (m&&m.industria)|
 const semRelacao=fa=>{const n=rotNorm(fa);return !!n&&!(MARCAMAP[n]||{}).marca};
 async function carregarMarcas(){
   MARCAMAP={};ROT_PEND=[];ROT_REV=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];
-  const [mp,pd,mc,ind,ig]=await Promise.all([
+  const [mp,pd,mc,ind,ig,idi,dm]=await Promise.all([
     sb.from('v_marca_mapa').select('rotulo,exemplo,marca,industria,confianca,status'),
     sb.from('v_rotulos_param').select('*'),
     sb.from('marcas').select('id,nome,industria_id').order('nome'),
     sb.from('industrias').select('id,nome').order('nome'),
-    sb.from('v_integridade_marca').select('*')]);
+    sb.from('v_integridade_marca').select('*'),
+    sb.from('v_industria_distribuidor').select('*'),
+    sb.from('v_distribuidor_marca').select('*')]);
   if(mp.error){console.warn('marca_mapa',mp.error.message);return}
   (mp.data||[]).forEach(r=>{MARCAMAP[r.rotulo]={marca:r.marca,industria:r.industria,conf:r.confianca,st:r.status}});
   ROT_PARAM=(pd.data||[]).sort((a,b)=>b.relevancia-a.relevancia);
   ROT_PEND=ROT_PARAM.filter(r=>r.status==='pendente'&&r.relevancia>0);
   ROT_REV=ROT_PARAM.filter(r=>r.status==='mapeado'&&r.confianca==='revisar');
-  MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];INTEG=ig.data||[];
-  renderSino();renderParam();
+  MARCAS_CAD=mc.data||[];INDUSTRIAS_CAD=ind.data||[];INTEG=ig.data||[];IND_DIST=(idi.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);DIST_MARCA=(dm.data||[]).sort((a,b)=>b.valor_12m-a.valor_12m);
+  renderSino();renderParam();renderDistrib();
 }
 async function sincronizarRotulos(){const {error}=await sb.rpc('sync_rotulos');if(error)throw error;await carregarMarcas()}
 async function relacionarRotulo(rotulo,industria,marca){
@@ -966,6 +988,40 @@ async function proprioRotulo(rotulos){
     const u=await sb.from('marca_rotulos').update({marca_id:m.id,confianca:'ok'}).eq('rotulo',r.rotulo);
     if(u.error){alert(u.error.message);break}}
   await carregarMarcas();render();
+}
+async function criarIndustria(nome,cnpj,obs){
+  nome=(nome||'').trim().toUpperCase();if(!nome)return alert('Informe o nome da indústria.');
+  const r=await sb.from('industrias').insert({nome,cnpj:cnpj||null,obs:obs||null}).select('id,nome').single();
+  if(r.error)return alert(r.error.code==='23505'?`Já existe indústria equivalente a "${nome}".`:r.error.message);
+  await carregarMarcas();return r.data}
+async function renomearIndustria(id,nome){
+  nome=(nome||'').trim().toUpperCase();if(!nome)return;
+  const r=await sb.from('industrias').update({nome,atualizado_em:new Date().toISOString()}).eq('id',id);
+  if(r.error)return alert(r.error.code==='23505'?`Já existe indústria com esse nome.`:r.error.message);
+  await carregarMarcas();render()}
+async function moverMarca(marcaId,industriaNome){
+  let i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(industriaNome));
+  if(!i){if(!confirm(`A indústria "${industriaNome.toUpperCase()}" não existe. Criar agora?`))return;i=await criarIndustria(industriaNome);if(!i)return}
+  const r=await sb.from('marcas').update({industria_id:i.id,atualizado_em:new Date().toISOString()}).eq('id',marcaId);
+  if(r.error)return alert(r.error.message);await carregarMarcas();render()}
+async function apagarIndustria(id,nome){
+  if(!confirm(`Apagar a indústria "${nome}"?\n\nSó funciona se ela não tiver nenhuma marca. Nenhuma nota de entrada ou venda é afetada.`))return;
+  const r=await sb.from('industrias').delete().eq('id',id);
+  if(r.error)return alert(r.error.code==='23503'?'Esta indústria ainda tem marcas. Mova as marcas para outra indústria antes de apagar.':r.error.message);
+  await carregarMarcas();render()}
+async function papelDistribuidor(industriaId,distribuidor,papel){
+  if(!industriaId||industriaId<0)return alert('Este fornecedor está ligado a rótulo sem indústria. Relacione a marca primeiro.');
+  const atual=IND_DIST.find(x=>x.industria_id===industriaId&&rotNorm(x.fornecedor)===rotNorm(distribuidor));
+  if(papel==='nao_cadastrado'){
+    await sb.from('industria_distribuidores').delete().eq('industria_id',industriaId).eq('distribuidor',distribuidor);
+  }else{
+    const r=await sb.from('industria_distribuidores').upsert({industria_id:industriaId,distribuidor,papel,
+      atualizado_em:new Date().toISOString()},{onConflict:'industria_id,distribuidor'});
+    if(r.error){const ins=await sb.from('industria_distribuidores').insert({industria_id:industriaId,distribuidor,papel});
+      if(ins.error&&ins.error.code==='23505'){await sb.from('industria_distribuidores').update({papel}).eq('industria_id',industriaId).eq('distribuidor',distribuidor)}
+      else if(ins.error)return alert(ins.error.message)}}
+  if(atual)atual.papel=papel;
+  await carregarMarcas();
 }
 async function ignorarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({status:'ignorado'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
 async function confirmarRotulo(rotulo){const u=await sb.from('marca_rotulos').update({confianca:'ok'}).eq('rotulo',rotulo);if(u.error)return alert(u.error.message);await carregarMarcas()}
@@ -1052,19 +1108,70 @@ function renderParam(){
     ?`<table><thead><tr><th>Problema</th><th>Item</th><th>Detalhe</th><th style="text-align:right">Valor 12 m</th></tr></thead><tbody>
       ${INTEG.slice(0,60).map(x=>`<tr><td><span class="tag ${/acordo/.test(x.problema)?'no':'at'}">${esc(x.problema)}</span></td><td><b>${esc(x.item||'')}</b></td><td><small>${esc(x.detalhe||'')}</small></td><td style="text-align:right">${+x.valor_12m?fmt0(+x.valor_12m):'—'}</td></tr>`).join('')}</tbody></table>`
     :'<p class="note" style="padding:14px 0">Nenhuma inconsistência. Todo rótulo com peso está ligado a uma indústria e todo acordo aponta para a indústria certa.</p>';
-  // indústrias × marcas
-  const pi=$('#pmInd');if(pi){
-    const porInd=new Map();MARCAS_CAD.forEach(m=>{const i=INDUSTRIAS_CAD.find(x=>x.id===m.industria_id);const k=i?i.nome:'(sem indústria)';
-      const a=porInd.get(k)||[];a.push(m.nome);porInd.set(k,a)});
-    const val=n=>ROT_PARAM.filter(r=>r.industria===n).reduce((t,r)=>t+(+r.relevancia||0),0);
-    const arr=[...porInd.entries()].map(([n,ms])=>({n,ms,v:val(n)})).sort((a,b)=>b.v-a.v);
-    pi.innerHTML=`<table><thead><tr><th>Indústria</th><th style="text-align:right">Marcas</th><th style="text-align:right">Valor 12 m</th><th>Marcas incluídas</th></tr></thead><tbody>
-     ${arr.map(x=>`<tr><td><b>${esc(x.n)}</b></td><td style="text-align:right">${x.ms.length}</td><td style="text-align:right">${fmt0(x.v)}</td><td><small>${esc(x.ms.sort().join(', '))}</small></td></tr>`).join('')}</tbody></table>`;
+  // indústrias × marcas (editável)
+  const pi=$('#pmInd');
+  if(pi){
+    const dlI2=`<datalist id="dlIndM">${INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')}</datalist>`;
+    const valInd=id=>ROT_PARAM.filter(r=>r.industria_id===id).reduce((t,r)=>t+(+r.relevancia||0),0);
+    const arr=INDUSTRIAS_CAD.map(i=>({...i,ms:MARCAS_CAD.filter(m=>m.industria_id===i.id),v:valInd(i.id)}))
+      .sort((a,b)=>b.v-a.v);
+    pi.innerHTML=dlI2+`<table><thead><tr><th>Indústria</th><th style="text-align:right">Marcas</th><th style="text-align:right">Valor 12 m</th><th>Marcas incluídas · mover para outra indústria</th><th></th></tr></thead><tbody>
+     ${arr.map(x=>`<tr>
+       <td><input data-inome="${x.id}" value="${esc(x.nome)}" style="min-width:150px;font-weight:700"></td>
+       <td style="text-align:right">${x.ms.length}</td>
+       <td style="text-align:right">${fmt0(x.v)}</td>
+       <td><div style="display:flex;flex-wrap:wrap;gap:4px">${x.ms.sort((a,b)=>a.nome.localeCompare(b.nome)).map(m=>
+         `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--bg);border-radius:6px;padding:2px 6px;font-size:12px">${esc(m.nome)}
+          <button class="btn g" data-mv="${m.id}" title="mover para outra indústria" style="padding:1px 5px;font-size:11px;line-height:1.3">↦</button></span>`).join('')||'<small style="color:var(--mu)">nenhuma marca — esta indústria não soma nada</small>'}</div></td>
+       <td style="white-space:nowrap"><button class="btn g" data-iren="${x.id}" style="padding:5px 9px;font-size:11px">Renomear</button>
+       ${x.ms.length?'':`<button class="btn g" data-idel="${x.id}" data-inm="${esc(x.nome)}" style="padding:5px 8px;font-size:11px">Apagar</button>`}</td></tr>`).join('')}
+     </tbody></table>`;
+    pi.querySelectorAll('[data-iren]').forEach(b=>b.onclick=()=>{
+      const id=+b.dataset.iren;renomearIndustria(id,pi.querySelector(`[data-inome="${id}"]`).value)});
+    pi.querySelectorAll('[data-idel]').forEach(b=>b.onclick=()=>apagarIndustria(+b.dataset.idel,b.dataset.inm));
+    pi.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{
+      const m=MARCAS_CAD.find(x=>x.id===+b.dataset.mv);if(!m)return;
+      const alvo=prompt(`Mover a marca "${m.nome}" para qual indústria?\n\nIndústrias já cadastradas:\n`+INDUSTRIAS_CAD.map(i=>i.nome).sort().join(', '),'');
+      if(alvo&&alvo.trim())moverMarca(m.id,alvo)});
+  }
+}
+
+/* ---------- distribuidores por indústria ---------- */
+function renderDistrib(){
+  const el=$('#pmDist');if(!el)return;
+  const q=rotNorm(($('#pdBusca')||{}).value||''),modo=(($('#pdModo')||{}).value)||'ind',min=+(($('#pdMin')||{}).value||0);
+  const PAPEIS=[['industria_direto','indústria direto'],['homologado','homologado'],['tolerado','tolerado'],['fora','fora do acordo'],['nao_cadastrado','—']];
+  const cor=p=>p==='fora'?'no':p==='tolerado'?'at':p==='nao_cadastrado'?'nt':'ok';
+  if(modo==='ind'){
+    const rows=IND_DIST.filter(r=>r.valor_12m>=min&&(!q||rotNorm(r.industria).includes(q)||rotNorm(r.fornecedor).includes(q)));
+    el.innerHTML=`<table><thead><tr><th>Indústria</th><th>Distribuidor na nota</th><th style="text-align:right">Valor 12 m</th><th style="text-align:right">Share</th><th style="text-align:right">Lojas</th><th style="text-align:right">NFs</th><th>Papel</th></tr></thead><tbody>
+     ${rows.slice(0,300).map(r=>`<tr>
+       <td><b>${esc(r.industria)}</b></td><td>${esc(r.fornecedor)}</td>
+       <td style="text-align:right">${fmt0(+r.valor_12m)}</td>
+       <td style="text-align:right"><span class="tag ${r.share>=80?'ok':r.share>=30?'at':'nt'}">${r.share}%</span></td>
+       <td style="text-align:right">${r.lojas}</td><td style="text-align:right">${r.nfs}</td>
+       <td><select data-pap="${r.industria_id}|${esc(r.fornecedor)}" class="tag ${cor(r.papel)}" style="min-width:140px;padding:4px 6px">
+         ${PAPEIS.map(([v,t])=>`<option value="${v}" ${r.papel===v?'selected':''}>${t}</option>`).join('')}</select></td></tr>`).join('')
+       ||'<tr><td colspan="7" class="note" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody></table>`;
+    el.querySelectorAll('[data-pap]').forEach(sel=>sel.onchange=()=>{
+      const [id,forn]=sel.dataset.pap.split('|');papelDistribuidor(+id,forn,sel.value)});
+  }else{
+    const por=new Map();
+    DIST_MARCA.filter(r=>r.valor_12m>=min&&(!q||rotNorm(r.distribuidor).includes(q)||rotNorm(r.marca).includes(q)||rotNorm(r.industria).includes(q)))
+      .forEach(r=>{const a=por.get(r.distribuidor)||{v:0,itens:[]};a.v+=+r.valor_12m;a.itens.push(r);por.set(r.distribuidor,a)});
+    const arr=[...por.entries()].sort((a,b)=>b[1].v-a[1].v).slice(0,120);
+    el.innerHTML=`<table><thead><tr><th>Distribuidor</th><th style="text-align:right">Valor 12 m</th><th style="text-align:right">Marcas</th><th>Entrega estas marcas</th></tr></thead><tbody>
+     ${arr.map(([d,a])=>`<tr><td><b>${esc(d)}</b></td><td style="text-align:right">${fmt0(a.v)}</td><td style="text-align:right">${a.itens.length}</td>
+      <td><small>${a.itens.sort((x,y)=>y.valor_12m-x.valor_12m).slice(0,14).map(x=>`${esc(x.marca)} <span style="color:var(--mu)">(${esc(x.industria)} · ${fmt0(+x.valor_12m)})</span>`).join(' · ')}${a.itens.length>14?' …':''}</small></td></tr>`).join('')
+       ||'<tr><td colspan="4" class="note" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody></table>`;
   }
 }
 (()=>{const b=$('#btnSino');if(b)b.onclick=()=>$('#sinoBox').classList.contains('on')?fecharSino():abrirSino();
   ['#pmBusca','#pmFiltro','#pmMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pmBusca'?'oninput':'onchange']=()=>renderParam()});
   const sy=$('#pmSync');if(sy)sy.onclick=async()=>{sy.textContent='varrendo…';try{await sincronizarRotulos()}catch(e){alert(e.message)}sy.textContent='Revarrer arquivos'};
+  ['#pdBusca','#pdModo','#pdMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pdBusca'?'oninput':'onchange']=()=>renderDistrib()});
+  const ca=$('#ciAdd');if(ca)ca.onclick=async()=>{const n=$('#ciNome');
+    if(await criarIndustria(n.value,$('#ciCnpj').value,$('#ciObs').value)){n.value='';$('#ciCnpj').value='';$('#ciObs').value=''}};
   const g=$('#sinoBg');if(g)g.onclick=fecharSino;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharSino()});})();
 /* ---------- acordos (persistência) ---------- */
