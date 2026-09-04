@@ -353,7 +353,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.15 · carga em lote por pasta</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.17 · boot paralelo</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -826,8 +826,17 @@ const LOADER={
     const eta=$('#loadEta');if(eta){let txt='—';if(this.feito>0&&this.total>0){const perStep=(performance.now()-this.tFase)/this.feito;txt=this.fmt(perStep*(this.total-this.feito)/1000);}eta.textContent=txt;}},
   fechar(){this.ativo=false;clearInterval(this._tmr);clearInterval(this._sTmr);const w=$('#loadWrap');if(w)w.style.display='none';const b=$('#loadSalmo');if(b)b.style.opacity=0;}
 };
+/* roda tarefas em paralelo com limite — a carga é limitada por latência, não por CPU */
+async function emParalelo(itens,limite,tarefa){
+  let cursor=0;const erros=[];
+  await Promise.all(Array.from({length:Math.min(limite,itens.length)},async()=>{
+    while(cursor<itens.length){const it=itens[cursor++];
+      try{await tarefa(it)}catch(e){erros.push(e)}}
+  }));
+  if(erros.length)throw erros[0];
+}
 async function carregarLoja(l){
-  const rows=[];let apos=0;const lim=10000;
+  const rows=[];let apos=0;const lim=25000;
   while(true){const {data,error}=await sb.rpc('entradas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
     data.forEach(r=>rows.push(mapRow(r,l.key)));if(data.length<lim)break;apos=data[data.length-1].id;$('#status').textContent=`Carregando ${l.key}: ${rows.length.toLocaleString('pt-BR')} itens…`}
   rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
@@ -842,7 +851,7 @@ async function carregarTudo(){
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
     LOADER.fase('Etapa 1/2 · Compras',comDados.length);
-    for(const l of comDados){i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()}
+    await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
     await carregarVendasTodas();$('#status').textContent='';recompor();recomporVendas();montarFiltros();renderAcordos();render();
     carregarFinanceiroIC().catch(e=>console.error('financeiro',e));
     LOADER.fechar();
@@ -1520,10 +1529,17 @@ function ligarAcoesCarga(ctx){
   ctx.querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
 }
 function renderCarga(){
-  const ativas=LOJAS.filter(l=>l.status==='Ativa');const com=ativas.filter(l=>UNIDADES[l.key]).length;const fora=UNIS.filter(u=>!LJ[u]).length;
-  $('#cResumo').textContent=`${UNIS.length} unidade(s) com dados · ${DATA.length.toLocaleString('pt-BR')} itens`;
-  const comV=ativas.filter(l=>VENDAS[l.key]).length;
-  const semNada=ativas.filter(l=>!UNIDADES[l.key]&&!VENDAS[l.key]).length;
+  // conta pelo BANCO (RESUMO/RESUMO_V), não pelo que está na memória do navegador.
+  // No modo de carga em lote os itens não são trazidos, então UNIDADES fica vazio
+  // e a cobertura mostraria menos lojas do que existe de fato.
+  const temC=l=>!!(RESUMO[l.id]||UNIDADES[l.key]);
+  const temV=l=>!!(RESUMO_V[l.id]||VENDAS[l.key]);
+  const ativas=LOJAS.filter(l=>l.status==='Ativa');const com=ativas.filter(temC).length;const fora=UNIS.filter(u=>!LJ[u]).length;
+  const nUni=LOJAS.filter(temC).length||UNIS.length;
+  const nItens=Object.values(RESUMO).reduce((t,r)=>t+(+r.itens||0),0)||DATA.length;
+  $('#cResumo').textContent=`${nUni} unidade(s) com dados · ${nItens.toLocaleString('pt-BR')} itens`;
+  const comV=ativas.filter(temV).length;
+  const semNada=ativas.filter(l=>!temC(l)&&!temV(l)).length;
   $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com compras</span><b>${com}</b><i>${ativas.length?(com/ativas.length*100).toFixed(0):0}% da rede</i></div><div class="kpi z"><span>Com vendas</span><b>${comV}</b><i>BI Global</i></div><div class="kpi a"><span>Sem nenhum dado</span><b>${semNada}</b><i>${fora?fora+' fora do cadastro':'aguardando carga'}</i></div>`;
   const vis=$('#cVis').value;const fq=norm($('#cFiltro')?$('#cFiltro').value:'');
   const mesesGap=(arr)=>{if(arr.length<2)return 0;const s=[...new Set(arr)].sort();return mesesEntre(s[0],s[s.length-1]).filter(m=>!s.includes(m)).length};
@@ -1652,7 +1668,7 @@ async function carregarMestre(){const {data,error}=await sb.from('produtos_mestr
 /* FASE 2: as vendas chegam AGREGADAS por loja × mês × produto (tabela vendas_mes_sku), 4× menos linhas que o BI Global bruto.
    Cada linha traz n (linhas originais), np (pedidos distintos), nc0/tc0 (linhas e valor sem custo), nneg/pneg (venda abaixo do custo) e inst (regra composta calculada no banco). */
 const mapV=(r,key)=>({u:key,d:r.primeira||(r.mes+'-01'),m:r.mes,ped:'',seq:0,cod:r.cod_produto,ean:r.ean||'',p:r.produto,gr:r.grupo||'',sg:r.subgrupo||'',faL:normFab(r.fabricante_loja),fo:r.fornecedor||'',tipo:r.tipo||'Produto',bal:!!r.balanca,q:+r.qtd,pb:0,pl:0,t:+r.total,c:+r.custo,l:+r.lucro,cc:'',cl:'',ba:'',ve:'',n:+r.n||1,np:+r.pedidos||0,instS:!!r.inst,nc0:+r.n_custo0||0,tc0:+r.total_custo0||0,nneg:+r.n_neg||0,pneg:+r.perda_neg||0,ult:r.ultima||''});
-async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=10000;
+async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=25000;
   while(true){const {data,error}=await sb.rpc('vendas_agg_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
     data.forEach(r=>rows.push(mapV(r,l.key)));if(!data.length)break;apos=data[data.length-1].id;$('#status').textContent=`Carregando vendas ${l.key}: ${rows.length.toLocaleString('pt-BR')} produtos-mês…`;if(data.length<lim)break}
   rows.sort((a,b)=>a.m<b.m?-1:a.m>b.m?1:0);
@@ -1666,7 +1682,8 @@ const pedidosDe=(ignoreMes,uOnly)=>{const o=somaV(vmesRows(ignoreMes,uOnly));ret
 async function carregarVendasTodas(){
   const {data:res,error}=await sb.rpc('resumo_vendas');if(error){if(/vendas/i.test(error.message)){console.warn('tabela vendas ainda não criada');return}throw error}
   RESUMO_V={};res.forEach(r=>RESUMO_V[r.loja_id]=r);await carregarMestre();await carregarVMes();VENDAS={};
-  const com=LOJAS.filter(l=>RESUMO_V[l.id]);let i=0;LOADER.fase('Etapa 2/2 · Vendas',com.length);for(const l of com){i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l);LOADER.passo()}
+  const com=LOJAS.filter(l=>RESUMO_V[l.id]);let i=0;LOADER.fase('Etapa 2/2 · Vendas',com.length);
+  await emParalelo(com,4,async l=>{i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l);LOADER.passo()});
 }
 function recomporVendas(){VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
 async function enviarVendas(loja,linhas,arquivo){
