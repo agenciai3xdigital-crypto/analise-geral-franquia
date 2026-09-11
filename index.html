@@ -829,7 +829,7 @@ const LOADER={
     const pct=this.total?Math.min(100,Math.round(this.feito/this.total*100)):0;
     const bar=$('#loadBar');if(bar)bar.style.width=pct+'%';
     const p=$('#loadPct');if(p)p.textContent=pct+'%';
-    const sub=$('#loadSub');if(sub)sub.textContent=this.total?`${this.feito} de ${this.total} lojas`:'preparando…';
+    const sub=$('#loadSub');if(sub)sub.textContent=this.total?`${this.feito} de ${this.total} lojas`:'só um instante…';
     const el=$('#loadElapsed');if(el)el.textContent=this.fmt((performance.now()-this.t0)/1000);
     const eta=$('#loadEta');if(eta){let txt='—';if(this.feito>0&&this.total>0){const perStep=(performance.now()-this.tFase)/this.feito;txt=this.fmt(perStep*(this.total-this.feito)/1000);}eta.textContent=txt;}},
   fechar(){this.ativo=false;clearInterval(this._tmr);clearInterval(this._sTmr);const w=$('#loadWrap');if(w)w.style.display='none';const b=$('#loadSalmo');if(b)b.style.opacity=0;}
@@ -866,7 +866,14 @@ async function carregarTudo(){
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
     LOADER.fase('Compras',comDados.length);
     await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
-    await carregarVendasTodas();$('#status').textContent='';recompor();recomporVendas();montarFiltros();renderAcordos();render();
+    await carregarVendasTodas();$('#status').textContent='';
+    /* Cada etapa abaixo e pesada (661 mil linhas). Soltar a thread entre elas e o que
+       impede o Chrome de mostrar "Página sem resposta" e matar a aba. */
+    const _y=()=>new Promise(r=>setTimeout(r,0));
+    LOADER.fase('Organizando as compras…',0);await _y();recompor();
+    LOADER.fase('Organizando as vendas…',0);await _y();recomporVendas();
+    LOADER.fase('Montando filtros…',0);await _y();montarFiltros();renderAcordos();
+    LOADER.fase('Desenhando o painel…',0);await _y();render();await _y();
     carregarFinanceiroIC().catch(e=>console.error('financeiro',e));
     conferir().catch(e=>console.warn('conferencia',e));
     LOADER.fechar();
@@ -959,7 +966,7 @@ function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
 const LEI_SECS=['agir','visao','financeiro','precos','rebate','fornec','unid','mercado','itens'];
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(VEND_TABS.has(b.dataset.t))garantirVendasDetalhe();if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro');
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(VEND_TABS.has(b.dataset.t))garantirVendasDetalhe();if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro');renderAbaSeNecessario(b.dataset.t);
   if(b.dataset.t==='param')carregarDistribuidores().catch(e=>console.warn('distribuidores',e));});
 
 /* ---------- tabelas genéricas com ordenação ---------- */
@@ -1380,8 +1387,35 @@ function render(){
    <tr><td><span class="tag at">B</span> 80–95%</td><td class="n">${b}</td><td class="n">${(b/ps.length*100||0).toFixed(1)}%</td><td class="n">15%</td></tr>
    <tr><td><span class="tag nt">C</span> últimos 5%</td><td class="n">${cN}</td><td class="n">${(cN/ps.length*100||0).toFixed(1)}%</td><td class="n">5%</td></tr></tbody></table>
    <p class="note">${a} produto(s) concentram 80% do valor comprado. É neles que a negociação de preço e rebate tem mais efeito.</p>`;
-  renderRebate();renderFornec(D);renderUnid(D);renderPrecos(D);renderMercado();renderConc(D);renderSobreFor(D);renderSazon();renderSemCusto();renderIdent();renderHomolog(D);renderItens(D);renderCarga();renderLojas();renderTV();renderQualidade();renderAgir();montarAjuda();if($('#btnFiltros'))filtrosToggle(document.body.classList.contains('filtrosOff'));
+  renderSazon();
+  /* Antes, cada render() desenhava as 15 abas — ~20 varreduras da base inteira por clique
+     de filtro, e a thread principal travava ("Página sem resposta"). Agora desenha só a
+     aba aberta; as demais ficam marcadas e desenham na hora em que forem abertas.
+     Em modo Leitura (todas as seções na mesma página) continua desenhando tudo. */
+  renderCarga();renderLojas();
+  const ativa=abaAtiva();
+  Object.keys(TAB_RENDER).forEach(t=>ABAS_SUJAS.add(t));
+  if(document.body.classList.contains('leitura')){LEI_SECS.forEach(t=>renderAba(t,D));renderAba('carga',D)}
+  else renderAba(ativa,D);
+  montarAjuda();if($('#btnFiltros'))filtrosToggle(document.body.classList.contains('filtrosOff'));
 }
+/* ---- render por aba ---- */
+const ABAS_SUJAS=new Set();
+function abaAtiva(){const b=document.querySelector('nav button.on');return b?b.dataset.t:'visao'}
+const TAB_RENDER={
+  rebate:()=>renderRebate(),
+  fornec:D=>{renderFornec(D);renderConc(D);renderSobreFor(D);renderHomolog(D)},
+  unid:D=>renderUnid(D),
+  precos:D=>renderPrecos(D),
+  mercado:()=>renderMercado(),
+  qual:()=>{renderSemCusto();renderIdent();renderQualidade()},
+  itens:D=>renderItens(D),
+  tv:()=>renderTV(),
+  agir:D=>{if(ABAS_SUJAS.has('precos'))renderAba('precos',D);renderAgir()},  // agir depende de PRE_ROWS, calculado em renderPrecos
+};
+function renderAba(t,D){const f=TAB_RENDER[t];if(!f)return;if(!ABAS_SUJAS.has(t))return;
+  try{f(D||filtrado())}catch(e){console.error('render '+t,e)}ABAS_SUJAS.delete(t)}
+function renderAbaSeNecessario(t){if(!DATA.length&&!VDATA.length)return;if(ABAS_SUJAS.has(t)){renderAba(t);montarAjuda()}}
 
 const mesesEntre=(a,b)=>{const out=[];if(!a||!b)return out;let [y,m]=a.split('-').map(Number);const [y2,m2]=b.split('-').map(Number);while(y<y2||(y===y2&&m<=m2)){out.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}return out};
 const fmtBase=(v,base)=>base==='kg'?(v>=1000?(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' t':Math.round(v).toLocaleString('pt-BR')+' kg'):fmt0(v);
@@ -2765,7 +2799,7 @@ function montarIdx(){$('#idx').innerHTML=LEI_SECS.map(id=>`<a data-go="${id}">${
   if(leiObs)leiObs.disconnect();leiObs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){const id=e.target.id.slice(2);$('#idx').querySelectorAll('a').forEach(a=>a.classList.toggle('on',a.dataset.go===id));document.querySelectorAll('#side a[data-t]').forEach(a=>a.classList.toggle('on',a.dataset.t===id))}})},{rootMargin:'-160px 0px -70% 0px'});
   LEI_SECS.forEach(id=>leiObs.observe($('#t-'+id)))}
 function leitura(on){document.body.classList.toggle('leitura',on);try{localStorage.setItem('pop_leitura',on?'1':'0')}catch(e){}
-  if(on){LEI_SECS.forEach(id=>{const sec=$('#t-'+id);sec.classList.add('lei');if(!sec.querySelector('.secTitle')){const h=document.createElement('h2');h.className='secTitle';h.innerHTML=LEI_TIT[id];sec.prepend(h)}});montarIdx();renderAgir();montarAjuda();window.scrollTo({top:0});setTimeout(posIdx,100)}
+  if(on){if(DATA.length||VDATA.length){const D=filtrado();LEI_SECS.forEach(t=>renderAba(t,D))}LEI_SECS.forEach(id=>{const sec=$('#t-'+id);sec.classList.add('lei');if(!sec.querySelector('.secTitle')){const h=document.createElement('h2');h.className='secTitle';h.innerHTML=LEI_TIT[id];sec.prepend(h)}});montarIdx();renderAgir();montarAjuda();window.scrollTo({top:0});setTimeout(posIdx,100)}
   else{document.querySelectorAll('.tab.lei').forEach(x=>x.classList.remove('lei'));$('#cardHist').style.display='none';if(leiObs)leiObs.disconnect()}
   $('#btnLeitura').textContent=on?'▦ Voltar às abas':'📖 Leitura';if(window.montarMenu)setTimeout(montarMenu,0)}
 $('#btnLeitura').onclick=()=>leitura(!document.body.classList.contains('leitura'));
