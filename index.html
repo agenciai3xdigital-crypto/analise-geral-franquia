@@ -864,7 +864,7 @@ async function carregarTudo(){
     await carregarLojas();await carregarAcordos();await carregarMarcas();await carregarMetas();await carregarHomolog();await carregarAlertasDB();
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
-    LOADER.fase('Etapa 1/2 · Compras',comDados.length);
+    LOADER.fase('Compras',comDados.length);
     await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
     await carregarVendasTodas();$('#status').textContent='';recompor();recomporVendas();montarFiltros();renderAcordos();render();
     carregarFinanceiroIC().catch(e=>console.error('financeiro',e));
@@ -910,7 +910,7 @@ async function enviarEntradas(loja,linhas,arquivo){
 let UNIDADES={};   // nome -> {u, rows}
 let DATA=[],MESES=[],FABS=[],FORS=[],CATS=[],UNIS=[];let REB_LINHAS=[],REF={},COMPRADOS={};
 function recompor(){
-  DATA=[];UNIS=Object.keys(UNIDADES).sort();UNIS.forEach(u=>DATA.push(...UNIDADES[u].rows));COMPRADOS={};DATA.forEach(r=>{const s=COMPRADOS[r.u]||(COMPRADOS[r.u]=new Set());if(r.ean)s.add('e'+r.ean);s.add('c'+r.cod)});
+  invalidarFiltro();DATA=[];UNIS=Object.keys(UNIDADES).sort();UNIS.forEach(u=>DATA.push(...UNIDADES[u].rows));COMPRADOS={};DATA.forEach(r=>{const s=COMPRADOS[r.u]||(COMPRADOS[r.u]=new Set());if(r.ean)s.add('e'+r.ean);s.add('c'+r.cod)});
   DATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
   MESES=[...new Set([...DATA.map(r=>r.m),...VDATA.map(r=>r.m)])].sort();FABS=[...new Set([...DATA.map(r=>r.fa),...VDATA.map(r=>r.fa).filter(f=>f&&f!=='DIVERSOS')])].sort();UNIS=[...new Set([...UNIS,...Object.keys(VENDAS)])].sort();FORS=[...new Set(DATA.map(r=>r.fo))].sort();CATS=[...new Set(DATA.map(r=>r.cat))].sort();
 }
@@ -945,12 +945,21 @@ function montarFiltros(keepPeriodo){
 })();
 let qt;$('#fBusca').oninput=e=>{clearTimeout(qt);qt=setTimeout(()=>{F.q=e.target.value.trim().toLowerCase();render()},250)};
 $('#fLimpar').onclick=()=>{F.de=MESES[0];F.ate=MESES[MESES.length-1];F.u=F.uf=F.cons=F.fa=F.fo=F.cat=F.q='';$('#fDe').value=F.de;$('#fAte').value=F.ate;$('#fUF').value=$('#fCons').value='';$('#fUni').value=$('#fFab').value=$('#fFor').value=$('#fCat').value='';$('#fBusca').value='';render()};
-function filtrado(ignoreMes){return DATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===F.fa)&&(!F.fo||r.fo===F.fo)&&(!F.cat||r.cat===F.cat)&&(!F.q||r.p.toLowerCase().includes(F.q)||String(r.cod).includes(F.q)||r.ean.includes(F.q)))}
+/* memo dos filtros: render() e os cards chamavam filtrado()/vfiltrado() ~12x por
+   desenho, cada uma varrendo a base inteira. O resultado e sempre o mesmo dentro do
+   mesmo estado de filtro, entao guardamos. Nenhum calculo muda. */
+var FSEQ=0; function invalidarFiltro(){FSEQ++}
+var _FC={k:null,m:new Map()};
+const _fkey=()=>[FSEQ,F.de,F.ate,F.u,F.uf,F.cons,F.fa,F.fo,F.cat,F.q,F.inst,DATA.length,VDATA.length,LOJAS.length].join('\u0001');
+function _memo(sub,calc){const k=_fkey();if(_FC.k!==k)_FC={k,m:new Map()};
+  if(_FC.m.has(sub))return _FC.m.get(sub);const v=calc();_FC.m.set(sub,v);return v}
+function filtrado(ignoreMes){return _memo('c'+(ignoreMes?1:0),()=>_filtradoRaw(ignoreMes))}
+function _filtradoRaw(ignoreMes){return DATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===F.fa)&&(!F.fo||r.fo===F.fo)&&(!F.cat||r.cat===F.cat)&&(!F.q||r.p.toLowerCase().includes(F.q)||String(r.cod).includes(F.q)||r.ean.includes(F.q)))}
 function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
 const LEI_SECS=['agir','visao','financeiro','precos','rebate','fornec','unid','mercado','itens'];
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro');
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(VEND_TABS.has(b.dataset.t))garantirVendasDetalhe();if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro');
   if(b.dataset.t==='param')carregarDistribuidores().catch(e=>console.warn('distribuidores',e));});
 
 /* ---------- tabelas genéricas com ordenação ---------- */
@@ -1354,7 +1363,7 @@ function render(){
   if(window.syncUniTxt)syncUniTxt();if($('#sideUser'))$('#sideUser').textContent=USER?USER.email:'—';
   if(!DATA.length&&!VDATA.length){if($('#sideDados'))$('#sideDados').textContent='sem dados';$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens,#tbIdxFab,#tbConc,#tbSobreFor,#tbRefLoja,#tbSazon,#tbSemCusto').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();renderLojas();renderTV();montarAjuda();return}
   const D=filtrado();const tot=sum(D,r=>r.t);const nm=nMeses();
-  $('#hUni').textContent=F.u?lojaLbl(F.u):UNIS.length+' carregada(s)';if($('#sideDados'))$('#sideDados').textContent=`${UNIS.length} lojas · ${MESES.length?mesLabel(MESES[0])+'–'+mesLabel(MESES[MESES.length-1]):'—'}`;$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';$('#hTotal').textContent=fmt0(tot);
+  $('#hUni').textContent=F.u?lojaLbl(F.u):UNIS.length+' carregada(s)';if($('#sideDados'))$('#sideDados').textContent=`${UNIS.length} lojas · ${MESES.length?mesLabel(MESES[0])+'–'+mesLabel(MESES[MESES.length-1]):'—'}${VDET==='ok'?'':' · venda por produto não carregada'}`;$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';$('#hTotal').textContent=fmt0(tot);
   /* visão geral */
   const nfs=new Set(D.map(r=>r.nf)).size,skus=new Set(D.map(r=>r.cod)).size;
   $('#kpis').innerHTML=`<div class="kpi"><span>Total comprado</span><b>${fmt0(tot)}</b><i>${nm} ${nm>1?'meses':'mês'}</i></div>
@@ -1766,13 +1775,41 @@ async function carregarVMes(){const {data,error}=await sb.from('vendas_mes_loja'
 function vmesRows(ignoreMes,uOnly){const out=[];Object.entries(VMES).forEach(([u,ms])=>{if(uOnly&&u!==uOnly)return;if(!uOnly&&((F.u&&u!==F.u)||(F.uf&&lojaDe(u).uf!==F.uf)||(F.cons&&lojaDe(u).consultor!==F.cons)))return;Object.entries(ms).forEach(([m,r])=>{if(!ignoreMes&&(m<F.de||m>F.ate))return;out.push({u,m,r})})});return out}
 function somaV(rows){const o={ped:0,pedv:0,cli:0,venda:0,vprod:0,vserv:0,vinst:0,vsem:0,pedsem:0,pedserv:0,itens:0,linhas:0,meses:0,lojas:new Set(),arqs:new Set()};rows.forEach(({u,r})=>{o.ped+=r.pedidos;o.pedv+=r.pedidos_varejo;o.cli+=r.clientes;o.venda+=+r.venda;o.vprod+=+r.venda_prod;o.vserv+=+r.venda_serv;o.vinst+=+r.venda_inst;o.vsem+=+r.venda_sem_cadastro;o.pedsem+=r.pedidos_sem_cadastro;o.pedserv+=r.pedidos_com_servico;o.itens+=r.itens_prod;o.linhas+=r.linhas;o.meses++;o.lojas.add(u);String(r.arquivos||'').split('; ').filter(Boolean).forEach(a=>o.arqs.add(a))});return o}
 const pedidosDe=(ignoreMes,uOnly)=>{const o=somaV(vmesRows(ignoreMes,uOnly));return F.inst==='1'?o.ped:F.inst==='2'?Math.max(0,o.ped-o.pedv):o.pedv};
+/* A carga de vendas foi partida em duas.
+   BASE (no login, barata): resumo mensal por loja — 1.190 linhas. E o que alimenta
+   pedidos, clientes, identificacao de cliente e os KPIs mensais.
+   DETALHE (sob demanda): as ~757 mil linhas de venda por produto-mes. So entram
+   quando o usuario abre uma aba que realmente precisa delas. */
+var VDET='nao';   // nao | carregando | ok
+const VEND_TABS=new Set(['mercado','qual','tv','fornec']);
+
 async function carregarVendasTodas(){
   const {data:res,error}=await sb.rpc('resumo_vendas');if(error){if(/vendas/i.test(error.message)){console.warn('tabela vendas ainda não criada');return}throw error}
-  RESUMO_V={};res.forEach(r=>RESUMO_V[r.loja_id]=r);await carregarMestre();await carregarVMes();VENDAS={};
-  const com=LOJAS.filter(l=>RESUMO_V[l.id]);let i=0;LOADER.fase('Etapa 2/2 · Vendas',com.length);
-  await emParalelo(com,4,async l=>{i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l);LOADER.passo()});
+  RESUMO_V={};res.forEach(r=>RESUMO_V[r.loja_id]=r);await carregarMestre();await carregarVMes();VENDAS={};VDATA=[];VDET='nao';
 }
-function recomporVendas(){VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
+
+async function carregarVendasDetalhe(){
+  if(VDET!=='nao')return;
+  const com=LOJAS.filter(l=>RESUMO_V[l.id]);
+  if(!com.length){VDET='ok';return}
+  VDET='carregando';
+  try{
+    LOADER.abrir();LOADER.fase('Detalhe de vendas por produto',com.length);let i=0;
+    await emParalelo(com,4,async l=>{i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l);LOADER.passo()});
+    VDET='ok';$('#status').textContent='';
+    recomporVendas();
+    /* MESES/FABS/UNIS sao montados em recompor() a partir de DATA **e** VDATA.
+       Como as vendas agora chegam depois, esses tres precisam ser refeitos aqui —
+       senao meses e marcas que so existem em venda ficariam de fora dos filtros. */
+    MESES=[...new Set([...DATA.map(r=>r.m),...VDATA.map(r=>r.m)])].sort();
+    FABS=[...new Set([...DATA.map(r=>r.fa),...VDATA.map(r=>r.fa).filter(f=>f&&f!=='DIVERSOS')])].sort();
+    UNIS=[...new Set([...UNIS,...Object.keys(VENDAS)])].sort();
+    montarFiltros(true);render();
+  }catch(e){VDET='nao';$('#status').textContent='';sbErr(e,'Erro ao carregar o detalhe de vendas')}
+  finally{LOADER.fechar()}
+}
+function garantirVendasDetalhe(){if(VDET==='nao')carregarVendasDetalhe()}
+function recomporVendas(){invalidarFiltro();VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
 async function enviarVendas(loja,linhas,arquivo){
   const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,pedido:r.ped,seq:r.seq,cod_produto:r.cod,ean:r.ean||null,produto:r.p,grupo:r.gr||null,subgrupo:r.sg||null,fabricante_loja:r.faL||null,fornecedor:r.fo||null,tipo:r.tipo,balanca:r.bal,qtd:r.q,preco_bruto:r.pb,preco_liq:r.pl,total:r.t,custo:r.c,lucro:r.l,cliente_cod:r.cc||null,cliente:r.cl||null,bairro:r.ba||null,vendedor:r.ve||null,arquivo}));
   let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
@@ -1786,7 +1823,8 @@ async function salvarMestre(ean,campos){const rec={ean,...campos,atualizado_em:n
 
 
 /* ---- filtros de vendas ---- */
-function vfiltrado(ignoreInst,ignoreMes){return VDATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(ignoreInst||F.inst==='1'||(F.inst==='0'?!r.inst:r.inst))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===normFab(F.fa))&&(!F.fo||r.fo===F.fo)&&(!F.q||r.p.toLowerCase().includes(F.q)||r.cod.includes(F.q)||r.ean.includes(F.q)))}
+function vfiltrado(ignoreInst,ignoreMes){return _memo('v'+(ignoreInst?1:0)+(ignoreMes?1:0),()=>_vfiltradoRaw(ignoreInst,ignoreMes))}
+function _vfiltradoRaw(ignoreInst,ignoreMes){return VDATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(ignoreInst||F.inst==='1'||(F.inst==='0'?!r.inst:r.inst))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===normFab(F.fa))&&(!F.fo||r.fo===F.fo)&&(!F.q||r.p.toLowerCase().includes(F.q)||r.cod.includes(F.q)||r.ean.includes(F.q)))}
 const regiaoDe=(u,tipo)=>{const l=lojaDe(u);return tipo==='uf'?(l.uf||'?'):tipo==='cidade'?(l.cidade||'?')+(l.uf?'/'+l.uf:''):tipo==='consultor'?(l.consultor||'?'):u};
 const pctS=v=>v.toFixed(1).replace('.',',')+'%';
 
