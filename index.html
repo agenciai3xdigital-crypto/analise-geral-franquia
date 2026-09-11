@@ -2178,21 +2178,37 @@ function desenharFinanceiroIC(){
 function finDesenharKpis(infoFat,infoInad,infoReceb){
   const linhas=infoFat.linhas||[];
   const faturamentoTotal=linhas.reduce((s,l)=>s+(l.valorAtual||0),0);
-  const faturamentoAnterior=linhas.reduce((s,l)=>s+(l.valorAnterior||0),0);
-  const varTotalPct=faturamentoAnterior?Math.round((faturamentoTotal-faturamentoAnterior)/faturamentoAnterior*100):null;
+  /* Variacao SO sobre as lojas que tem os dois meses. Antes somava o mes atual de quem
+     tinha mes atual e o anterior de quem tinha anterior — bases diferentes, e o card
+     mostrava "-61%" quando agosto tinha 65 lojas e julho 147. */
+  const ambos=linhas.filter(l=>l.valorAtual!=null&&l.valorAnterior!=null);
+  const fatAmbosAtual=ambos.reduce((s,l)=>s+l.valorAtual,0),fatAmbosAnt=ambos.reduce((s,l)=>s+l.valorAnterior,0);
+  const varTotalPct=fatAmbosAnt?Math.round((fatAmbosAtual-fatAmbosAnt)/fatAmbosAnt*100):null;
+  const nAtual=infoFat.nAtual||0,nAnterior=infoFat.nAnterior||0;
+  const mesParcial=nAnterior>0&&nAtual<nAnterior*0.8;
   const recordistas=linhas.filter(l=>l.bateuRecorde);
   const vinculadas=infoInad.vinculadas||[];
   const inadVinculado=infoInad.totalVinculado||0;
   const inadTotalGeral=infoInad.totalGeral||0;
-  const pctInad=faturamentoTotal?(inadVinculado/faturamentoTotal*100):null;
+  /* % inadimplencia: numerador e denominador sobre as MESMAS lojas (as que tem
+     faturamento no mes e inadimplencia vinculada). */
+  const fatPorFra={};linhas.forEach(l=>{if(l.valorAtual!=null)fatPorFra[Number(l.fra)]=l.valorAtual});
+  const inadComFat=vinculadas.filter(c=>fatPorFra[Number(c.fra)]!=null);
+  const inadNum=inadComFat.reduce((s,c)=>s+(c.valor_vencido||0),0);
+  const inadDen=[...new Set(inadComFat.map(c=>Number(c.fra)))].reduce((s,f)=>s+fatPorFra[f],0);
+  const pctInad=inadDen?(inadNum/inadDen*100):null;
+  const nInadBase=new Set(inadComFat.map(c=>Number(c.fra))).size;
   const criticas=vinculadas.filter(c=>c.acima_180>0);
   const recebMesAtual=infoReceb.totalMesAtual||0;
   const kv=(cls,ic,rot,val,sub,goto)=>`<div class="kpi ${cls}${goto?' clic':''}"${goto?` onclick="document.getElementById('${goto}').scrollIntoView({behavior:'smooth',block:'start'})"`:''}><span><span class="ic">${ic}</span>${rot}</span><b>${val}</b><i>${sub}</i></div>`;
   $('#kpisFin').innerHTML=
-    kv(varTotalPct!=null&&varTotalPct<0?'a':'','💵','Faturamento da rede (mês)',finFmt(faturamentoTotal),(infoFat.mesLabel||'—')+(varTotalPct==null?'':' · '+(varTotalPct>=0?'▲ +':'▼ ')+varTotalPct+'%'),'cardFat')
+    kv((mesParcial||(varTotalPct!=null&&varTotalPct<0))?'a':'','💵','Faturamento da rede (mês)',finFmt(faturamentoTotal),
+       (infoFat.mesLabel||'—')+' · '+nAtual+' loja'+(nAtual===1?'':'s')
+       +(varTotalPct==null?'':' · '+(varTotalPct>=0?'▲ +':'▼ ')+varTotalPct+'% vs as mesmas '+ambos.length+' em '+(infoFat.mesAntLabel||'mês anterior'))
+       +(mesParcial?' · ⚠ mês parcial: '+(infoFat.mesAntLabel||'mês anterior')+' tinha '+nAnterior+' lojas':''),'cardFat')
    +kv(recordistas.length?'o':'','🏆','Lojas com recorde no mês',String(recordistas.length),'histórico batido','finRecordeBanner')
    +kv('a','⚠️','Inadimplência vinculada',finFmt(inadVinculado),(infoInad.mesLabel||'—')+' · '+fmt0(inadTotalGeral)+' no total','cardInad')
-   +kv(pctInad!=null&&pctInad>=7?'a':'','📊','% inadimplência s/ faturamento',pctInad==null?'—':pctInad.toFixed(1)+'%','saúde da rede','cardInad')
+   +kv(pctInad!=null&&pctInad>=7?'a':'','📊','% inadimplência s/ faturamento',pctInad==null?'—':pctInad.toFixed(1)+'%',pctInad==null?'sem loja com os dois dados no mês':'sobre as '+nInadBase+' loja'+(nInadBase===1?'':'s')+' com faturamento e inadimplência no mês','cardInad')
    +kv('z','💰','Receita recebida (mês)',finFmt(recebMesAtual),(infoReceb.mesLabel||'—'),'cardReceb')
    +kv(criticas.length?'a':'','🔴','Lojas em risco crítico (+180d)',String(criticas.length),'atraso severo','cardInad');
 }
@@ -2236,6 +2252,10 @@ function finDesenharFaturamento(){
     const l=lojaPorFra(fra);
     return{fra,nome:lojaNomeFra(fra),ativa:!l||l.status==='Ativa',valorAtual:atual?atual.valor:null,fonteAtual:atual?atual.fonte:null,valorAnterior:anterior?anterior.valor:null,recordeValor:recorde?recorde.valor:null,recordeMes:recorde?recorde.mes:null,bateuRecorde,total12m};
   }).filter(l=>l.ativa).sort((a,b)=>(b.valorAtual||0)-(a.valorAtual||0));
+  /* Cobertura: quantas lojas realmente tem numero no mes de referencia e no anterior.
+     Sem isso o total do mes soma 65 lojas e o do anterior 147, e a variacao vira ficcao. */
+  const nAtual=linhas.filter(l=>l.valorAtual!=null).length,nAnterior=linhas.filter(l=>l.valorAnterior!=null).length,nAmbos=linhas.filter(l=>l.valorAtual!=null&&l.valorAnterior!=null).length;
+  $('#finFatMesRef').textContent='Mês de referência: '+finMesLabel(mesAtualISO)+' · '+nAtual+' lojas com dado no mês ('+nAnterior+' em '+finMesLabel(mesAntISO)+') · '+frasBI.size+' com BI Global automático';
   const recordistas=linhas.filter(l=>l.bateuRecorde);
   $('#finRecordeBanner').innerHTML=recordistas.length
     ?'<div class="card full" style="border-left:5px solid var(--la);margin-bottom:16px"><h3>🏆 Recorde histórico em '+finMesLabel(mesAtualISO)+' <small>'+recordistas.length+' loja'+(recordistas.length>1?'s':'')+'</small></h3>'
@@ -2248,7 +2268,7 @@ function finDesenharFaturamento(){
       const fonteTag=l.fonteAtual==='bi'?'<span class="tag ok" title="Calculado automaticamente do BI Global, não precisa de upload manual">🔗 BI Global</span>':l.fonteAtual==='manual'?'<span class="tag nt">✍️ upload manual</span>':'—';
       return'<tr><td>'+l.fra+'</td><td>'+esc(l.nome)+'</td><td class="n"><b>'+finFmt(l.valorAtual)+'</b></td><td class="n">'+tag+'</td><td class="n">'+fonteTag+'</td><td class="n">'+finFmt(l.recordeValor)+(l.recordeMes?' <small style="color:var(--mu)">('+finMesLabel(l.recordeMes)+')</small>':'')+'</td><td class="n"><b>'+finFmt(l.total12m)+'</b></td></tr>';
     }).join('')+'</tbody></table>';
-  return{linhas,mesLabel:finMesLabel(mesAtualISO)};
+  return{linhas,mesLabel:finMesLabel(mesAtualISO),mesAntLabel:finMesLabel(mesAntISO),nAtual,nAnterior,nAmbos};
 }
 
 function finDesenharInadimplencia(mapaLookup){
