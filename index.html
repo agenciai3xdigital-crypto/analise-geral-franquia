@@ -680,7 +680,7 @@ body.filtrosOff .filters{display:none}
 const fmt=n=>'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt0=n=>'R$ '+Math.round(n).toLocaleString('pt-BR');
 const pct=n=>!isFinite(n)?'—':(n>0?'+':'')+n.toFixed(1).replace('.',',')+'%';
-const mesLabel=m=>{const [y,mo]=m.split('-');return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mo-1]+'/'+y.slice(2)};
+const mesLabel=m=>{if(!m)return '—';const [y,mo]=m.split('-');return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mo-1]+'/'+y.slice(2)};
 const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
 const by=(a,k,f)=>{const m=new Map();for(const x of a){const key=k(x);m.set(key,(m.get(key)||0)+f(x))}return m};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1912,9 +1912,9 @@ $('#lNova').onclick=async()=>{const nome=prompt('Nome da nova loja (ex.: POP PET
 
 /* ======================= PAINEL EXECUTIVO (TV) ======================= */
 const TV={timer:null,minutos:15};
-const mesAnt=m=>{let [y,mo]=m.split('-').map(Number);mo--;if(mo<1){mo=12;y--}return `${y}-${String(mo).padStart(2,'0')}`};
-const mesAnoAnt=m=>String(+m.slice(0,4)-1)+m.slice(4);
-const mesNome=m=>{const [y,mo]=m.split('-');return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+mo-1]+' '+y};
+const mesAnt=m=>{if(!m)return '';let [y,mo]=m.split('-').map(Number);mo--;if(mo<1){mo=12;y--}return `${y}-${String(mo).padStart(2,'0')}`};
+const mesAnoAnt=m=>m?String(+m.slice(0,4)-1)+m.slice(4):'';
+const mesNome=m=>{if(!m)return '—';const [y,mo]=m.split('-');return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+mo-1]+' '+y};
 const delta=(a,b)=>b?`<span class="tvd ${a>=b?'up':'dn'}">${a>=b?'▲':'▼'} ${pct(Math.abs(a/b*100-100)).replace('+','')}</span>`:'<span class="tvd nt">—</span>';
 const fmtK=n=>n>=1e6?'R$ '+(n/1e6).toFixed(2).replace('.',',')+' mi':n>=1e3?'R$ '+Math.round(n/1e3).toLocaleString('pt-BR')+' mil':fmt0(n);
 
