@@ -771,17 +771,25 @@ async function carregarLojas(){
 async function carregarAcordos(){
   const {data,error}=await sb.from('acordos').select('*').order('fabricante');if(error)throw error;
   ACORDOS=data.map(r=>({id:r.id,rot:r.rotulo||r.fabricante,fab:r.fabricante,marcas:r.marcas||r.fabricante||'',filtro:r.filtro_produto||'',base:r.base||'valor',dist:r.distribuidor||'',ini:r.inicio||'',fim:r.fim||'',meta:r.meta||'',f1:r.f1||'',p1:r.p1||'',f2:r.f2||'',p2:r.p2||'',f3:r.f3||'',p3:r.p3||'',obs:r.obs||''}));
+  ACORDOS_IDS_DB=new Set(ACORDOS.map(a=>a.id));   // o que o painel sabe que existe no banco
 }
+let ACORDOS_IDS_DB=new Set();
 async function salvarAcordos(){
   const ok=ACORDOS.filter(a=>a.fab);const nomes=ok.map(a=>a.fab);
   const idInd=n=>{const i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(n));return i?i.id:null};
   const rows=ok.map(a=>({...(a.id?{id:a.id}:{}),rotulo:a.rot||a.fab,fabricante:a.fab,industria_id:idInd(a.fab),marcas:a.marcas||a.fab,filtro_produto:a.filtro||null,base:a.base||'valor',distribuidor:a.dist||null,inicio:a.ini||null,fim:a.fim||null,meta:+a.meta||null,f1:+a.f1||null,p1:+a.p1||null,f2:+a.f2||null,p2:+a.p2||null,f3:+a.f3||null,p3:+a.p3||null,obs:a.obs||null,atualizado_em:new Date().toISOString()}));
   const comId=rows.filter(r=>r.id),semId=rows.filter(r=>!r.id);
   if(comId.length){const {error}=await sb.from('acordos').upsert(comId,{onConflict:'id'});if(error)throw error}
-  if(semId.length){const {error}=await sb.from('acordos').insert(semId);if(error)throw error}
-  const del=await sb.from('acordos').select('id');if(del.error)throw del.error;
-  const vivos=ACORDOS.filter(a=>a.id).map(a=>a.id);
-  const apagar=del.data.filter(r=>!vivos.includes(r.id)).map(r=>r.id);
+  /* BUG CORRIGIDO (12/09/2026): a versao anterior inseria os acordos novos e, logo em
+     seguida, apagava do banco todo id que nao estivesse na memoria do painel — e os
+     recem-inseridos ainda nao tinham id na memoria. Resultado: todo acordo novo era
+     apagado na hora de salvar, e se a lista carregasse vazia, apagava TUDO.
+     Agora: (1) os novos recebem o id devolvido pelo banco; (2) so e apagado o que o
+     painel carregou do banco e o usuario removeu da lista. Nunca apaga o que nao conhece. */
+  if(semId.length){const {data,error}=await sb.from('acordos').insert(semId).select('id,rotulo,fabricante');if(error)throw error;
+    (data||[]).forEach(r=>{const a=ok.find(x=>!x.id&&(x.rot||x.fab)===r.rotulo&&x.fab===r.fabricante);if(a)a.id=r.id})}
+  const vivos=new Set(ok.filter(a=>a.id).map(a=>a.id));
+  const apagar=[...ACORDOS_IDS_DB].filter(id=>!vivos.has(id));
   if(apagar.length){const {error}=await sb.from('acordos').delete().in('id',apagar);if(error)throw error}
   await carregarAcordos();
 }
