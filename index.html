@@ -1419,59 +1419,40 @@ function renderAbaSeNecessario(t){if(!DATA.length&&!VDATA.length)return;if(ABAS_
 
 const mesesEntre=(a,b)=>{const out=[];if(!a||!b)return out;let [y,m]=a.split('-').map(Number);const [y2,m2]=b.split('-').map(Number);while(y<y2||(y===y2&&m<=m2)){out.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}return out};
 const fmtBase=(v,base)=>base==='kg'?(v>=1000?(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' t':Math.round(v).toLocaleString('pt-BR')+' kg'):fmt0(v);
+/* ---- Rebate por indústria: calculado no servidor (v2_rebate / v2_ranking).
+   Antes varria 661 mil linhas no navegador por acordo e congelava a aba. ---- */
+const v2Filtros=()=>({p_desde:F.de,p_ate:F.ate,...(F.uf?{p_uf:F.uf}:{}),...(F.cons?{p_consultor:F.cons}:{}),...(F.u&&LJ[F.u]?{p_loja:LJ[F.u].id}:{})});
+const v2Rec=()=>{const p=[mesLabel(F.de)+' – '+mesLabel(F.ate)];if(F.u)p.push(lojaLbl(F.u));if(F.uf)p.push('UF '+F.uf);if(F.cons)p.push('consultor '+F.cons);return p.join(' · ')};
+const v2Pc=v=>v==null?'—':(+v).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+const v2Aviso=()=>(F.fa||F.fo||F.cat||F.q)?'<p class="note">⚠ Os filtros de fabricante, fornecedor, categoria e busca <b>não se aplicam</b> a esta aba (ela usa período, UF, consultor e loja).</p>':'';
 function renderRebate(){
-  const hoje=new Date().toISOString().slice(0,7);
-  const baseFiltro=r=>(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fo||r.fo===F.fo)&&(!F.cat||r.cat===F.cat);
-  const linhas=[];
-  // acordos (por indústria, com marcas)
-  ACORDOS.filter(a=>a.fab).forEach(ac=>{
-    const marcas=(ac.marcas||ac.fab).split(';').map(s=>normFab(s)).filter(Boolean);
-    const filtro=(ac.filtro||'').toUpperCase().trim();
-    const ini=ac.ini||F.de,fim=ac.fim||F.ate;const vig=mesesEntre(ini,fim);const mesesVig=vig.length||1;
-    const it=DATA.filter(r=>marcas.includes(normFab(r.fa))&&baseFiltro(r)&&r.m>=ini&&r.m<=fim&&(!filtro||r.p.toUpperCase().includes(filtro)));
-    const compRS=sum(it,r=>r.t);let compKG=0,semPeso=0,semPesoRS=0;
-    it.forEach(r=>{const k=kgLinha(r);if(k==null){semPeso++;semPesoRS+=r.t}else compKG+=k});
-    const comp=ac.base==='kg'?compKG:compRS;
-    const ult=MESES[MESES.length-1]<hoje?MESES[MESES.length-1]:hoje;const dec=Math.max(1,vig.filter(m=>m<=ult).length);
-    const proj=comp/dec*mesesVig;const meta=+ac.meta||0;
-    const faixa=v=>{const fs=[[+ac.f3,+ac.p3],[+ac.f2,+ac.p2],[+ac.f1,+ac.p1]].filter(f=>f[1]>0);for(const [p,r] of fs)if(v>=(p||0))return r;return 0};
-    const alerta=[];const pisos=[+ac.f1,+ac.f2,+ac.f3].filter(f=>f>1);if(meta&&pisos.some(f=>f<meta*0.1))alerta.push('faixa com piso muito baixo — confira o cadastro');const fixo=!pisos.length&&+ac.p1>0;
-    if(ac.base==='kg'&&semPesoRS>compRS*0.05)alerta.push(`${semPeso} item(ns) sem peso na descrição (${fmt0(semPesoRS)}) fora da soma`);
-    linhas.push({nome:ac.fab,ac,fixo,marcas,base:ac.base||'valor',comp,compRS,compKG,proj,meta,mesesVig,decorridos:dec,ating:meta?comp/meta*100:null,atingP:meta?proj/meta*100:null,reb:faixa(comp),rebP:faixa(proj),falta:meta?Math.max(0,meta-comp):null,alerta});
-  });
-  const cobertas=new Set(linhas.flatMap(l=>l.marcas));
-  // fabricantes sem acordo
-  FABS.filter(fa=>(!F.fa||fa===F.fa)&&!cobertas.has(normFab(fa))).forEach(fa=>{
-    const it=DATA.filter(r=>r.fa===fa&&baseFiltro(r)&&r.m>=F.de&&r.m<=F.ate);const compRS=sum(it,r=>r.t);if(!compRS)return;
-    linhas.push({nome:fa,ac:null,marcas:[fa],base:'valor',comp:compRS,compRS,compKG:sum(it,r=>kgLinha(r)||0),proj:compRS,meta:0,mesesVig:0,decorridos:0,ating:null,atingP:null,reb:null,rebP:null,falta:null,alerta:[]});
-  });
-  const rows=linhas;REB_LINHAS=linhas;
-  // resumo por indústria: agrupa acordos pelo distribuidor homologado (chave da indústria)
-  const ind=new Map();linhas.filter(l=>l.ac).forEach(l=>{const k=industriaCanon(l.nome)||normFab(l.ac.dist||'').split(';')[0]||l.nome;const o=ind.get(k)||{ind:k,marcas:new Set(),comp:0,meta:0,reb:0,rebP:0,comMeta:0,risco:0};o.marcas.add(l.nome);o.comp+=l.compRS;if(l.meta){o.meta+=l.meta;o.comMeta++;if(l.atingP<100)o.risco++}o.reb+=l.compRS*(l.reb||0)/100;o.rebP+=l.compRS*(l.rebP||0)/100;ind.set(k,o)});
-  const indRows=[...ind.values()].map(o=>({...o,nm:o.marcas.size,ating:o.meta?o.comp/o.meta*100:null}));
-  tabela($('#tbRebInd'),[{h:'Indústria',v:r=>r.ind,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${r.nm} marca(s): ${esc([...r.marcas].join(', '))}</small>`},{h:'Comprado',n:1,v:r=>r.comp,f:fmt0},{h:'Soma das metas',n:1,v:r=>r.meta,f:(v,r)=>v?`${fmt0(v)} <small style="color:var(--mu)">(${r.comMeta}/${r.nm} c/ meta)</small>`:'—'},{h:'Atingido',n:1,v:r=>r.ating??-1,f:v=>v<0?'—':`<span class="tag ${v>=100?'ok':v>=75?'at':'no'}">${v.toFixed(0)}%</span>`},{h:'Rebate est.',n:1,v:r=>r.reb,f:fmt0},{h:'Rebate proj.',n:1,v:r=>r.rebP,f:fmt0},{h:'Metas em risco',n:1,v:r=>r.risco,f:(v,r)=>v?`<span class="tag no">${v}</span>`:'<span class="tag ok">0</span>'}],indRows,{sort:1});
-const comAc=rows.filter(r=>r.ac&&r.meta);
-  $('#kpisReb').innerHTML=`<div class="kpi"><span>Acordos cadastrados</span><b>${ACORDOS.length}</b><i>${comAc.length} com meta</i></div>
-   <div class="kpi o"><span>Comprado em indústrias c/ acordo</span><b>${fmt0(sum(comAc,r=>r.compRS))}</b><i>${(sum(comAc,r=>r.compKG)/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} t na vigência</i></div>
-   <div class="kpi a"><span>Rebate estimado (comprado)</span><b>${fmt0(sum(comAc,r=>r.compRS*(r.reb||0)/100))}</b><i>% aplicado sobre o valor comprado</i></div>
-   <div class="kpi z"><span>Rebate projetado</span><b>${fmt0(sum(comAc,r=>r.compRS*(r.rebP||0)/100))}</b><i>mantendo o ritmo</i></div>
-   <div class="kpi"><span>Metas em risco</span><b>${comAc.filter(r=>r.atingP<100).length}</b><i>projeção abaixo de 100%</i></div>`;
-  const status=r=>!r.ac?'<span class="tag nt">sem acordo</span>':!r.meta?'<span class="tag nt">sem meta</span>':r.ating>=100?'<span class="tag ok">meta batida</span>':r.atingP>=100?'<span class="tag at">no ritmo</span>':'<span class="tag no">em risco</span>';
-  tabela($('#tbReb'),[
-    {h:'Acordo / indústria',v:r=>r.nome,f:(v,r)=>`${esc(v)}${r.alerta.length?' <span class="tag no" title="'+esc(r.alerta.join(' · '))+'">⚠</span>':''}<br><small style="color:var(--mu)">${r.ac?esc(r.marcas.join(', '))+(r.ac.filtro?' · filtro: '+esc(r.ac.filtro):''):''}</small>`},
-    {h:'Base',v:r=>r.base,f:v=>v==='kg'?'<span class="tag at">kg</span>':'<span class="tag nt">R$</span>'},
-    {h:'Status',v:r=>r.ac?(r.meta?(r.ating>=100?3:r.atingP>=100?2:1):0):-1,f:(v,r)=>status(r)},
-    {h:'Vigência',v:r=>r.ac?r.ac.ini+' a '+r.ac.fim:'',f:(v,r)=>r.ac?`${mesLabel(r.ac.ini)}–${mesLabel(r.ac.fim)} <small style="color:var(--mu)">(${r.decorridos}/${r.mesesVig} m)</small>`:'<small style="color:var(--mu)">período filtrado</small>'},
-    {h:'Comprado',n:1,v:r=>r.comp,f:(v,r)=>`${fmtBase(v,r.base)}${r.base==='kg'?`<br><small style="color:var(--mu)">${fmt0(r.compRS)}</small>`:r.compKG>0?`<br><small style="color:var(--mu)">${fmtBase(r.compKG,'kg')}</small>`:''}`},
-    {h:'Meta',n:1,v:r=>r.meta,f:(v,r)=>v?fmtBase(v,r.base):'—'},
-    {h:'Atingido',n:1,v:r=>r.ating??-1,f:(v,r)=>v==null||v<0?'—':`<div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${v.toFixed(0)}%${barCell(v,100,v>=100?'':v>=75?'a':'r')}</div>`},
-    {h:'Projeção',n:1,v:r=>r.proj,f:(v,r)=>r.meta?`${fmtBase(v,r.base)} <small style="color:var(--mu)">(${r.atingP.toFixed(0)}%)</small>`:'—'},
-    {h:'Falta p/ meta',n:1,v:r=>r.falta??-1,f:(v,r)=>v==null||v<0?'—':v===0?'<span class="tag ok">0</span>':fmtBase(v,r.base)},
-    {h:'Faixa reb.',n:1,v:r=>r.reb??-1,f:(v,r)=>v==null||v<0?'—':v+'%'+(r.fixo?' <span class="tag nt" title="sem piso cadastrado: % aplicado sobre todo o comprado">fixo</span>':'')},
-    {h:'Rebate est.',n:1,v:r=>r.ac&&r.reb!=null?r.compRS*r.reb/100:0,f:(v,r)=>r.ac?fmt0(v):'—'},
-    {h:'Rebate proj.',n:1,v:r=>r.ac&&r.rebP!=null?r.compRS*r.rebP/100:0,f:(v,r)=>r.ac?fmt0(v):'—'}
-  ],rows,{sort:4});
+  const kp=$('#kpisReb'),ind=$('#tbRebInd'),tb=$('#tbReb');if(!tb)return;
+  if(!sb||!USER)return;
+  kp.innerHTML='<div class="empty">Calculando no servidor…</div>';
+  (async()=>{try{
+    const [{data:rows,error:e1},{data:rank,error:e2}]=await Promise.all([sb.rpc('v2_rebate',v2Filtros()),sb.rpc('v2_ranking',{p_dim:'industria',...v2Filtros(),p_limite:20})]);
+    if(e1)throw e1;if(e2)throw e2;
+    const sum=(a,k)=>a.reduce((s,r)=>s+(+r[k]||0),0);
+    kp.innerHTML=`<div class="kpi"><span>Acordos cadastrados</span><b>${rows.length}</b><i>${esc(v2Rec())}</i></div>
+      <div class="kpi"><span>Comprado nas indústrias c/ acordo</span><b>${fmtK(sum(rows,'comprado'))}</b><i>dentro da vigência de cada acordo</i></div>
+      <div class="kpi o"><span>Rebate já garantido</span><b>${fmtK(sum(rows,'rebate_estimado'))}</b><i>pela faixa atingida até agora</i></div>
+      <div class="kpi a"><span>Rebate projetado</span><b>${fmtK(sum(rows,'rebate_projetado'))}</b><i>mantendo o ritmo mensal até o fim</i></div>`+v2Aviso();
+    const mx=rank[0]?+rank[0].valor:1;
+    tabela(ind,[{h:'Indústria',v:r=>r.dimensao,f:(v,r)=>esc(v)+(r.mapeado===false?' <span class="tag nt" title="rótulo sem de-para para indústria">sem de-para</span>':'')},
+      {h:'Comprado',v:r=>+r.valor,n:true,f:v=>`<span style="display:inline-block;height:8px;width:${Math.max(2,Math.round(70*v/mx))}px;background:var(--vc);border-radius:4px;margin-right:6px;vertical-align:middle"></span>${fmtK(v)}`},
+      {h:'Share',v:r=>+r.share_pct,n:true,f:v2Pc},{h:'Acum.',v:r=>+r.acumulado_pct,n:true,f:v2Pc},{h:'Lojas',v:r=>+r.lojas,n:true}],rank,{sort:1});
+    if(!rows.length){tb.innerHTML='<div class="empty">Nenhum acordo cadastrado no banco. Cadastre na aba <b>Cadastro de acordos</b>; o cálculo aparece aqui na hora.</div>';return}
+    tabela(tb,[
+      {h:'Acordo',v:r=>r.acordo,f:(v,r)=>`<b>${esc(v)}</b><br><small style="color:var(--mu)">${esc(r.industria)} · ${mesLabel(r.inicio)}–${mesLabel(r.fim)}${r.distribuidor?' · '+esc(r.distribuidor):''}</small>${r.aviso?`<br><span class="tag at">${esc(r.aviso)}</span>`:''}`},
+      {h:'Comprado',v:r=>+r.comprado,n:true,f:(v,r)=>`${fmtK(v)}<br><small style="color:var(--mu)">${r.lojas} lojas · ${r.meses_decorridos}/${r.meses_vigencia} meses</small>`},
+      {h:'Meta',v:r=>+r.atingimento_pct||0,n:true,f:(v,r)=>r.meta?`<div style="height:10px;background:#EEF1F0;border-radius:5px;overflow:hidden;min-width:110px"><i style="display:block;height:100%;width:${Math.min(100,v)}%;background:${v>=100?'var(--v)':v>=70?'var(--am)':'#B4342A'}"></i></div><small>${v2Pc(v)} de ${fmtK(r.meta)}</small>`:'—'},
+      {h:'Faixa atual',v:r=>+r.faixa_atual||0,n:true,f:v=>v>0?`<span class="tag ok">${v2Pc(v)}</span>`:'<span class="tag nt">nenhuma</span>'},
+      {h:'Rebate garantido',v:r=>+r.rebate_estimado||0,n:true,f:fmtK},
+      {h:'Projeção',v:r=>+r.projecao||0,n:true,f:(v,r)=>`${fmtK(v)}<br><small style="color:var(--mu)">rebate ${fmtK(r.rebate_projetado)}</small>`},
+      {h:'Próxima faixa',v:r=>+r.falta_proxima||0,n:true,f:(v,r)=>r.proxima_faixa?`${fmtK(r.proxima_faixa)}<br><small style="color:var(--mu)">faltam ${fmtK(v)}</small>`:'<span class="tag ok">máxima</span>'}],rows,{sort:1});
+  }catch(e){kp.innerHTML=`<div class="empty">Não foi possível calcular o rebate: ${esc(e.message||e)}</div>`;tb.innerHTML='';ind.innerHTML=''}})();
 }
+
 function renderFornec(D){
   const m=new Map();D.forEach(r=>{const k=r.fa;if(!m.has(k))m.set(k,new Map());const s=m.get(k);s.set(r.fo,(s.get(r.fo)||0)+r.t)});
   const rows=[];m.forEach((s,fa)=>{const tot=[...s.values()].reduce((a,b)=>a+b,0);const ac=acordoDe(fa);const hom=ac?.dist||'';
@@ -1815,7 +1796,7 @@ const pedidosDe=(ignoreMes,uOnly)=>{const o=somaV(vmesRows(ignoreMes,uOnly));ret
    DETALHE (sob demanda): as ~757 mil linhas de venda por produto-mes. So entram
    quando o usuario abre uma aba que realmente precisa delas. */
 var VDET='nao';   // nao | carregando | ok
-const VEND_TABS=new Set(['mercado','qual','tv','fornec']);
+const VEND_TABS=new Set(['mercado','tv','fornec']);   // 'qual' saiu: qualidade agora vem do servidor
 
 async function carregarVendasTodas(){
   const {data:res,error}=await sb.rpc('resumo_vendas');if(error){if(/vendas/i.test(error.message)){console.warn('tabela vendas ainda não criada');return}throw error}
@@ -2082,30 +2063,61 @@ function prepQ(){
   const m={};DATA.forEach(r=>{if(!r.ean||r.c<=0)return;(m[r.ean]=m[r.ean]||[]).push(r.c)});Q.medEAN={};Object.entries(m).forEach(([e,a])=>Q.medEAN[e]={m:mediana(a),n:a.length});
   const k={};VDATA.forEach(r=>{if(!r.bal||r.q<=0||r.inst)return;const key=r.ean||r.p;(k[key]=k[key]||[]).push(r.t/r.q)});Q.medKg={};Object.entries(k).forEach(([e,a])=>Q.medKg[e]={m:mediana(a),n:a.length});
 }
+/* ---- Qualidade de dados: calculada no servidor (v2_qualidade), detalhe por v2_qualidade_itens.
+   Antes rodava 17 verificações × 145 lojas sobre a base inteira no navegador. ---- */
+const V2_CHECKS=[
+ ['c_custo0','Compra custo 0','Itens de entrada com custo R$ 0 (bonificação sem marcação ou erro de lançamento).',3],
+ ['c_outlier','Custo fora do padrão','Custo unitário 3× acima ou abaixo da mediana da rede para o mesmo EAN (caixa × unidade, digitação).',3],
+ ['c_divers','Compra s/ fabricante','Fabricante em branco ou DIVERSOS na entrada. Prejudica rebate e análise por indústria.',2],
+ ['c_ean','Compra s/ EAN','Sem código de barras não cruza com venda nem compara entre lojas.',2],
+ ['v_custo0','Venda custo 0','Produto vendido sem custo registrado — margem inflada.',3],
+ ['v_neg','Venda abaixo do custo','Lucro negativo na linha (custo maior que o preço).',2],
+ ['v_inst','Venda institucional','50+ unidades no cupom. Não é erro, mas fica fora do varejo.',0],
+ ['x_gap','Meses sem dado','Meses entre o primeiro e o último carregado sem nenhuma linha de compra.',2],
+ ['x_parcial','Mês parcial','Mês com menos da metade das linhas que a loja costuma ter (arquivo cortado).',2]];
+let QROWS=[];
 function renderQualidade(){
-  const el=$('#tbQual');if(!el)return;if(!DATA.length&&!VDATA.length){el.innerHTML='<div class="empty">Nenhum dado carregado.</div>';return}
-  prepQ();const lojas=[...new Set([...DATA.map(r=>r.u),...VDATA.map(r=>r.u)])].filter(u=>!F.u||u===F.u).sort();
-  Q.res={};lojas.forEach(u=>{Q.res[u]={};CHECKS.forEach(c=>{try{Q.res[u][c.id]=c.f(u)}catch(e){Q.res[u][c.id]={n:0,valor:0,itens:[]}}})});
-  const base=u=>{const pv=VDATA.filter(r=>r.u===u&&r.tipo==='Produto');return {compras:DATA.filter(r=>r.u===u).length,vendas:pv.length,vlinhas:sum(pv,r=>r.n||1)}};
-  const rows=lojas.map(u=>{const b=base(u);const L=lojaDe(u);let score=0;const cells={};CHECKS.forEach(c=>{const r=Q.res[u][c.id];const den=c.src==='compras'?b.compras:c.src==='vendas'||c.src==='cruzamento'?(r.den==='linhas'?b.vlinhas:b.vendas):1;const pctv=den?r.n/den*100:0;cells[c.id]={n:r.n,p:pctv,v:r.valor};if(c.g>0&&r.n)score+=c.g*Math.min(10,pctv+1)});return {u,L,b,cells,score}});
-  const grav=['nt','ok','at','no'];
-  const cols=[{h:'Loja <small style="font-weight:500;text-transform:none;letter-spacing:0">(clique = todos os itens)</small>',v:r=>r.u,f:(v,r)=>`<span data-qloja="${esc(v)}"><b>${esc(v)}</b><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?'/'+r.L.uf:''} · ${r.b.compras.toLocaleString('pt-BR')} compras · ${r.b.vlinhas.toLocaleString('pt-BR')} vendas</small></span>`},
-    {h:'Índice de problemas',n:1,v:r=>r.score,f:(v,r)=>`<span class="tag ${v<20?'ok':v<60?'at':'no'}" data-qloja="${esc(r.u)}" style="cursor:pointer" title="Ver todos os itens sinalizados desta loja">${v.toFixed(0)}</span>`}];
-  CHECKS.forEach(c=>cols.push({h:`<span title="${esc(c.d)}">${c.t}</span>`,n:1,v:r=>r.cells[c.id].n,f:(v,r)=>{const x=r.cells[c.id];if(!v)return '<span class="zero" title="nenhuma ocorrência">—</span>';return `<button class="qb g${Math.min(3,c.g)}" data-q="${esc(r.u)}|${c.id}" title="${esc(c.t)} · clique para ver os itens">${v.toLocaleString('pt-BR')}${x.p>=0.05&&c.src!=='cobertura'?`<small>${x.p.toFixed(1)}%</small>`:''}${x.v?`<small>${fmt0(x.v)}</small>`:''}</button>`}}));
-  tabela(el,cols,rows,{sort:1});
-  el.onclick=e=>{const cell=e.target.closest('[data-q]');if(cell){const [u,id]=cell.dataset.q.split('|');mostrarQ(u,id);return}const pill=e.target.closest('[data-qloja]');if(pill){mostrarQLoja(pill.dataset.qloja);return}};
-  // resumo rede
-  const tot={};CHECKS.forEach(c=>tot[c.id]=rows.reduce((s,r)=>s+r.cells[c.id].n,0));
-  const piorU=rows.length?[...rows].sort((a,b)=>b.score-a.score)[0].u:'';
-  const cl='cursor:pointer';const dica='title="Clique para ver os itens"';
-  $('#kpisQual').innerHTML=`<div class="kpi" data-kpi="todas" style="${cl}" ${dica}><span>Lojas avaliadas ▸</span><b>${rows.length}</b><i>${CHECKS.length} verificações · clique para ver tudo</i></div>
-   <div class="kpi o" data-kpi="pior" data-loja="${esc(piorU)}" style="${cl}" ${dica}><span>Pior índice ▸</span><b style="font-size:16px">${rows.length?esc(piorU):'—'}</b></div>
-   <div class="kpi a" data-kpi="graves" style="${cl}" ${dica}><span>Ocorrências graves ▸</span><b>${CHECKS.filter(c=>c.g>=3).reduce((s,c)=>s+tot[c.id],0).toLocaleString('pt-BR')}</b><i>custo zero, outlier, fracionamento</i></div>
-   <div class="kpi z" data-kpi="v_custo0" style="${cl}" ${dica}><span>Venda sem custo (rede) ▸</span><b>${fmt0(rows.reduce((s,r)=>s+r.cells.v_custo0.v,0))}</b></div>
-   <div class="kpi" data-kpi="c_outlier" style="${cl}" ${dica}><span>Compras fora do padrão ▸</span><b>${tot.c_outlier.toLocaleString('pt-BR')}</b><i>linhas com custo ≠ rede</i></div>`;
-  $('#kpisQual').onclick=e=>{const c=e.target.closest('[data-kpi]');if(!c)return;const k=c.dataset.kpi;if(k==='todas'){mostrarQGrupo(x=>x.g>0,'Todas as inconsistências · rede','Todos os itens sinalizados em todas as lojas e verificações (exceto informativos).')}else if(k==='pior'){if(c.dataset.loja)mostrarQLoja(c.dataset.loja)}else if(k==='graves'){mostrarQGrupo(x=>x.g>=3,'Ocorrências graves · rede','Custo zero, outliers e fracionamento somando todas as lojas.')}else{mostrarQRede(k)}};
-  $('#qualLegenda').innerHTML=CHECKS.map(c=>`<div style="padding:6px 0;border-bottom:1px solid var(--ln)"><b style="color:${c.g>=3?'#C0392B':c.g===2?'#B34A0B':'var(--mu)'}">${c.t}</b> <span class="tag nt">${c.src}</span><br><small style="color:var(--mu)">${c.d}</small></div>`).join('');
+  const el=$('#tbQual'),kp=$('#kpisQual');if(!el)return;if(!sb||!USER)return;
+  kp.innerHTML='<div class="empty">Calculando no servidor…</div>';$('#cardQ').style.display='none';
+  $('#qualLegenda').innerHTML=V2_CHECKS.map(c=>`<p style="margin:4px 0"><b>${c[1]}</b> <span class="tag ${c[3]>=3?'at':c[3]>=2?'nt':'ok'}">${c[3]>=3?'grave':c[3]>=2?'médio':'informativo'}</span> — ${c[2]}</p>`).join('');
+  (async()=>{try{
+    const {data:rows,error}=await sb.rpc('v2_qualidade',v2Filtros());if(error)throw error;QROWS=rows;
+    const tot=k=>rows.reduce((s,r)=>s+(+r[k]||0),0);const cL=tot('c_linhas'),vL=tot('v_linhas');
+    kp.innerHTML=`<div class="kpi"><span>Lojas avaliadas</span><b>${rows.length}</b><i>${esc(v2Rec())}</i></div>
+      <div class="kpi a"><span>Lojas com score ≥ 8</span><b>${rows.filter(r=>+r.score>=8).length}</b><i>precisam de atenção</i></div>
+      <div class="kpi"><span>Compra custo 0</span><b>${cL?v2Pc(100*tot('c_custo0')/cL):'—'}</b><i>das linhas de compra</i></div>
+      <div class="kpi o"><span>Venda custo 0</span><b>${vL?v2Pc(100*tot('v_custo0')/vL):'—'}</b><i>${fmtK(tot('v_custo0_valor'))} sem custo</i></div>
+      <div class="kpi"><span>Custo fora do padrão</span><b>${cL?v2Pc(100*tot('c_outlier')/cL):'—'}</b><i>${fmtK(tot('c_outlier_valor'))} em compras</i></div>
+      <div class="kpi"><span>Venda abaixo do custo</span><b>${vL?v2Pc(100*tot('v_neg')/vL):'—'}</b><i>perda ${fmtK(tot('v_neg_valor'))}</i></div>`+v2Aviso();
+    const cel=(k,base,r)=>{const n=+r[k]||0;const b=+r[base]||0;if(!b)return '<span class="tag nt">—</span>';const p=100*n/b;return `<a href="#" data-q="${k}" data-l="${r.loja_id}" style="color:${p>5?'#B4342A':p>1?'#9A5B00':'inherit'};font-weight:${n?'700':'400'}">${v2Pc(p)}</a>`};
+    tabela(el,[
+      {h:'FRA',v:r=>r.fra||''},{h:'Loja',v:r=>r.loja,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${esc(r.uf||'')}${r.consultor?' · '+esc(r.consultor):''}</small>`},
+      {h:'Score',v:r=>+r.score,n:true,f:v=>`<span class="tag ${v>=8?'at':v>=4?'nt':'ok'}" style="${v>=8?'background:#FBE5E2;color:#B4342A':''}">${v}</span>`},
+      {h:'Compra custo 0',v:r=>(+r.c_custo0||0)/(+r.c_linhas||1),n:true,f:(v,r)=>cel('c_custo0','c_linhas',r)},
+      {h:'Fora do padrão',v:r=>(+r.c_outlier||0)/(+r.c_linhas||1),n:true,f:(v,r)=>cel('c_outlier','c_linhas',r)},
+      {h:'S/ fabricante',v:r=>(+r.c_divers||0)/(+r.c_linhas||1),n:true,f:(v,r)=>cel('c_divers','c_linhas',r)},
+      {h:'S/ EAN',v:r=>(+r.c_ean||0)/(+r.c_linhas||1),n:true,f:(v,r)=>cel('c_ean','c_linhas',r)},
+      {h:'Venda custo 0',v:r=>(+r.v_custo0||0)/(+r.v_linhas||1),n:true,f:(v,r)=>cel('v_custo0','v_linhas',r)},
+      {h:'Abaixo do custo',v:r=>(+r.v_neg||0)/(+r.v_linhas||1),n:true,f:(v,r)=>cel('v_neg','v_linhas',r)},
+      {h:'Institucional',v:r=>(+r.v_inst||0)/(+r.v_linhas||1),n:true,f:(v,r)=>cel('v_inst','v_linhas',r)},
+      {h:'CMV/compras',v:r=>+r.x_cmv||0,n:true,f:(v,r)=>r.x_cmv==null?'—':`<span class="tag ${v<0.9||v>1.1?'at':'ok'}">${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>`},
+      {h:'Meses s/ dado',v:r=>+r.x_gap||0,n:true,f:v=>v?`<span class="tag at">${v}</span>`:'0'},
+      {h:'Meses parciais',v:r=>+r.x_parcial||0,n:true,f:v=>v?`<span class="tag at">${v}</span>`:'0'}],rows,{sort:2});
+    el.querySelectorAll('a[data-q]').forEach(a=>a.onclick=ev=>{ev.preventDefault();abrirQualidadeItens(+a.dataset.l,a.dataset.q)});
+  }catch(e){kp.innerHTML=`<div class="empty">Não foi possível calcular a qualidade: ${esc(e.message||e)}</div>`;el.innerHTML=''}})();
 }
+async function abrirQualidadeItens(lojaId,check){
+  const card=$('#cardQ'),tb=$('#tbQ');const c=V2_CHECKS.find(x=>x[0]===check);const l=QROWS.find(r=>+r.loja_id===lojaId);
+  card.style.display='';$('#qTitulo').textContent=(c?c[1]:check)+' · '+(l?l.loja:'loja '+lojaId);$('#qDesc').textContent=(c?c[2]:'')+' · '+v2Rec()+' · até 300 itens, maiores primeiro';
+  tb.innerHTML='<div class="empty">Buscando itens…</div>';card.scrollIntoView({behavior:'smooth',block:'start'});
+  try{const {data,error}=await sb.rpc('v2_qualidade_itens',{p_loja:lojaId,p_check:check,p_desde:F.de,p_ate:F.ate,p_limite:300});if(error)throw error;
+    tabela(tb,[{h:'Ref.',v:r=>r.ref||''},{h:'Data/mês',v:r=>r.data||''},{h:'Produto',v:r=>r.produto||'',f:esc},{h:'Fornecedor',v:r=>r.fornecedor||'',f:esc},
+      {h:'Qtd',v:r=>+r.qtd||0,n:true},{h:'Valor',v:r=>+r.valor||0,n:true,f:fmt0},{h:'Detalhe',v:r=>r.detalhe||'',f:esc}],data,{sort:5,pageSize:50,pager:(()=>{let pg=$('#qPager');if(!pg){pg=document.createElement('p');pg.id='qPager';pg.className='note';tb.after(pg)}return pg})()});
+    $('#qExp').onclick=()=>{const csv=['ref;data;produto;fornecedor;qtd;valor;detalhe',...data.map(r=>[r.ref,r.data,r.produto,r.fornecedor,r.qtd,r.valor,r.detalhe].map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(';'))].join('\n');
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=`qualidade_${check}_${lojaId}.csv`;a.click()};
+  }catch(e){tb.innerHTML=`<div class="empty">${esc(e.message||e)}</div>`}
+}
+
 function mostrarQCard(o){const itens=o.itens||[];Q._exp={itens,arquivo:o.arquivo||'inconsistencias.csv'};
   $('#cardQ').style.display='';$('#qTitulo').innerHTML=`${esc(o.titulo)} <small>${itens.length.toLocaleString('pt-BR')} ocorrência(s)${o.valor?' · '+fmt0(o.valor):''}</small>`;$('#qDesc').textContent=o.desc||'';
   const valFmt=v=>typeof v==='number'&&v>=100?fmt0(v):typeof v==='number'?(String(v).includes('.')?fmt(v):v):'';
@@ -2130,7 +2142,7 @@ function mostrarQ(u,id){const c=CHECKS.find(x=>x.id===id);const r=Q.res[u][id];m
 function mostrarQLoja(u){const its=[];let val=0;CHECKS.forEach(c=>{const r=Q.res[u]&&Q.res[u][c.id];if(r&&r.n){r.itens.forEach(i=>its.push({...i,check:c.t}));val+=r.valor||0}});mostrarQCard({titulo:`Todas as inconsistências · ${u}`,desc:'Todos os itens sinalizados nesta loja, somando as verificações.',itens:its,valor:val,arquivo:`inconsistencias_${lojaDe(u).fra||'loja'}_TODAS.csv`});}
 function mostrarQRede(id){const c=CHECKS.find(x=>x.id===id);const its=[];let val=0;Object.keys(Q.res).forEach(u=>{const r=Q.res[u][id];if(r&&r.n){r.itens.forEach(i=>its.push({...i,loja:u}));val+=r.valor||0}});mostrarQCard({titulo:`${c.t} · rede`,desc:c.d,itens:its,valor:val,arquivo:`inconsistencias_rede_${id}.csv`});}
 function mostrarQGrupo(pred,titulo,desc){const cs=CHECKS.filter(pred);const its=[];let val=0;Object.keys(Q.res).forEach(u=>{cs.forEach(c=>{const r=Q.res[u][c.id];if(r&&r.n){r.itens.forEach(i=>its.push({...i,loja:u,check:c.t}));val+=r.valor||0}})});mostrarQCard({titulo,desc,itens:its,valor:val,arquivo:'inconsistencias_rede.csv'});}
-$('#qExpTudo').onclick=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentual;Valor'];Object.entries(Q.res).forEach(([u,res])=>CHECKS.forEach(c=>{const r=res[c.id];if(r.n)lines.push([u,c.t,r.n,'',String(Math.round(r.valor*100)/100).replace('.',',')].join(';'))}));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv'}));a.download='qualidade_dados_rede.csv';a.click()};
+$('#qExpTudo').onclick=()=>{if(!QROWS.length)return;const ks=Object.keys(QROWS[0]);const csv=[ks.join(';'),...QROWS.map(r=>ks.map(k=>'"'+String(r[k]??'').replace(/"/g,'""')+'"').join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download='qualidade_por_loja.csv';a.click()};const _qExpAntigo=()=>{const lines=['Loja;Verificacao;Ocorrencias;Percentual;Valor'];Object.entries(Q.res).forEach(([u,res])=>CHECKS.forEach(c=>{const r=res[c.id];if(r.n)lines.push([u,c.t,r.n,'',String(Math.round(r.valor*100)/100).replace('.',',')].join(';'))}));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv'}));a.download='qualidade_dados_rede.csv';a.click()};
 
 /* ---------- menu lateral com reordenação ---------- */
 (function(){
