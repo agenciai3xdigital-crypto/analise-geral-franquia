@@ -851,18 +851,41 @@ async function emParalelo(itens,limite,tarefa){
   }));
   if(erros.length)throw erros[0];
 }
+/* ---- Cache local das compras (IndexedDB) + carga incremental ----
+   As linhas de entrada nao mudam depois de gravadas; so entram linhas novas (id maior).
+   Entao guardamos cada loja no navegador com o maior id visto e, no proximo login,
+   pedimos ao servidor apenas "id > maior id". O resumo_carga() diz quantas linhas a loja
+   tem no banco: se o cache + delta nao bater (linhas apagadas), recarrega a loja do zero. */
+const CACHE={db:null,
+  abrir(){if(this.db)return Promise.resolve(this.db);return new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error('sem IndexedDB'));
+    const r=indexedDB.open('pop_ic_cache',1);r.onupgradeneeded=()=>r.result.createObjectStore('compras');r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)})},
+  async get(k){try{const db=await this.abrir();return await new Promise((res,rej)=>{const t=db.transaction('compras').objectStore('compras').get(k);t.onsuccess=()=>res(t.result||null);t.onerror=()=>rej(t.error)})}catch(e){return null}},
+  async set(k,v){try{const db=await this.abrir();await new Promise((res,rej)=>{const t=db.transaction('compras','readwrite');t.objectStore('compras').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){console.warn('cache',e)}},
+  async del(k){try{const db=await this.abrir();await new Promise((res,rej)=>{const t=db.transaction('compras','readwrite');t.objectStore('compras').delete(k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}},
+  async limpar(){try{const db=await this.abrir();await new Promise((res,rej)=>{const t=db.transaction('compras','readwrite');t.objectStore('compras').clear();t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}}
+};
+let CACHE_STATS={cache:0,rede:0};
 async function carregarLoja(l){
+  const esperado=+(RESUMO[l.id]?.itens||0);
+  let rows=[],apos=0,maxId=0,doCache=false;
+  const c=await CACHE.get(l.id);
+  if(c&&Array.isArray(c.rows)&&c.n<=esperado&&c.maxId>0){rows=c.rows;rows.forEach(r=>r.u=l.key);apos=c.maxId;maxId=c.maxId;doCache=true}
   // O servidor tem teto próprio de linhas por resposta (menor que o p_limit pedido).
   // Por isso a única parada segura é "veio página vazia" — nunca "veio menos que pedi".
-  const rows=[];let apos=0;const lim=10000;let voltas=0;
-  while(true){const {data,error}=await sb.rpc('entradas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
-    if(!data||!data.length)break;
-    data.forEach(r=>rows.push(mapRow(r,l.key)));
-    apos=data[data.length-1].id;
-    $('#status').textContent=`Carregando ${l.key}: ${rows.length.toLocaleString('pt-BR')} itens…`;
-    if(++voltas>200)break}
+  const baixar=async()=>{const lim=10000;let voltas=0;
+    while(true){const {data,error}=await sb.rpc('entradas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
+      if(!data||!data.length)break;
+      data.forEach(r=>rows.push(mapRow(r,l.key)));
+      apos=data[data.length-1].id;maxId=apos;
+      $('#status').textContent=`Carregando ${l.key}: ${rows.length.toLocaleString('pt-BR')} itens…`;
+      if(++voltas>200)break}};
+  await baixar();
+  if(esperado&&rows.length!==esperado){   // cache inconsistente (linhas apagadas no banco): recarrega do zero
+    rows=[];apos=0;maxId=0;doCache=false;await baixar()}
+  if(doCache)CACHE_STATS.cache++;else CACHE_STATS.rede++;
   rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
   UNIDADES[l.key]={u:l.key,id:l.id,rows,arqs:[...new Set(rows.map(r=>r.arq).filter(Boolean))]};
+  CACHE.set(l.id,{maxId,n:rows.length,rows,em:Date.now()});   // nao espera: grava em paralelo
 }
 let RESUMO={};
 async function carregarTudo(){
@@ -872,13 +895,14 @@ async function carregarTudo(){
     await carregarLojas();await carregarAcordos();await carregarMarcas();await carregarMetas();await carregarHomolog();await carregarAlertasDB();
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
-    LOADER.fase('Compras',comDados.length);
+    CACHE_STATS={cache:0,rede:0};LOADER.fase('Compras',comDados.length);
     await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
     await carregarVendasTodas();$('#status').textContent='';
     /* Cada etapa abaixo e pesada (661 mil linhas). Soltar a thread entre elas e o que
        impede o Chrome de mostrar "Página sem resposta" e matar a aba. */
     const _y=()=>new Promise(r=>setTimeout(r,0));
     LOADER.fase('Organizando as compras…',0);await _y();recompor();
+    console.info(`carga: ${CACHE_STATS.cache} loja(s) do cache local, ${CACHE_STATS.rede} da rede`);
     LOADER.fase('Organizando as vendas…',0);await _y();recomporVendas();
     LOADER.fase('Montando filtros…',0);await _y();montarFiltros();renderAcordos();
     LOADER.fase('Desenhando o painel…',0);await _y();render();await _y();
@@ -1573,7 +1597,7 @@ $('#uN').onchange=()=>renderUnid(filtrado());
 /* ---------- carga de dados ---------- */
 
 function ligarAcoesCarga(ctx){
-  ctx.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const {error}=await sb.from('entradas').delete().eq('loja_id',UNIDADES[u].id);if(error)throw error;delete UNIDADES[u];const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
+  ctx.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const _idDel=UNIDADES[u].id;const {error}=await sb.from('entradas').delete().eq('loja_id',_idDel);if(error)throw error;delete UNIDADES[u];await CACHE.del(_idDel);const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
   ctx.querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
 }
 /* ---------- conferência banco × memória ----------
@@ -1720,7 +1744,7 @@ $('#cExp').onclick=()=>{const b=new Blob([JSON.stringify({acordos:ACORDOS,unidad
 $('#cImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const j=JSON.parse(r.result);let tot=0;
   for(const o of j.unidades||[]){let loja=LJ[o.u];if(!loja){const {data,error}=await sb.from('lojas').insert({nome:o.u,status:'Ativa'}).select().single();if(error)throw error;await carregarLojas();loja=LJID[data.id]}const rr=await enviarEntradas(loja,o.rows,'backup');tot+=rr.ins}
   if(j.acordos){ACORDOS=j.acordos;await salvarAcordos()}await carregarTudo();alert('Backup importado: '+tot+' itens novos gravados.')}catch(x){$('#status').textContent='';sbErr(x,'Erro ao importar')}};r.readAsText(f);e.target.value=''};
-$('#cLimpar').onclick=async()=>{if(!confirm('Apagar TODAS as entradas de TODAS as lojas no banco central? Esta ação não pode ser desfeita.'))return;if(prompt('Digite APAGAR para confirmar')!=='APAGAR')return;try{const {error}=await sb.from('entradas').delete().gte('id',0);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao apagar')}};
+$('#cLimpar').onclick=async()=>{if(!confirm('Apagar TODAS as entradas de TODAS as lojas no banco central? Esta ação não pode ser desfeita.'))return;if(prompt('Digite APAGAR para confirmar')!=='APAGAR')return;try{const {error}=await sb.from('entradas').delete().gte('id',0);if(error)throw error;await CACHE.limpar();await carregarTudo()}catch(e){sbErr(e,'Erro ao apagar')}};
 /* ======================= MÓDULO DE VENDAS (BI Global) ======================= */
 let VENDAS={};      // chave loja -> {u,id,rows}
 let VDATA=[];       // todas as linhas de venda
@@ -1748,7 +1772,17 @@ function biParaLinhas(text){
   }
   return {linhas:out,filial};
 }
-const lojaPorFilial=f=>{const m=String(f).match(/FR\s*0*(\d+)/i);if(!m)return null;return LOJAS.find(l=>String(+l.fra)===String(+m[1]))||null};
+/* A coluna Filial do BI Global mudou de formato entre versoes do ERP:
+   ja veio como "FR 158 - POP PET X" e hoje vem como "002 - POP PET X".
+   Aceita os dois, o numero solto, e por ultimo casa pelo nome da loja. */
+const lojaPorFilial=f=>{
+  const s=String(f||'').trim();if(!s)return null;
+  let m=s.match(/FR\s*0*(\d+)/i)||s.match(/^\s*0*(\d+)\s*[-\u2013]/)||s.match(/^\s*0*(\d+)\s*$/);
+  if(m){const l=LOJAS.find(l=>String(+l.fra)===String(+m[1]));if(l)return l}
+  const n=rotNorm(s.replace(/^[^-\u2013]*[-\u2013]\s*/,''));
+  if(n){const l=LOJAS.find(l=>rotNorm(l.nome)===n);if(l)return l}
+  return null;
+};
 
 /* ---- resolução de marca / segmento / custo ---- */
 let MAPA={};  // ean -> {fab, fonte, seg, custoKg, custoUn, custoFonte}
@@ -2710,7 +2744,7 @@ async function cgGravar(){
   const log=$('#cgLog');log.innerHTML='';
   const msgs=[];let addE=0,dupE=0,addV=0,dupV=0;const REL=[];
   const pendAntes=new Set(ROT_PEND.map(r=>r.rotulo));
-  const tocadasE=new Set(),tocadasV=new Set();
+  const tocadasE=new Set(),tocadasV=new Set();const FALHOU=new Set();
   try{
     PROG.abrir();let _n=0;const _tot=fila.length;
     const LOTEAO=fila.length>=6;const PAR=LOTEAO?3:1;
@@ -2724,7 +2758,7 @@ async function cgGravar(){
       try{
         if(i.tipo==='entradas'){
           let loja=LJ[i.lojaKey];
-          if(!loja){msgs.push('✖ '+esc(i.file.name)+': loja "'+esc(i.lojaKey)+'" não está no cadastro');return;}
+          if(!loja){const _m='loja "'+i.lojaKey+'" não está no cadastro';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
           const txt=await i.file.text();const ls=csvParaLinhas(txt,loja.key);
           const r=await enviarEntradas(loja,ls,i.file.name);
           addE+=r.ins;dupE+=r.dup;tocadasE.add(loja.key);
@@ -2733,7 +2767,7 @@ async function cgGravar(){
         }else if(i.tipo==='bi'){
           const txt=await i.file.text();const{linhas,filial}=biParaLinhas(txt);
           const loja=lojaPorFilial(filial);
-          if(!loja){msgs.push('✖ '+esc(i.file.name)+': filial "'+esc(filial)+'" não encontrada no cadastro');return;}
+          if(!loja){const _m='filial "'+(filial||'(coluna Filial vazia)')+'" não encontrada no cadastro — confira o número da FRA na aba Lojas';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
           const r=await enviarVendas(loja,linhas,i.file.name);
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
           REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
@@ -2741,7 +2775,7 @@ async function cgGravar(){
         }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
-      }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));REL.push({tipo:'erro',arquivo:i.file.name,erro:e.message||String(e)});}
+      }catch(e){msgs.push('✖ '+esc(i.file.name)+': '+esc(e.message||e));REL.push({tipo:'erro',arquivo:i.file.name,erro:e.message||String(e)});FALHOU.add(i.id);}
     };
     let cursor=0;
     await Promise.all(Array.from({length:Math.min(PAR,fila.length)},async()=>{
@@ -2758,14 +2792,14 @@ async function cgGravar(){
     if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);}
     $('#cgStatus').textContent='';
     recompor();recomporVendas();montarFiltros(true);render();
-    const ids=new Set(fila.map(f=>f.id));CG_FILAS=CG_FILAS.filter(i=>!ids.has(i.id));
+    const ids=new Set(fila.map(f=>f.id));CG_FILAS=CG_FILAS.filter(i=>!ids.has(i.id)||FALHOU.has(i.id));
     cgRender();
     log.innerHTML=msgs.join('<br>')+'<br><b>'+addE.toLocaleString('pt-BR')+' itens de compra</b> e <b>'+addV.toLocaleString('pt-BR')+' linhas de venda</b> gravados.'
       +(dupE+dupV?' · '+(dupE+dupV).toLocaleString('pt-BR')+' duplicados ignorados.':'');
     PROG.set('Atualizando o mapa de marcas','',100);await respira();
     try{await carregarMarcas()}catch(e){console.warn('marcas',e)}
     const novasMarcas=ROT_PEND.filter(r=>!pendAntes.has(r.rotulo));
-    if(REL.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
+    if(REL.length||msgs.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
   }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
   finally{PROG.fechar();$('#cgStatus').textContent='';}
 }
