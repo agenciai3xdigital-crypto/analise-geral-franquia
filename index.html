@@ -897,7 +897,7 @@ async function carregarTudo(){
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
     CACHE_STATS={cache:0,rede:0};LOADER.fase('Compras',comDados.length);
     await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
-    await carregarVendasTodas();$('#status').textContent='';
+    await carregarVendasTodas();await carregarTV();$('#status').textContent='';
     /* Cada etapa abaixo e pesada (661 mil linhas). Soltar a thread entre elas e o que
        impede o Chrome de mostrar "Página sem resposta" e matar a aba. */
     const _y=()=>new Promise(r=>setTimeout(r,0));
@@ -1016,6 +1016,8 @@ function tabela(el,cols,rows,opts={}){
     opts.pager.querySelector('#pp').onclick=()=>{st.page--;tabela(el,cols,rows,opts)};opts.pager.querySelector('#pn').onclick=()=>{st.page++;tabela(el,cols,rows,opts)}}
   return sorted;
 }
+/* etiquetas explicaveis */
+const _cssDiag=document.createElement('style');_cssDiag.textContent='.diag{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}.diag:hover{filter:brightness(.85)}';document.head.appendChild(_cssDiag);
 const barCell=(v,max,cls='')=>`<div class="bar"><i class="${cls}" style="width:${max?Math.min(100,v/max*100):0}%"></i></div>`;
 function shareTable(el,map,total,limit=12){
   const rows=[...map.entries()].map(([k,v])=>({k,v,s:v/total*100})).sort((a,b)=>b.v-a.v).slice(0,limit);const mx=rows[0]?.v||1;
@@ -1506,6 +1508,59 @@ function renderFornec(D){
 let PRE_ROWS=[];
 const mediana=a=>{const s=[...a].sort((x,y)=>x-y);const n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):0};
 const wavg=h=>{const q=sum(h,x=>x.q);return q?sum(h,x=>x.c*x.q)/q:0};
+/* ---- Por que esta etiqueta? diagnostico em linguagem clara, calculado na hora ---- */
+function diagPreco(tipo,cod){
+  const r=PRE_ROWS.find(x=>String(x.cod)===String(cod));if(!r)return;
+  const H=r.h,val=H.filter(x=>!x.bonif);
+  const med=mediana(H.filter(x=>x.c>0).map(x=>x.c));
+  const linha=x=>`<tr><td>${esc(String(x.d).split('-').reverse().join('/'))}</td><td>FRA ${esc(lojaDe(x.u).fra||x.u)}</td><td>${esc(x.fo||'—')}</td><td class="n">${fmt(x.c)}</td><td class="n">${(+x.q||0).toLocaleString('pt-BR')}</td></tr>`;
+  const tab=ls=>`<table style="width:100%;font-size:13px;margin:8px 0"><thead><tr><th style="text-align:left">Quando</th><th style="text-align:left">Loja</th><th style="text-align:left">Fornecedor</th><th style="text-align:right">Custo</th><th style="text-align:right">Qtd</th></tr></thead><tbody>${ls.map(linha).join('')}</tbody></table>`;
+  const cab=`<p style="margin:0 0 12px"><b>${esc(r.p)}</b><br><small style="color:var(--mu)">${esc(r.fa)} · cód ${esc(r.cod)} · ${val.length.toLocaleString('pt-BR')} compras usadas no cálculo · mediana de custo ${fmt(med)}</small></p>`;
+  let tit='',html='';
+  if(tipo==='emb'){
+    const fora=val.filter(x=>x.c<med*0.5||x.c>med*2).sort((a,b)=>a.c-b.c);
+    const dentro=val.length-fora.length;
+    tit='Por que "embalagem?"';
+    html=cab+`<h4>O que a etiqueta quer dizer</h4>
+      <p>A compra mais cara deste produto saiu a <b>${fmt(r.mx)}</b> e a mais barata a <b>${fmt(r.mn)}</b> — <b>${(r.mx/r.mn).toFixed(1).replace('.',',')}×</b> de diferença. Reajuste de preço não faz isso. Quando a diferença passa de 4 vezes, o painel marca o produto, porque o mais provável é que o mesmo código esteja sendo lançado às vezes como caixa/fardo e às vezes como unidade avulsa (ou por quilo em vez de por pacote).</p>
+      <h4>Os números deste produto</h4>
+      <p>${dentro.toLocaleString('pt-BR')} das ${val.length.toLocaleString('pt-BR')} compras estão na faixa esperada, em torno de ${fmt(med)}. As outras <b>${fora.length.toLocaleString('pt-BR')}</b> estão fora dessa faixa — repare na coluna de quantidade, que costuma denunciar a troca de unidade:</p>
+      ${tab(fora.slice(0,10))}${fora.length>10?`<p class="note">…e mais ${(fora.length-10).toLocaleString('pt-BR')} linha(s) no mesmo caso.</p>`:''}
+      <h4>O que isso muda na leitura</h4>
+      <p>A coluna Mín/Máx fica com um traço, porque mostrar ${fmt(r.mn)} e ${fmt(r.mx)} lado a lado só confundiria. A variação e o impacto continuam sendo calculados, mas podem estar distorcidos se a proporção de lançamentos trocados mudou ao longo do período — e o "maior salto" deste produto provavelmente vem daí, não de um reajuste real.</p>
+      <h4>O que fazer</h4>
+      <p>Para levar número a uma negociação, marque <b>"Só reajustes limpos"</b> logo acima dos cards: ele tira da lista os produtos com esta suspeita e os comprados de mais de um fornecedor. E avise a operação: código que aparece assim de forma recorrente é cadastro de produto para arrumar no ERP da loja — com o mesmo código servindo para caixa e unidade, nenhum controle de custo daquele item fecha.</p>`;
+  }else if(tipo==='fos'){
+    const por=new Map();val.forEach(x=>{const k=x.fo||'(sem fornecedor)';const o=por.get(k)||{n:0,q:0,vt:0,mn:1e12,mx:0};o.n++;o.q+=+x.q||0;o.vt+=x.c*(+x.q||0);o.mn=Math.min(o.mn,x.c);o.mx=Math.max(o.mx,x.c);por.set(k,o)});
+    const lin=[...por.entries()].map(([k,o])=>({k,...o,med:o.q?o.vt/o.q:0})).sort((a,b)=>a.med-b.med);
+    const dif=lin.length>1&&lin[0].med>0?(lin[lin.length-1].med/lin[0].med-1)*100:0;
+    tit='Por que vários fornecedores';
+    html=cab+`<h4>O que a etiqueta quer dizer</h4>
+      <p>Este mesmo produto foi comprado de <b>${lin.length}</b> fornecedores diferentes no período. Isso não é problema em si, mas significa que a variação de custo que aparece na linha pode ser troca de fornecedor, e não reajuste do fornecedor atual.</p>
+      <h4>Custo médio por fornecedor</h4>
+      <table style="width:100%;font-size:13px;margin:8px 0"><thead><tr><th style="text-align:left">Fornecedor</th><th style="text-align:right">Compras</th><th style="text-align:right">Custo médio</th><th style="text-align:right">Mín / Máx</th></tr></thead><tbody>
+      ${lin.map(o=>`<tr><td>${esc(o.k)}</td><td class="n">${o.n}</td><td class="n"><b>${fmt(o.med)}</b></td><td class="n">${fmt(o.mn)} / ${fmt(o.mx)}</td></tr>`).join('')}</tbody></table>
+      ${dif>0?`<h4>A diferença que interessa</h4><p>Entre o fornecedor mais barato (${esc(lin[0].k)}, ${fmt(lin[0].med)}) e o mais caro (${esc(lin[lin.length-1].k)}, ${fmt(lin[lin.length-1].med)}) há <b>${pct(dif)}</b> de diferença no custo médio ponderado. Comprar tudo pelo melhor preço praticado economizaria cerca de <b>${fmt0(val.reduce((a,x)=>a+(x.c-lin[0].med)*(+x.q||0),0))}</b> no período — é esse o número que vale levar para a mesa.</p>`:''}
+      <p class="note">Custo médio ponderado pela quantidade, não média simples: assim uma compra de 2 unidades não pesa igual a uma de 200.</p>`;
+  }else if(tipo==='bonif'){
+    const b=H.filter(x=>x.bonif&&!x.semc).sort((a,b)=>a.c-b.c);
+    tit='Por que estas linhas foram ignoradas';
+    html=cab+`<h4>O que a etiqueta quer dizer</h4>
+      <p><b>${b.length.toLocaleString('pt-BR')}</b> compra(s) deste produto entraram com custo abaixo de 20% da mediana (menos de ${fmt(med*0.2)}). O painel trata essas linhas como bonificação ou custo simbólico e as deixa de fora do cálculo de reajuste — se entrassem, qualquer produto bonificado apareceria com "aumento" absurdo na compra seguinte.</p>
+      <h4>As linhas ignoradas</h4>${tab(b.slice(0,10))}${b.length>10?`<p class="note">…e mais ${(b.length-10).toLocaleString('pt-BR')} linha(s).</p>`:''}
+      <p class="note">Elas continuam contando no total comprado da loja — o que muda é só o cálculo de variação de custo deste produto.</p>`;
+  }else if(tipo==='semcusto'){
+    const b=H.filter(x=>x.semc);
+    tit='Por que "sem custo"';
+    html=cab+`<h4>O que a etiqueta quer dizer</h4>
+      <p><b>${b.length.toLocaleString('pt-BR')}</b> compra(s) deste produto vieram do ERP com custo zerado. Em geral é entrada lançada sem valor pelo franqueado, não mercadoria de graça. Sem custo não dá para calcular reajuste nem margem, então essas linhas ficam de fora.</p>
+      <h4>As linhas sem custo</h4>${tab(b.slice(0,10))}${b.length>10?`<p class="note">…e mais ${(b.length-10).toLocaleString('pt-BR')} linha(s).</p>`:''}
+      <p class="note">A aba <b>Qualidade dos dados</b> mostra isso loja a loja — é lá que dá para cobrar a correção de quem lança.</p>`;
+  }
+  abrirAjuda(esc(tit),html);
+}
+document.addEventListener('click',e=>{const a=e.target&&e.target.closest&&e.target.closest('[data-diag]');if(!a)return;e.preventDefault();e.stopPropagation();diagPreco(a.dataset.diag,a.dataset.cod)},true);
+
 function renderPrecos(D){
   const ms=new Map();D.forEach(r=>{if(!ms.has(r.cod))ms.set(r.cod,{cod:r.cod,p:r.p,fa:r.fa,cat:r.cat,h:[],t:0,q:0});const o=ms.get(r.cod);o.h.push(r);o.t+=r.t;o.q+=r.q});
   const min=+$('#pMin').value||0,nmin=+$('#pN').value||2,dir=$('#pDir').value,modo=$('#pModo').value,limpo=$('#pLimpo').checked;
@@ -1532,7 +1587,7 @@ function renderPrecos(D){
   $('#kpisPre').innerHTML=`<div class="kpi o clic" data-act="up"><span>Produtos com aumento</span><b>${ups.length}</b><i>acima de ${min}% · clique para ver a lista ↓</i></div><div class="kpi clic" data-act="dn"><span>Produtos com queda</span><b>${dns.length}</b><i>acima de ${min}% · clique para ver a lista ↓</i></div>
    <div class="kpi a clic" data-act="up"><span>Impacto dos aumentos</span><b>${fmt0(sum(ups,r=>r.impacto))}</b><i>Σ (custo pago − custo inicial) × qtd · clique: quem renegociar ↓</i></div>
    <div class="kpi z clic" data-act="dn"><span>Economia nas quedas</span><b>${fmt0(-sum(dns,r=>r.impacto))}</b><i>mesma base · clique para ver a lista ↓</i></div>`;
-  tabela($('#tbPre'),[{h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${esc(r.fa)} · ${r.cat} · cód ${r.cod}${r.fos>1?' · <b style="color:#B34A0B">'+r.fos+' fornecedores</b>':''}${r.lojas>1?' · '+r.lojas+' lojas':''}${r.susp?' · <span class="tag no" title="custo máximo > 4× mínimo: provável caixa × unidade">embalagem?</span>':''}${r.nb?' · <span class="tag nt" title="linhas com custo < 20% da mediana, ignoradas">'+r.nb+' bonif.</span>':''}${r.nsc?' · <span class="tag at" title="linhas com custo zero: em geral entrada lançada sem valor pelo franqueado; ignoradas nos cálculos">'+r.nsc+' sem custo</span>':''}${r.salto&&Math.abs(r.salto.v)>=5?'<br>maior salto <span class="tag '+(r.salto.v>0?'up':'dn')+'">'+pct(r.salto.v)+'</span> em '+mesLabel(r.salto.m)+' · '+esc(r.salto.fo)+' · FRA '+esc(lojaDe(r.salto.u).fra||r.salto.u):''}</small>`},
+  tabela($('#tbPre'),[{h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${esc(r.fa)} · ${r.cat} · cód ${r.cod}${r.fos>1?' · <a class="diag" data-diag="fos" data-cod="'+esc(r.cod)+'" style="color:#B34A0B;font-weight:700" title="clique para entender">'+r.fos+' fornecedores</a>':''}${r.lojas>1?' · '+r.lojas+' lojas':''}${r.susp?' · <a class="tag no diag" data-diag="emb" data-cod="'+esc(r.cod)+'" title="clique para entender">embalagem?</a>':''}${r.nb?' · <a class="tag nt diag" data-diag="bonif" data-cod="'+esc(r.cod)+'" title="clique para entender">'+r.nb+' bonif.</a>':''}${r.nsc?' · <a class="tag at diag" data-diag="semcusto" data-cod="'+esc(r.cod)+'" title="clique para entender">'+r.nsc+' sem custo</a>':''}${r.salto&&Math.abs(r.salto.v)>=5?'<br>maior salto <span class="tag '+(r.salto.v>0?'up':'dn')+'">'+pct(r.salto.v)+'</span> em '+mesLabel(r.salto.m)+' · '+esc(r.salto.fo)+' · FRA '+esc(lojaDe(r.salto.u).fra||r.salto.u):''}</small>`},
     {h:'Compras',n:1,v:r=>r.h.length-r.nb-(r.nsc||0)},{h:modo==='media'?'Custo inicial':'1º custo',n:1,v:r=>r.ini,f:fmt},{h:modo==='media'?'Custo final':'Último',n:1,v:r=>r.fim,f:fmt},{h:'Mín / Máx',n:1,v:r=>r.mx,f:(v,r)=>r.susp?'<small style="color:var(--mu)" title="suspeita de caixa × unidade: veja o histórico">—</small>':`${fmt(r.mn)} / ${fmt(r.mx)}`},
     {h:'Variação',n:1,v:r=>r.v,f:v=>`<span class="tag ${v>0?'up':'dn'}">${pct(v)}</span>`},{h:'Impacto',n:1,v:r=>r.impacto,f:v=>`<span style="color:${v>0?'#B34A0B':'var(--vd)'}">${fmt0(v)}</span>`}],
     PRE_ROWS,{sort:6,pageSize:25,pager:$('#pgPre'),onClick:r=>abrirHist(r,modo)});
@@ -1672,7 +1727,7 @@ function renderCarga(){
   // No modo de carga em lote os itens não são trazidos, então UNIDADES fica vazio
   // e a cobertura mostraria menos lojas do que existe de fato.
   const temC=l=>!!(RESUMO[l.id]||UNIDADES[l.key]);
-  const temV=l=>!!(RESUMO_V[l.id]||VENDAS[l.key]);
+  const temV=l=>!!(RESUMO_V[l.id]||VENDAS[l.key]||Object.keys(VMES[l.key]||{}).length);
   const ativas=LOJAS.filter(l=>l.status==='Ativa');const com=ativas.filter(temC).length;const fora=UNIS.filter(u=>!LJ[u]).length;
   const nUni=LOJAS.filter(temC).length||UNIS.length;
   const nItens=Object.values(RESUMO).reduce((t,r)=>t+(+r.itens||0),0)||DATA.length;
@@ -1683,10 +1738,20 @@ function renderCarga(){
   const vis=$('#cVis').value;const fq=norm($('#cFiltro')?$('#cFiltro').value:'');
   const mesesGap=(arr)=>{if(arr.length<2)return 0;const s=[...new Set(arr)].sort();return mesesEntre(s[0],s[s.length-1]).filter(m=>!s.includes(m)).length};
   const build=(l,fora)=>{const o=UNIDADES[l.key];const ov=VENDAS[l.key];const d=o?o.rows:[];const dv=ov?ov.rows:[];
-    const msC=[...new Set(d.map(r=>r.m))].sort();const msV=[...new Set(dv.map(r=>r.m))].sort();
+    const msC=[...new Set(d.map(r=>r.m))].sort();
+    /* COBERTURA DE VENDAS NAO DEPENDE DA CARGA PESADA (corrigido 13/09/2026):
+       o detalhe por produto (VENDAS) so entra quando o usuario abre Mercado/TV.
+       O resumo mensal por loja (VMES, tabela vendas_mes_loja) vem sempre no login e
+       ja diz mes a mes o que existe no banco. Antes a coluna "Vendas" mostrava "—"
+       para todas as lojas ate alguem abrir a TV — e a pessoa subia BI Global as cegas. */
+    const vm=VMES[l.key]||{};const msVdet=[...new Set(dv.map(r=>r.m))].sort();
+    const msV=msVdet.length?msVdet:Object.keys(vm).sort();
+    const temVenda=!!ov||!!Object.keys(vm).length;
     const pv=dv.filter(r=>r.tipo==='Produto'&&!r.inst);const pc=pv.filter(r=>r.cf!=='sem custo');
-    const tv=sum(dv.filter(r=>!r.inst),r=>r.t);const t=sum(d,r=>r.t);
-    return {u:l.key,L:l,fora,tem:!!o,temV:!!ov,n:d.length,nv:sum(dv,r=>r.n||1),
+    const tv=ov?sum(dv.filter(r=>!r.inst),r=>r.t):Object.values(vm).reduce((a,x)=>a+(+x.venda||0),0);
+    const t=sum(d,r=>r.t);
+    return {u:l.key,L:l,fora,tem:!!o,temV:temVenda,detV:!!ov,n:d.length,
+      nv:ov?sum(dv,r=>r.n||1):Object.values(vm).reduce((a,x)=>a+(+x.linhas||0),0),
       mesesC:msC.length,iniC:msC[0],fimC:msC[msC.length-1],arqC:new Set(d.map(r=>r.arq).filter(Boolean)).size||(o?.arqs?.length||0),
       mesesV:msV.length,iniV:msV[0],fimV:msV[msV.length-1],arqV:somaV(vmesRows(true,l.key)).arqs.size,
       t,tv,margem:pc.length?sum(pc,r=>r.le)/sum(pc,r=>r.t)*100:null,
@@ -1694,7 +1759,7 @@ function renderCarga(){
       custo0v:pv.length?sum(pv.filter(r=>r.cf==='sem custo'),r=>r.t)/sum(pv,r=>r.t)*100:0,
       diversosPct:pv.length?sum(pv.filter(r=>r.fa==='DIVERSOS'),r=>r.t)/sum(pv,r=>r.t)*100:0,
       buracosC:mesesGap(msC),buracosV:mesesGap(msV),
-      gap:(o&&ov&&msC[msC.length-1]!==msV[msV.length-1]?2:0)+mesesGap(msC)+mesesGap(msV)};};
+      gap:(o&&temVenda&&msC[msC.length-1]!==msV[msV.length-1]?2:0)+mesesGap(msC)+mesesGap(msV)};};
   const rows=[...LOJAS.map(l=>build(l,false)),...UNIS.filter(u=>!LJ[u]).map(u=>build({...lojaDe(u),key:u,nome:u},true))]
     .filter(r=>vis==='all'||(vis==='com'?(r.tem||r.temV):!(r.tem||r.temV)))
     .filter(r=>!fq||norm((r.L.fra||'')+' '+(r.L.nome||'')+' '+(r.L.cidade||'')+' '+(r.L.consultor||'')).includes(fq));
@@ -1702,7 +1767,7 @@ function renderCarga(){
     {h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},
     {h:'Loja',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade||'')}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}</small>`},
     {h:'Compras',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">até ${mesLabel(r.fimC)}</span><br><small style="color:var(--mu)">${r.mesesC} m · ${r.n.toLocaleString('pt-BR')} it</small>`:'<span class="tag nt">—</span>'},
-    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>r.temV?`<span class="tag ok">até ${mesLabel(r.fimV)}</span><br><small style="color:var(--mu)">${r.mesesV} m</small>`:'<span class="tag nt">—</span>'},
+    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>r.temV?`<span class="tag ok">até ${mesLabel(r.fimV)}</span><br><small style="color:var(--mu)">${r.mesesV} m · ${(r.nv||0).toLocaleString('pt-BR')} it</small>`:'<span class="tag nt">—</span>'},
     {h:'',v:r=>r.u,f:(v,r)=>`<button class="btn g" data-sel="${esc(v)}" style="font-size:11px;padding:3px 9px">+ carregar</button>${r.tem||r.temV?` <button class="btn g" data-det="${esc(v)}" style="font-size:11px;padding:3px 9px">Detalhe</button>`:''}`}
   ],rows,{sort:0,asc:true});
   const porU={};rows.forEach(r=>porU[r.u]=r);
@@ -1713,9 +1778,10 @@ function renderCarga(){
     const vc=r.t&&r.tv?(r.tv/r.t):null;
     const q=[];
     if(r.custo0>0)q.push(`<span class="tag ${r.custo0>50?'no':'at'}">${r.custo0} compras c/ custo 0</span>`);
-    if(r.custo0v>0)q.push(`<span class="tag ${r.custo0v>10?'no':'at'}">${pctS(r.custo0v)} vendas sem custo</span>`);
-    if(r.diversosPct>0)q.push(`<span class="tag ${r.diversosPct>10?'no':'at'}">${pctS(r.diversosPct)} fabricante DIVERSOS</span>`);
+    if(r.custo0v!=null&&r.custo0v>0)q.push(`<span class="tag ${r.custo0v>10?'no':'at'}">${pctS(r.custo0v)} vendas sem custo</span>`);
+    if(r.diversosPct!=null&&r.diversosPct>0)q.push(`<span class="tag ${r.diversosPct>10?'no':'at'}">${pctS(r.diversosPct)} fabricante DIVERSOS</span>`);
     if(r.tem&&r.temV&&r.fimC!==r.fimV)q.push(`<span class="tag no">compras até ${mesLabel(r.fimC)}, vendas até ${mesLabel(r.fimV)}</span>`);
+    if(!r.detV&&r.temV)q.push(`<span class="tag nt" title="a margem e a qualidade da venda por produto só são calculadas depois de abrir a aba Mercado; a cobertura de meses acima já vem do banco">qualidade da venda não carregada</span>`);
     if(r.buracosC)q.push(`<span class="tag at">${r.buracosC} mês(es) sem compras no meio</span>`);
     if(r.buracosV)q.push(`<span class="tag at">${r.buracosV} mês(es) sem vendas no meio</span>`);
     const novo=document.createElement('tr');novo.className='cg-det';
@@ -1838,7 +1904,13 @@ const pedidosDe=(ignoreMes,uOnly)=>{const o=somaV(vmesRows(ignoreMes,uOnly));ret
    DETALHE (sob demanda): as ~757 mil linhas de venda por produto-mes. So entram
    quando o usuario abre uma aba que realmente precisa delas. */
 var VDET='nao';   // nao | carregando | ok
-const VEND_TABS=new Set(['mercado','tv','fornec']);   // 'qual' saiu: qualidade agora vem do servidor
+/* Abas que realmente precisam do detalhe de venda por produto.
+   'fornec' saiu em 13/09/2026: conferido linha a linha, renderFornec() usa só dados de
+   COMPRA (fabricante x fornecedor x custo). Estava aqui por herança e obrigava a baixar
+   ~950 mil linhas de venda para abrir uma aba que não usa nenhuma delas. */
+/* So a aba Mercado ainda precisa do detalhe de venda por produto — e agora sob demanda,
+   com botao, em vez de comecar sozinha ao abrir a aba. */
+const VEND_TABS=new Set([]);
 
 async function carregarVendasTodas(){
   const {data:res,error}=await sb.rpc('resumo_vendas');if(error){if(/vendas/i.test(error.message)){console.warn('tabela vendas ainda não criada');return}throw error}
@@ -1854,7 +1926,7 @@ async function carregarVendasDetalhe(){
     LOADER.abrir();LOADER.fase('Detalhe de vendas por produto',com.length);let i=0;
     await emParalelo(com,4,async l=>{i++;$('#status').textContent=`Carregando vendas ${i}/${com.length}: ${l.key}…`;await carregarVendasLoja(l);LOADER.passo()});
     VDET='ok';$('#status').textContent='';
-    recomporVendas();
+    recomporVendas();conferirTV();
     /* MESES/FABS/UNIS sao montados em recompor() a partir de DATA **e** VDATA.
        Como as vendas agora chegam depois, esses tres precisam ser refeitos aqui —
        senao meses e marcas que so existem em venda ficariam de fora dos filtros. */
@@ -1888,7 +1960,32 @@ const pctS=v=>v.toFixed(1).replace('.',',')+'%';
 /* ---- render: mercado por região ---- */
 function renderMercado(){
   const V0=vfiltrado(true);const instT=sum(V0.filter(r=>r.inst),r=>r.t);const V=vfiltrado();const P=V.filter(r=>r.tipo==='Produto');
-  if(!VDATA.length){['#kpisVen','#tbMarcaReg','#tbSegReg','#tbCruz','#tbPend'].forEach(s=>$(s).innerHTML='<div class="empty">Nenhuma venda carregada. Use a carga do BI Global na aba <b>Unidades e carga de dados</b>.</div>');return}
+  if(!VDATA.length){
+    /* Esta aba e a unica que ainda precisa do detalhe por produto. Em vez de comecar a
+       baixar sozinha ~950 mil linhas e travar o navegador, agora pergunta antes e mostra
+       o tamanho do que vai buscar. */
+    if(VDET==='ok'){
+      $('#kpisVen').innerHTML='<div class="empty">Detalhe carregado, mas nenhuma linha de venda por produto veio do banco. Confira a cobertura na aba <b>Unidades e carga de dados</b>.</div>';
+      ['#tbMarcaReg','#tbSegReg','#tbCruz','#tbPend'].forEach(sel=>$(sel).innerHTML='<div class="empty">—</div>');
+      return}
+    if(VDET==='carregando'){
+      $('#kpisVen').innerHTML='<div class="empty">Carregando o detalhe de venda por produto… pode levar alguns minutos.</div>';
+      return}
+    const temVenda=Object.keys(RESUMO_V||{}).length;
+    const nLinhas=Object.values(RESUMO_V||{}).reduce((a,r)=>a+(+r.linhas||0),0);
+    const html=temVenda
+      ? `<div class="empty" style="padding:26px 18px;line-height:1.6">
+           <b style="font-size:15px">Detalhe de venda por produto ainda não carregado</b><br>
+           Esta aba analisa produto a produto, então precisa baixar ${nLinhas.toLocaleString('pt-BR')} linhas
+           de ${temVenda} loja(s) para a memória do navegador. Leva alguns minutos e deixa a aba pesada.<br>
+           <small style="color:var(--mu)">Todas as outras abas — inclusive o painel executivo, Rebate, Preços e Qualidade — já funcionam sem isso.</small><br>
+           <button class="btn o" id="mkCarregar" style="margin-top:12px">Carregar detalhe de venda</button>
+         </div>`
+      : '<div class="empty">Nenhuma venda no banco. Use a carga do BI Global na aba <b>Unidades e carga de dados</b>.</div>';
+    $('#kpisVen').innerHTML=html;
+    ['#tbMarcaReg','#tbSegReg','#tbCruz','#tbPend'].forEach(sel=>$(sel).innerHTML='<div class="empty">—</div>');
+    const bt=$('#mkCarregar');if(bt)bt.onclick=()=>{bt.disabled=true;bt.textContent='Carregando…';carregarVendasDetalhe()};
+    return}
   const tot=sum(V,r=>r.t),totP=sum(P,r=>r.t);const comMarca=sum(P.filter(r=>r.fa!=='DIVERSOS'),r=>r.t);const comCusto=sum(P.filter(r=>r.cf!=='sem custo'),r=>r.t);const custoSis=sum(P.filter(r=>r.cf==='sistema'),r=>r.t);
   const lucroV=sum(P.filter(r=>r.cf!=='sem custo'),r=>r.le);const VM=somaV(vmesRows());const ped=pedidosDe();const cli=VM.meses?Math.round(VM.cli/VM.meses):0;const identP=VM.venda?100-VM.vsem/VM.venda*100:null;
   $('#kpisVen').innerHTML=`<div class="kpi"><span>Venda total</span><b>${fmt0(tot)}</b><i>${fmt0(totP)} em produtos · ${fmt0(tot-totP)} em serviços</i></div>
@@ -1968,6 +2065,48 @@ $('#lNova').onclick=async()=>{const nome=prompt('Nome da nova loja (ex.: POP PET
   try{const {error}=await sb.from('lojas').insert({nome:nome.trim().toUpperCase(),fra,status:'Ativa'});if(error)throw error;await recarregarLojas();$('#lBusca').value=nome;renderLojas()}catch(e){sbErr(e,'Erro ao criar loja')}};
 
 /* ======================= PAINEL EXECUTIVO (TV) ======================= */
+/* O painel executivo passou a ler do servidor (13/09/2026).
+   Antes ele dependia do detalhe de venda por produto — ~950 mil linhas, 516 MB de JSON —
+   que so entrava quando alguem abria a aba. Numa TV ligada sozinha isso nunca acontecia,
+   e quando acontecia travava o navegador.
+   Agora a RPC v2_tv devolve o agregado por loja e mes (1.509 linhas, ~350 KB) ja com a
+   MESMA regra de custo da tela: custo do sistema quando existe, senao o ultimo custo de
+   compra daquele EAN naquela loja; sem isso a venda fica "sem custo" e sai da margem.
+   As linhas sinteticas abaixo imitam o formato do detalhe, entao o resto do codigo do
+   painel continua igual. */
+let TVSRV=null, TVROWS=[];
+async function carregarTV(){
+  try{
+    const {data,error}=await sb.rpc('v2_tv');
+    if(error){console.warn('v2_tv',error.message);return}
+    TVSRV=data||null;TVROWS=montarTvRows(TVSRV);
+  }catch(e){console.warn('v2_tv',e.message||e)}
+}
+function montarTvRows(d){
+  if(!d||!Array.isArray(d.loja_mes))return [];
+  const out=[];
+  d.loja_mes.forEach(x=>{
+    const l=LJID[x.loja_id];if(!l)return;const u=l.key,m=x.mes;
+    const vp=+x.venda_prod||0, cc=+x.com_custo||0, lu=+x.lucro||0, sv=+x.venda_serv||0;
+    if(cc>0)      out.push({u,m,tipo:'Produto',inst:false,t:cc,ce:cc-lu,le:lu,cf:'sistema',n:+x.linhas||1,fa:'',seg:''});
+    if(vp-cc>0.005)out.push({u,m,tipo:'Produto',inst:false,t:vp-cc,ce:0,le:0,cf:'sem custo',n:0,fa:'',seg:''});
+    if(sv>0)      out.push({u,m,tipo:'Servico',inst:false,t:sv,ce:0,le:0,cf:'servico',n:0,fa:'',seg:''});
+    if(cc<=0&&vp-cc<=0.005&&sv<=0&&(+x.linhas||0)>0)
+                  out.push({u,m,tipo:'Produto',inst:false,t:0,ce:0,le:0,cf:'sem custo',n:+x.linhas||1,fa:'',seg:''});
+  });
+  return out;
+}
+/* Confere o servidor contra a conta antiga quando o detalhe estiver carregado na memoria.
+   Serve de rede de seguranca: se algum dia divergir mais de 0,5%, aparece no console. */
+function conferirTV(){
+  if(!TVROWS.length||!VDATA.length)return;
+  const m=[...new Set(TVROWS.map(r=>r.m))].sort().pop();if(!m)return;
+  const sSrv=sum(TVROWS.filter(r=>r.m===m&&!r.inst),r=>r.t);
+  const sMem=sum(VDATA.filter(r=>r.m===m&&!r.inst),r=>r.t);
+  const dif=sMem?Math.abs(sSrv/sMem-1)*100:0;
+  console.info(`[TV] ${m}: servidor ${fmt0(sSrv)} x memoria ${fmt0(sMem)} · diferenca ${dif.toFixed(2)}%`);
+  if(dif>0.5)console.warn('[TV] divergencia acima de 0,5% entre o agregado do servidor e o detalhe em memoria.');
+}
 const TV={timer:null,minutos:15};
 const mesAnt=m=>{if(!m)return '';let [y,mo]=m.split('-').map(Number);mo--;if(mo<1){mo=12;y--}return `${y}-${String(mo).padStart(2,'0')}`};
 const mesAnoAnt=m=>m?String(+m.slice(0,4)-1)+m.slice(4):'';
@@ -1977,8 +2116,9 @@ const fmtK=n=>n>=1e6?'R$ '+(n/1e6).toFixed(2).replace('.',',')+' mi':n>=1e3?'R$ 
 
 function renderTV(){
   const el=$('#tvGrid');if(!el)return;
-  const V=VDATA.filter(r=>!r.inst);const P=V.filter(r=>r.tipo==='Produto');
-  const mesesV=[...new Set(VDATA.map(r=>r.m))].sort(),mesesC=[...new Set(DATA.map(r=>r.m))].sort();
+  const FONTE=(TVROWS&&TVROWS.length)?TVROWS:VDATA;
+  const V=FONTE.filter(r=>!r.inst);const P=V.filter(r=>r.tipo==='Produto');
+  const mesesV=[...new Set(FONTE.map(r=>r.m))].sort(),mesesC=[...new Set(DATA.map(r=>r.m))].sort();
   const mv=mesesV[mesesV.length-1],mc=mesesC[mesesC.length-1];
   const mesAtual=new Date().toISOString().slice(0,7);
   if(!mv&&!mc){el.innerHTML='<div class="empty" style="font-size:22px">Sem dados carregados.</div>';return}
@@ -1999,18 +2139,26 @@ function renderTV(){
   const compMes=sum(Cm,r=>r.t);const dcA=baseDelta(Cm,Ca,r=>r.t),dcY=baseDelta(Cm,Cy,r=>r.t);
   const lojasV=new Set(Vm.map(r=>r.u)).size,lojasC=new Set(Cm.map(r=>r.u)).size;
   // ---- cobertura por loja (até que mês, mês parcial)
-  const parcial=(rows)=>{const m=new Map();rows.forEach(r=>m.set(r.m,(m.get(r.m)||0)+(r.n||1)));if(m.size<4)return null;const med=mediana([...m.values()]);const ult=[...m.keys()].sort().pop();return {ult,parc:m.get(ult)<med*0.5}};
-  const cov=UNIS.map(u=>{const c=parcial(DATA.filter(r=>r.u===u)),v=parcial(VDATA.filter(r=>r.u===u));const cU=c?.ult,vU=v?.ult;const atras=(cU&&cU<mc)||(vU&&vU<mv);const parc=(c?.parc)||(v?.parc);return {u,cU,vU,atras,parc,cls:atras?'r':parc?'a':''}}).sort((a,b)=>(+lojaDe(a.u).fra||9999)-(+lojaDe(b.u).fra||9999));
+  const parcial=(rows)=>{const m=new Map();rows.forEach(r=>m.set(r.m,(m.get(r.m)||0)+(r.n===undefined?1:+r.n)));if(m.size<4)return null;const med=mediana([...m.values()]);const ult=[...m.keys()].sort().pop();return {ult,parc:m.get(ult)<med*0.5}};
+  const cov=UNIS.map(u=>{const c=parcial(DATA.filter(r=>r.u===u)),v=parcial(FONTE.filter(r=>r.u===u));const cU=c?.ult,vU=v?.ult;const atras=(cU&&cU<mc)||(vU&&vU<mv);const parc=(c?.parc)||(v?.parc);return {u,cU,vU,atras,parc,cls:atras?'r':parc?'a':''}}).sort((a,b)=>(+lojaDe(a.u).fra||9999)-(+lojaDe(b.u).fra||9999));
   const emDia=cov.filter(c=>!c.atras&&!c.parc).length;
   const covHtml=cov.map(c=>{const l=lojaDe(c.u);return `<span class="cv ${c.cls}" title="${esc(l.nome||c.u)}">FRA ${esc(l.fra||'?')}<small>${c.cU?'c '+mesLabel(c.cU)+(c.parc&&c.cU&&!c.atras?'*':''):'—'} · ${c.vU?'v '+mesLabel(c.vU):'—'}</small></span>`}).join('');
   // ---- 12 meses
   const ult12=mesesV.slice(-12);const serieV=ult12.map(m=>sum(V.filter(r=>r.m===m),r=>r.t));const serieC=ult12.map(m=>sum(DATA.filter(r=>r.m===m),r=>r.t));
   // ---- top fabricantes (venda mês) e compra
-  const topV=[...by(Pm,r=>marcaCanon(r.fa),r=>r.t).entries()].filter(([k])=>k!=='DIVERSOS').sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topV=(TVSRV&&TVSRV.top_marca&&TVSRV.top_marca.length)
+    ? [...by(TVSRV.top_marca.filter(x=>x.rot),x=>marcaCanon(x.rot),x=>+x.total).entries()].filter(([k])=>k!=='DIVERSOS').sort((a,b)=>b[1]-a[1]).slice(0,6)
+    : [...by(Pm,r=>marcaCanon(r.fa),r=>r.t).entries()].filter(([k])=>k!=='DIVERSOS').sort((a,b)=>b[1]-a[1]).slice(0,6);
   const topC=[...by(Cm,r=>industriaCanon(MAPA[r.ean]?.fab||r.fa),r=>r.t).entries()].filter(([k])=>k!=='DIVERSOS').sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const semRelRS=sum(Cm.filter(r=>semRelacao(MAPA[r.ean]?.fab||r.fa)),r=>r.t)+sum(Pm.filter(r=>semRelacao(r.fa)),r=>r.t);
+  const semRelRS=sum(Cm.filter(r=>semRelacao(MAPA[r.ean]?.fab||r.fa)),r=>r.t)+((TVSRV&&TVSRV.venda_sem_relacao!=null)?+TVSRV.venda_sem_relacao:sum(Pm.filter(r=>semRelacao(r.fa)),r=>r.t));
   // ---- segmento ração
-  const R=Pm.filter(r=>r.seg);const segTot=sum(R,r=>r.t);const segs=SEGS.map(s=>[s,sum(R.filter(r=>r.seg===s),r=>r.t)]);
+  let segs,segTot;
+  if(TVSRV&&TVSRV.segmento&&TVSRV.segmento.length){
+    const ms=new Map(TVSRV.segmento.map(x=>[x.seg,+x.total||0]));
+    segs=SEGS.map(x=>[x,ms.get(x)||0]);segTot=[...ms.values()].reduce((a,b)=>a+b,0);
+  }else{
+    const R=Pm.filter(r=>r.seg);segTot=sum(R,r=>r.t);segs=SEGS.map(x=>[x,sum(R.filter(r=>r.seg===x),r=>r.t)]);
+  }
   // ---- rebate por acordo
   const hoje=mesAtual;let reb={ok:0,ritmo:0,risco:0,est:0,proj:0};const acs=[];
   ACORDOS.filter(a=>a.fab&&+a.meta).forEach(a=>{const vig=mesesEntre(a.ini,a.fim);const base=DATA.filter(r=>normFab(r.fa)===normFab(a.fab)&&r.m>=a.ini&&r.m<=a.fim);const comp=sum(base,r=>r.t);const ult=MESES[MESES.length-1]<hoje?MESES[MESES.length-1]:hoje;const dec=Math.max(1,vig.filter(m=>m<=ult).length);const proj=comp/dec*(vig.length||1);
@@ -2019,7 +2167,12 @@ function renderTV(){
   const rebHtml=acs.sort((a,b)=>b.meta-a.meta).slice(0,5).map(a=>{const esc_=Math.max(a.meta,a.proj,a.comp,1);const cor=a.st==='ok'?'var(--v)':a.st==='ritmo'?'var(--vd)':'#C0392B';return `<div class="tvreb"><div class="l"><span>${esc(a.fab)}<small>${a.st==='ok'?'meta batida':a.st==='ritmo'?'no ritmo · projeção '+fmtK(a.proj):'em risco'+(a.mesesRest?` · faltam ${fmtK(a.falta)} em ${a.mesesRest} m`:'')}</small></span><b>${fmtK(a.comp)}<small style="display:inline;margin-left:4px">/ ${fmtK(a.meta)}</small></b></div><div class="bar"><i class="p" style="width:${a.proj/esc_*100}%"></i><i style="width:${Math.min(100,a.comp/esc_*100)}%;background:${cor}"></i><u style="left:${a.meta/esc_*100}%"></u></div></div>`}).join('')||'<div class="tvrow"><span>Nenhum acordo com meta cadastrada</span></div>';
   // ---- alertas: reajustes do mês por impacto, marca sem identificação, atraso de carga
   const ativas=LOJAS.filter(l=>l.status==='Ativa').length;const comDados=UNIS.length;
-  const semMarcaPct=Pm.length?sum(Pm.filter(r=>r.fa==='DIVERSOS'),r=>r.t)/sum(Pm,r=>r.t)*100:0;
+  let semMarcaPct=0;
+  if(TVSRV&&Array.isArray(TVSRV.loja_mes)){
+    const lm=TVSRV.loja_mes.filter(x=>x.mes===mv);
+    const vp=lm.reduce((a,x)=>a+(+x.venda_prod||0),0),dv=lm.reduce((a,x)=>a+(+x.diversos||0),0);
+    semMarcaPct=vp?dv/vp*100:0;
+  }else semMarcaPct=Pm.length?sum(Pm.filter(r=>r.fa==='DIVERSOS'),r=>r.t)/sum(Pm,r=>r.t)*100:0;
   const reajs=(()=>{const ms=new Map();DATA.forEach(r=>{if(r.c<=0)return;if(!ms.has(r.cod))ms.set(r.cod,[]);ms.get(r.cod).push(r)});const out=[];ms.forEach(h=>{if(h.length<2)return;const ult=h[h.length-1];if(ult.m!==mc)return;const ant=[...h].reverse().find(x=>x.m<mc);if(!ant)return;const v=ult.c/ant.c-1;if(v>=.10&&v<=3){out.push({p:ult.p,fa:ult.fa,v:v*100,imp:(ult.c-ant.c)*sum(h.filter(x=>x.m===mc),x=>x.q)})}});return out.sort((a,b)=>b.imp-a.imp)})();
   const atrasadas=cov.filter(c=>c.atras).map(c=>'FRA '+(lojaDe(c.u).fra||'?'));
   const parciais=cov.filter(c=>c.parc&&!c.atras).map(c=>'FRA '+(lojaDe(c.u).fra||'?'));
@@ -2789,7 +2942,7 @@ async function cgGravar(){
     }else{PROG.set('Atualizando o resumo da rede','sem trazer os itens para a memória',100);await respira();}
     if(tocadasE.size){const{data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);}
     if(!puxar)msgs.push('<i>Carga em lote: '+tocadasE.size+' loja(s) gravadas. Os itens não foram trazidos para a memória — use "+ carregar" na aba de cobertura para abrir a loja que quiser analisar.</i>');
-    if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);}
+    if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);await carregarTV();}
     $('#cgStatus').textContent='';
     recompor();recomporVendas();montarFiltros(true);render();
     const ids=new Set(fila.map(f=>f.id));CG_FILAS=CG_FILAS.filter(i=>!ids.has(i.id)||FALHOU.has(i.id));
