@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- v6.22 · 14/09/2026 · carga do BI passa a gravar telefone, especie, hora do pagamento, canal,
+     delivery, avaliacao, operador de B&T, veterinario e desconto. Colunas que o arquivo ja trazia
+     e o carregador descartava; sao a base do Raio-X dentro da Central POP.
+     Checkbox "recarga" na tela de carga atualiza linhas que ja existem, para completar as lojas antigas. -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -353,7 +357,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.21 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.22 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -642,6 +646,9 @@ body.filtrosOff .filters{display:none}
     <div class="tw" id="cgTab"></div>
     <p style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn o" id="cgGravar">Gravar</button>
+      <label class="note" style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer" title="Marque só para recarregar arquivos que já foram enviados antes e preencher as colunas novas (telefone, hora do pagamento, espécie…). Sem isso, linha repetida é ignorada.">
+        <input type="checkbox" id="cgRecarga" style="width:auto;margin:0"> recarga: atualizar linhas que já existem
+      </label>
       <span class="note" id="cgNota" style="margin:0"></span>
       <span class="note" id="cgStatus" style="margin:0"></span>
     </p>
@@ -1965,11 +1972,27 @@ const SEGS=['STANDARD','PREMIUM','PREMIUM ESPECIAL','SUPER PREMIUM'];
 const normFab=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 const semMarca=s=>{const n=normFab(s);return !n||n==='DIVERSOS'||n==='NAO INFORMADO'||n==='SEM FABRICANTE'||n==='(SEM FABRICANTE)'};
 
+/* Data Pagamento vem do One Pet como "2026-09-01 14:32:05" ou "01/09/2026 14:32".
+   Devolve sempre "YYYY-MM-DD HH:MM:SS" (hora local da loja, sem fuso) ou null. */
+function dtHora(v){
+  const s=String(v||'').trim();if(!s)return null;
+  let m=s.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(m)return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]||'00'}`;
+  m=s.match(/(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(m)return `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}:${m[6]||'00'}`;
+  return null;
+}
 /* ---- parser do BI Global ---- */
 function biParaLinhas(text){
   const rows=parseCSV(text);if(rows.length<2)throw new Error('arquivo vazio');
   const hd=rows[0].map(norm);const ix=(...alts)=>{for(const a of alts){const i=hd.findIndex(h=>h===norm(a));if(i>=0)return i}for(const a of alts){const i=hd.findIndex(h=>h.includes(norm(a)));if(i>=0)return i}return -1};
-  const I={ped:ix('N. Pedido','pedido'),d:ix('Data'),q:ix('Qtd','quantidade'),cod:ix('Cod. Produto'),p:ix('Produto'),ean:ix('Cod. Barras','codbarra','ean'),gr:ix('Grupo Linha'),sg:ix('Sub Grupo'),ia:ix('Info Adicional 1'),fa:ix('Fabricante'),fo:ix('Fornecedor'),pb:ix('Preço Bruto'),pl:ix('Preço Liquido','precoliquido'),t:ix('Total Item'),c:ix('Custo Total'),l:ix('Lucro Total'),cc:ix('Cod. Cliente.','codcliente'),cl:ix('Cliente'),ba:ix('Bairro'),ve:ix('Vendedor'),ti:ix('Tipo'),fi:ix('Filial')};
+  const I={ped:ix('N. Pedido','pedido'),d:ix('Data'),q:ix('Qtd','quantidade'),cod:ix('Cod. Produto'),p:ix('Produto'),ean:ix('Cod. Barras','codbarra','ean'),gr:ix('Grupo Linha'),sg:ix('Sub Grupo'),ia:ix('Info Adicional 1'),fa:ix('Fabricante'),fo:ix('Fornecedor'),pb:ix('Preço Bruto'),pl:ix('Preço Liquido','precoliquido'),t:ix('Total Item'),c:ix('Custo Total'),l:ix('Lucro Total'),cc:ix('Cod. Cliente.','codcliente'),cl:ix('Cliente'),ba:ix('Bairro'),ve:ix('Vendedor'),ti:ix('Tipo'),fi:ix('Filial'),
+    /* v6.22 — colunas que o BI ja traz e antes eram descartadas. Sustentam, no Raio-X:
+       lista de resgate com telefone, mapa de pico por hora, felinos, governanca de cadastro. */
+    tel:ix('Celular'),tel2:ix('Fone'),esp:ix('Especie','Espécie'),pag:ix('Data Pagamento'),
+    can:ix('Canal venda'),dlv:ix('Delivery'),av:ix('Avaliação','Feedback'),
+    bt1:ix('Entrada'),bt2:ix('Saida','Saída'),bt3:ix('Escovação'),vet:ix('Veterinário'),
+    dsc:ix('Deconto Produto %','Desconto Produto %')};
   const falt=['ped','d','q','cod','p','t'].filter(k=>I[k]<0);if(falt.length)throw new Error('não parece um BI Global (faltam: '+falt.join(', ')+')');
   const g=(r,k)=>I[k]>=0?String(r[I[k]]||'').trim():'';
   const out=[];const seqMap=new Map();let filial='';
@@ -1979,7 +2002,11 @@ function biParaLinhas(text){
     const q=money(g(r,'q')),t=money(g(r,'t')),c=money(g(r,'c')),l=I.l>=0?money(g(r,'l')):t-c;
     const key=[d,g(r,'ped'),g(r,'cod'),q,t].join('|');const seq=(seqMap.get(key)||0)+1;seqMap.set(key,seq);
     if(!filial&&g(r,'fi'))filial=g(r,'fi');
-    out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:money(g(r,'pb')),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve')});
+    out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:money(g(r,'pb')),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve'),
+      tel:(g(r,'tel')||g(r,'tel2')).split('/')[0].trim(),esp:g(r,'esp'),pag:dtHora(g(r,'pag')),
+      can:g(r,'can'),dlv:I.dlv>=0?/^(s|sim|1|true)$/i.test(g(r,'dlv')):null,av:g(r,'av'),
+      opbt:(g(r,'bt1')||g(r,'bt2')||g(r,'bt3')),vet:g(r,'vet'),
+      dsc:I.dsc>=0?money(g(r,'dsc')):null});
   }
   return {linhas:out,filial};
 }
@@ -2084,9 +2111,13 @@ async function carregarVendasDetalhe(){
 }
 function garantirVendasDetalhe(){if(VDET==='nao')carregarVendasDetalhe()}
 function recomporVendas(){invalidarFiltro();VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
+let RECARGA=false; // v6.22 — ligado pelo checkbox "recarga" na tela de carga
 async function enviarVendas(loja,linhas,arquivo){
-  const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,pedido:r.ped,seq:r.seq,cod_produto:r.cod,ean:r.ean||null,produto:r.p,grupo:r.gr||null,subgrupo:r.sg||null,fabricante_loja:r.faL||null,fornecedor:r.fo||null,tipo:r.tipo,balanca:r.bal,qtd:r.q,preco_bruto:r.pb,preco_liq:r.pl,total:r.t,custo:r.c,lucro:r.l,cliente_cod:r.cc||null,cliente:r.cl||null,bairro:r.ba||null,vendedor:r.ve||null,arquivo}));
-  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:true}).select('id');if(error)throw error;ins+=data.length;const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
+  const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,pedido:r.ped,seq:r.seq,cod_produto:r.cod,ean:r.ean||null,produto:r.p,grupo:r.gr||null,subgrupo:r.sg||null,fabricante_loja:r.faL||null,fornecedor:r.fo||null,tipo:r.tipo,balanca:r.bal,qtd:r.q,preco_bruto:r.pb,preco_liq:r.pl,total:r.t,custo:r.c,lucro:r.l,cliente_cod:r.cc||null,cliente:r.cl||null,bairro:r.ba||null,vendedor:r.ve||null,
+    cliente_tel:r.tel||null,especie:r.esp||null,pago_em:r.pag,canal:r.can||null,delivery:r.dlv,
+    avaliacao:r.av||null,operador_bt:r.opbt||null,veterinario:r.vet||null,desconto_pct:r.dsc,
+    arquivo}));
+  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:!RECARGA}).select('id');if(error)throw error;ins+=data.length;const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
     PROG.set(PROG._tit||('Enviando vendas '+loja.key),`${feito.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas`,PROG._base+(PROG._fatia||0)*feito/rows.length);await respira()}
   $('#status').textContent='Atualizando resumos de '+loja.key+'…';const rf=await sb.rpc('refresh_vendas_agg',{p_loja:loja.id});if(rf.error)throw rf.error;
   $('#status').textContent='';return {ins,dup:rows.length-ins}}
@@ -3045,6 +3076,8 @@ const respira=()=>new Promise(r=>setTimeout(r,0));
 /* ---- gravar ---- */
 async function cgGravar(){
   const fila=cgProntos();if(!fila.length)return;
+  RECARGA=!!(document.getElementById('cgRecarga')||{}).checked; // v6.22
+  if(RECARGA&&!confirm('Recarga ligada: as linhas que já estão no banco serão ATUALIZADAS com o conteúdo destes arquivos, não ignoradas.\n\nUse isso só para completar colunas novas a partir dos mesmos arquivos. Continuar?')){RECARGA=false;return}
   const log=$('#cgLog');log.innerHTML='';
   const msgs=[];let addE=0,dupE=0,addV=0,dupV=0;const REL=[];
   const pendAntes=new Set(ROT_PEND.map(r=>r.rotulo));
