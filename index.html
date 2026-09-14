@@ -3,6 +3,11 @@
      delivery, avaliacao, operador de B&T, veterinario e desconto. Colunas que o arquivo ja trazia
      e o carregador descartava; sao a base do Raio-X dentro da Central POP.
      Checkbox "recarga" na tela de carga atualiza linhas que ja existem, para completar as lojas antigas. -->
+<!-- v6.23 · 14/09/2026 · dois consertos na carga:
+     1) "Data Pagamento" vem como 0000-00-00 00:00:00 em pedido nao pago; agora vira null em vez de derrubar o arquivo.
+     2) coluna Filial passou a vir como "FR - 59 NOME" (traco entre FR e numero) e a loja nao era encontrada. -->
+<!-- v6.24 · 14/09/2026 · varredura: colunas de B&T so por nome exato ("Entrada" casava com "Data Entrada");
+     telefone "-" ou sem digitos vira null; relatorio da carga distingue recarga de linha repetida. -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -357,7 +362,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.22 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.24 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -1976,23 +1981,33 @@ const semMarca=s=>{const n=normFab(s);return !n||n==='DIVERSOS'||n==='NAO INFORM
    Devolve sempre "YYYY-MM-DD HH:MM:SS" (hora local da loja, sem fuso) ou null. */
 function dtHora(v){
   const s=String(v||'').trim();if(!s)return null;
+  let a,me,di,h,mi,se;
   let m=s.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if(m)return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]||'00'}`;
-  m=s.match(/(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if(m)return `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}:${m[6]||'00'}`;
-  return null;
+  if(m){a=+m[1];me=+m[2];di=+m[3];h=+m[4];mi=+m[5];se=+(m[6]||0)}
+  else{
+    m=s.match(/(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if(!m)return null;
+    a=+m[3];me=+m[2];di=+m[1];h=+m[4];mi=+m[5];se=+(m[6]||0);
+  }
+  /* O One Pet manda "0000-00-00 00:00:00" quando o pedido nao foi pago (heranca do MySQL).
+     Sem esta trava o Postgres recusa a linha e derruba o arquivo inteiro. */
+  if(a<1900||a>2100||me<1||me>12||di<1||di>31||h>23||mi>59||se>59)return null;
+  const p=n=>String(n).padStart(2,'0');
+  return `${a}-${p(me)}-${p(di)} ${p(h)}:${p(mi)}:${p(se)}`;
 }
 /* ---- parser do BI Global ---- */
 function biParaLinhas(text){
   const rows=parseCSV(text);if(rows.length<2)throw new Error('arquivo vazio');
   const hd=rows[0].map(norm);const ix=(...alts)=>{for(const a of alts){const i=hd.findIndex(h=>h===norm(a));if(i>=0)return i}for(const a of alts){const i=hd.findIndex(h=>h.includes(norm(a)));if(i>=0)return i}return -1};
+  const ixE=(...alts)=>{for(const a of alts){const i=hd.findIndex(h=>h===norm(a));if(i>=0)return i}return -1};
   const I={ped:ix('N. Pedido','pedido'),d:ix('Data'),q:ix('Qtd','quantidade'),cod:ix('Cod. Produto'),p:ix('Produto'),ean:ix('Cod. Barras','codbarra','ean'),gr:ix('Grupo Linha'),sg:ix('Sub Grupo'),ia:ix('Info Adicional 1'),fa:ix('Fabricante'),fo:ix('Fornecedor'),pb:ix('Preço Bruto'),pl:ix('Preço Liquido','precoliquido'),t:ix('Total Item'),c:ix('Custo Total'),l:ix('Lucro Total'),cc:ix('Cod. Cliente.','codcliente'),cl:ix('Cliente'),ba:ix('Bairro'),ve:ix('Vendedor'),ti:ix('Tipo'),fi:ix('Filial'),
     /* v6.22 — colunas que o BI ja traz e antes eram descartadas. Sustentam, no Raio-X:
        lista de resgate com telefone, mapa de pico por hora, felinos, governanca de cadastro. */
-    tel:ix('Celular'),tel2:ix('Fone'),esp:ix('Especie','Espécie'),pag:ix('Data Pagamento'),
-    can:ix('Canal venda'),dlv:ix('Delivery'),av:ix('Avaliação','Feedback'),
-    bt1:ix('Entrada'),bt2:ix('Saida','Saída'),bt3:ix('Escovação'),vet:ix('Veterinário'),
-    dsc:ix('Deconto Produto %','Desconto Produto %')};
+    tel:ix('Celular'),tel2:ix('Fone'),esp:ixE('Especie','Espécie'),pag:ixE('Data Pagamento'),
+    can:ix('Canal venda'),dlv:ixE('Delivery'),av:ixE('Avaliação','Feedback'),
+    /* B&T so por nome exato: com "includes", "Entrada" casaria com "Data Entrada". */
+    bt1:ixE('Entrada'),bt2:ixE('Saida','Saída'),bt3:ixE('Escovação'),vet:ixE('Veterinário'),
+    dsc:ixE('Deconto Produto %','Desconto Produto %')};
   const falt=['ped','d','q','cod','p','t'].filter(k=>I[k]<0);if(falt.length)throw new Error('não parece um BI Global (faltam: '+falt.join(', ')+')');
   const g=(r,k)=>I[k]>=0?String(r[I[k]]||'').trim():'';
   const out=[];const seqMap=new Map();let filial='';
@@ -2003,7 +2018,7 @@ function biParaLinhas(text){
     const key=[d,g(r,'ped'),g(r,'cod'),q,t].join('|');const seq=(seqMap.get(key)||0)+1;seqMap.set(key,seq);
     if(!filial&&g(r,'fi'))filial=g(r,'fi');
     out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:money(g(r,'pb')),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve'),
-      tel:(g(r,'tel')||g(r,'tel2')).split('/')[0].trim(),esp:g(r,'esp'),pag:dtHora(g(r,'pag')),
+      tel:(t=>/\d{8,}/.test(t.replace(/\D/g,''))?t:'')((g(r,'tel')||g(r,'tel2')).split('/')[0].trim()),esp:g(r,'esp'),pag:dtHora(g(r,'pag')),
       can:g(r,'can'),dlv:I.dlv>=0?/^(s|sim|1|true)$/i.test(g(r,'dlv')):null,av:g(r,'av'),
       opbt:(g(r,'bt1')||g(r,'bt2')||g(r,'bt3')),vet:g(r,'vet'),
       dsc:I.dsc>=0?money(g(r,'dsc')):null});
@@ -2011,11 +2026,12 @@ function biParaLinhas(text){
   return {linhas:out,filial};
 }
 /* A coluna Filial do BI Global mudou de formato entre versoes do ERP:
-   ja veio como "FR 158 - POP PET X" e hoje vem como "002 - POP PET X".
-   Aceita os dois, o numero solto, e por ultimo casa pelo nome da loja. */
+   ja veio como "FR 158 - POP PET X", como "002 - POP PET X" e, desde set/2026,
+   como "FR - 59 REDE POP SETOR AEROPORTO" (traco entre o FR e o numero).
+   Aceita os tres, o numero solto, e por ultimo casa pelo nome da loja. */
 const lojaPorFilial=f=>{
   const s=String(f||'').trim();if(!s)return null;
-  let m=s.match(/FR\s*0*(\d+)/i)||s.match(/^\s*0*(\d+)\s*[-\u2013]/)||s.match(/^\s*0*(\d+)\s*$/);
+  let m=s.match(/FR\s*[-\u2013]?\s*0*(\d+)/i)||s.match(/^\s*0*(\d+)\s*[-\u2013]/)||s.match(/^\s*0*(\d+)\s*$/);
   if(m){const l=LOJAS.find(l=>String(+l.fra)===String(+m[1]));if(l)return l}
   const n=rotNorm(s.replace(/^[^-\u2013]*[-\u2013]\s*/,''));
   if(n){const l=LOJAS.find(l=>rotNorm(l.nome)===n);if(l)return l}
@@ -3108,7 +3124,7 @@ async function cgGravar(){
           const r=await enviarVendas(loja,linhas,i.file.name);
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
           REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
-          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(r.dup?' ('+r.dup+' já existiam)':''));
+          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(RECARGA?' gravadas ou atualizadas (recarga)':(r.dup?' ('+r.dup+' já existiam)':'')));
         }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
