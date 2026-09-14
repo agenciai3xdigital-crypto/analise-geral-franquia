@@ -579,13 +579,23 @@ body.filtrosOff .filters{display:none}
 <section class="tab" id="t-unid">
   <div class="kpis" id="kpisUni"></div>
   <div class="grid">
-    <div class="card"><h3>Por UF <small>compras das unidades carregadas</small></h3><div id="tbUF"></div></div>
-    <div class="card"><h3>Por consultor <small>carteira de lojas</small></h3><div id="tbCons"></div></div>
-    <div class="card full"><h3>Ranking de unidades <small>no período e filtros atuais</small></h3><div class="tw" id="tbUni"></div></div>
-    <div class="card full"><h3>Desvio de custo vs. preço de referência da rede <small>mediana da rede por produto e mês · sobrepreço = Σ (custo da loja − referência) × qtd</small></h3><div class="tw" id="tbRefLoja"></div><p class="note">Só entram produtos comprados por 2+ lojas no mesmo mês (comparáveis). Desvio negativo = a loja compra abaixo da rede.</p></div>
-    <div class="card full"><h3>Dispersão de custo entre unidades <small>mesmo produto, custo médio por unidade · quem paga mais caro que a rede</small></h3>
-      <div class="filters" style="padding:0 0 12px;border:none;background:none"><div><label>Mín. de unidades comprando</label><input type="number" id="uN" value="2" style="min-width:90px"></div></div>
-      <div class="tw" id="tbDisp"></div><div class="pg" id="pgDisp"></div></div>
+    <div class="card full">
+      <h3>Comparativo de unidades <small>uma linha por loja · clique na linha para abrir o detalhe</small></h3>
+      <div class="filters" style="padding:0 0 12px;border:none;background:none">
+        <div><label>Agrupar por</label><select id="uAgr"><option value="loja">Loja</option><option value="consultor">Consultor</option><option value="uf">UF</option></select></div>
+        <div><label>Mostrar</label><select id="uVis"><option value="all">Todas</option><option value="alerta">Só com alerta</option><option value="caro">Pagando caro</option><option value="padrao">Fora do padrão</option><option value="estoque">Comprando mais do que vende</option></select></div>
+        <div><label>&nbsp;</label><button class="btn g" id="uExp">Exportar CSV</button></div>
+        <div id="uChip" style="align-self:end"></div>
+      </div>
+      <div class="tw" id="tbUni"></div>
+      <p class="note"><b>Sobrepreço</b> = Σ (custo da loja − referência da rede) × qtd, só em produtos comprados por 2+ lojas no mesmo mês; referência = mediana da rede por produto e mês. <b>Vs. esperado</b> = compra da loja ÷ compra média das lojas com dados no período. <b>Tendência</b> = últimos 3 meses ÷ 3 anteriores. <b>Venda ÷ compra</b> usa a venda do BI Global no mesmo período — só lojas com BI carregado; abaixo de 1,0× a loja comprou mais do que vendeu.</p>
+    </div>
+    <div class="card full" id="cardUniDet" style="display:none"><h3 id="uniDetTit" data-help="Comparativo de unidades"></h3><div id="uniDet"></div></div>
+    <details class="card full" id="cardDisp">
+      <summary style="cursor:pointer;font-weight:800;color:var(--vd);font-size:15px">Dispersão de custo entre unidades <small style="font-weight:400;color:var(--mu);font-size:12px">mesmo produto, custo médio por unidade · quem paga mais caro que a rede · abre sob demanda</small></summary>
+      <div class="filters" style="padding:12px 0;border:none;background:none"><div><label>Mín. de unidades comprando</label><input type="number" id="uN" value="2" style="min-width:90px"></div></div>
+      <div class="tw" id="tbDisp"></div><div class="pg" id="pgDisp"></div>
+    </details>
     <div class="card full" id="cardDispDet" style="display:none"><h3 id="dispTitulo" data-help="Dispersão de custo entre unidades"></h3><div id="tbDispDet"></div></div>
   </div>
 </section>
@@ -1620,34 +1630,169 @@ $('#btnCsv').onclick=()=>{const h='Unidade;Data;NF;Fornecedor;Fabricante;Cod;EAN
 /* ---------- comparativo de unidades ---------- */
 function calcRef(D){REF={};const m=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;const k=r.cod+'|'+r.m;if(!m.has(k))m.set(k,new Map());const s=m.get(k);const l=s.get(r.u)||{c:0,q:0};l.c+=r.c*r.q;l.q+=r.q;s.set(r.u,l)});
   m.forEach((s,k)=>{if(s.size<2)return;REF[k]=mediana([...s.values()].map(l=>l.c/l.q))});return REF}
+/* ======================= COMPARATIVO DE UNIDADES (reescrito 14/09/2026) =======================
+   Uma linha por loja com so o que decide alguma coisa: quanto compra vs. o esperado, se esta
+   pagando caro (sobrepreco vs. referencia da rede), concentracao num fabricante, tendencia
+   dos ultimos 3 meses e venda ÷ compra. Todo o detalhe abre no clique da linha.
+   Agrupar por consultor/UF usa exatamente as mesmas colunas; clicar num grupo filtra as lojas. */
+let UNI_ROWS=[],UNI_FILTRO=null,UNI_D=[];
+function uniMontar(D){
+  calcRef(D);
+  const porU=new Map();
+  D.forEach(r=>{let o=porU.get(r.u);
+    if(!o){o={u:r.u,t:0,ms:new Map(),fabs:new Map(),fos:new Map(),comp:0,sobre:0,nComp:new Set(),nAcima:new Set(),prod:new Map()};porU.set(r.u,o)}
+    o.t+=r.t;o.ms.set(r.m,(o.ms.get(r.m)||0)+r.t);o.fabs.set(r.fa,(o.fabs.get(r.fa)||0)+r.t);o.fos.set(r.fo,(o.fos.get(r.fo)||0)+r.t);
+    const ref=REF[r.cod+'|'+r.m];
+    if(ref!=null&&r.c>0&&r.q>0){const sb_=(r.c-ref)*r.q;o.comp+=r.t;o.sobre+=sb_;o.nComp.add(r.cod);if(r.c>ref*1.02)o.nAcima.add(r.cod);
+      let p=o.prod.get(r.cod);if(!p){p={cod:r.cod,p:r.p,fa:r.fa,q:0,v:0,refv:0,sobre:0,fos:new Map(),n:0};o.prod.set(r.cod,p)}
+      p.q+=r.q;p.v+=r.c*r.q;p.refv+=ref*r.q;p.sobre+=sb_;p.n++;p.fos.set(r.fo,(p.fos.get(r.fo)||0)+r.t)}
+  });
+  return porU;
+}
+function uniLinha(o,L,media,nLojas){
+  const meses=MESES.filter(m=>m>=F.de&&m<=F.ate);
+  const ult=meses.slice(-3),ant=meses.slice(-6,-3);
+  const sU=sum(ult,m=>o.ms.get(m)||0),sA=sum(ant,m=>o.ms.get(m)||0);
+  const tend=(ant.length===3&&ult.length===3&&sA>0)?(sU/sA-1)*100:null;
+  const fabTop=[...o.fabs.entries()].sort((a,b)=>b[1]-a[1])[0];
+  const conc=fabTop&&o.t?fabTop[1]/o.t*100:0;
+  const desvio=o.comp?o.sobre/o.comp*100:null;
+  const vc=o.venda&&o.t?o.venda/o.t:null;
+  const porLoja=o.t/Math.max(1,nLojas||1);
+  const vsMedia=media?porLoja/media*100:0;
+  const al=[];
+  if(desvio!=null&&desvio>5)al.push('caro');
+  if(nLojas===1&&(vsMedia<50||vsMedia>200))al.push('padrao');
+  if(conc>60)al.push('conc');
+  if(tend!=null&&tend<-20)al.push('queda');
+  if(vc!=null&&vc<1)al.push('estoque');
+  return {u:o.u,L,t:o.t,n:nLojas||1,mesesN:o.ms.size,med:o.t/Math.max(1,o.ms.size),vsMedia,sobre:o.sobre,comp:o.comp,desvio,nComp:o.nComp.size,nAcima:o.nAcima.size,fabTop,conc,tend,venda:o.venda||0,vc,al,o};
+}
+function uniAgrupar(porU,k){
+  const g=new Map();
+  porU.forEach(o=>{const key=k(lojaDe(o.u))||'(não cadastrado)';let a=g.get(key);
+    if(!a){a={u:key,t:0,ms:new Map(),fabs:new Map(),fos:new Map(),comp:0,sobre:0,nComp:new Set(),nAcima:new Set(),prod:new Map(),venda:0,lojas:[]};g.set(key,a)}
+    a.t+=o.t;a.comp+=o.comp;a.sobre+=o.sobre;a.venda+=o.venda||0;a.lojas.push(o.u);
+    o.ms.forEach((v,m)=>a.ms.set(m,(a.ms.get(m)||0)+v));o.fabs.forEach((v,f)=>a.fabs.set(f,(a.fabs.get(f)||0)+v));o.fos.forEach((v,f)=>a.fos.set(f,(a.fos.get(f)||0)+v));
+    o.nComp.forEach(x=>a.nComp.add(x));o.nAcima.forEach(x=>a.nAcima.add(x));
+    o.prod.forEach((p,cod)=>{let q=a.prod.get(cod);if(!q){q={cod,p:p.p,fa:p.fa,q:0,v:0,refv:0,sobre:0,fos:new Map(),n:0};a.prod.set(cod,q)}q.q+=p.q;q.v+=p.v;q.refv+=p.refv;q.sobre+=p.sobre;q.n+=p.n;p.fos.forEach((v,f)=>q.fos.set(f,(q.fos.get(f)||0)+v))});
+  });
+  return g;
+}
+const ALERTA_ROT={caro:['Pagando caro','no','sobrepreço acima de 5% da compra comparável'],padrao:['Fora do padrão','at','compra abaixo de 50% ou acima de 200% da média das lojas'],conc:['Concentrada','at','mais de 60% da compra num único fabricante'],queda:['Compra caindo','no','últimos 3 meses mais de 20% abaixo dos 3 anteriores'],estoque:['Compra > venda','at','venda ÷ compra abaixo de 1,0× no período']};
 function renderUnid(D){
-  const tot=sum(D,r=>r.t);const nm=nMeses();calcRef(D);const VV=vfiltrado();
-  const refLoja={};D.forEach(r=>{const ref=REF[r.cod+'|'+r.m];if(ref==null||!(r.c>0))return;const o=refLoja[r.u]||(refLoja[r.u]={comp:0,sobre:0,n:new Set(),acima:new Set()});o.comp+=r.t;o.sobre+=(r.c-ref)*r.q;o.n.add(r.cod);if(r.c>ref*1.02)o.acima.add(r.cod)});
-  const vendaLoja={};VV.forEach(r=>{const o=vendaLoja[r.u]||(vendaLoja[r.u]={t:0,ped:{size:pedidosDe(false,r.u)},it:0,tp:0,semEnt:0});o.t+=r.t;if(r.tipo==='Produto'){o.it+=(r.n||1);o.tp+=r.t;const comp=COMPRADOS[r.u];if(comp&&!comp.has('e'+r.ean)&&!comp.has('c'+r.cod))o.semEnt+=r.t}});
-  const rows=UNIS.map(u=>{const d=D.filter(r=>r.u===u);if(!d.length)return null;const t=sum(d,r=>r.t);const nfs=new Set(d.map(r=>r.nf)).size;const fab=[...by(d,r=>r.fa,r=>r.t).entries()].sort((a,b)=>b[1]-a[1])[0];const meses=new Set(d.map(r=>r.m)).size;
-    const L=lojaDe(u);const rl=refLoja[u],vl=vendaLoja[u];return{u,L,t,nfs,skus:new Set(d.map(r=>r.cod)).size,tk:t/nfs,med:t/meses,meses,fab:fab?`${fab[0]} (${(fab[1]/t*100).toFixed(0)}%)`:'',forn:new Set(d.map(r=>r.fo)).size,share:t/tot*100,desvio:rl&&rl.comp?rl.sobre/rl.comp*100:null,sobre:rl?rl.sobre:0,nComp:rl?rl.n.size:0,nAcima:rl?rl.acima.size:0,ticket:vl&&vl.ped.size?vl.t/vl.ped.size:null,itCupom:vl&&vl.ped.size?vl.it/vl.ped.size:null,semEnt:vl&&vl.tp?vl.semEnt/vl.tp*100:null,semEntRS:vl?vl.semEnt:0}}).filter(Boolean);
-  const media=rows.length?tot/rows.length:0;
-  $('#kpisUni').innerHTML=`<div class="kpi"><span>Unidades com compras</span><b>${rows.length}</b><i>de ${UNIS.length} carregadas</i></div><div class="kpi o"><span>Compra média por unidade</span><b>${fmt0(media)}</b><i>no período</i></div>
-   <div class="kpi a"><span>Maior compradora</span><b style="font-size:16px">${rows.length?esc([...rows].sort((a,b)=>b.t-a.t)[0].u):'—'}</b></div><div class="kpi z"><span>Menor compradora</span><b style="font-size:16px">${rows.length?esc([...rows].sort((a,b)=>a.t-b.t)[0].u):'—'}</b></div>`;
-  const mx=Math.max(...rows.map(r=>r.t),1);
-  tabela($('#tbUni'),[{h:'Unidade',v:r=>r.u,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${esc(r.L.cidade)}${r.L.uf?' · '+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${idade(r.L)!=null?' · '+idade(r.L).toFixed(1)+' anos':''}</small>`},{h:'Comprado',n:1,v:r=>r.t,f:fmt0},{h:'vs. média',n:1,v:r=>r.t/media*100-100,f:v=>`<span class="tag ${v>=0?'ok':'at'}">${pct(v)}</span>`},{h:'Share',n:1,v:r=>r.share,f:v=>v.toFixed(1)+'%'},{h:'',v:r=>r.t,f:v=>barCell(v,mx)},
-    {h:'Média mensal',n:1,v:r=>r.med,f:fmt0},{h:'Desvio vs. rede',n:1,v:r=>r.desvio??-999,f:(v,r)=>v<-900?'—':`<span class="tag ${v>5?'no':v>1?'at':'ok'}" title="sobrepreço ${fmt0(r.sobre)} em ${r.nComp} produto(s) comparáveis · ${r.nAcima} acima da referência">${pct(v)}</span>`},{h:'Ticket venda',n:1,v:r=>r.ticket??-1,f:(v,r)=>v<0?'—':`${fmt0(v)}<br><small style="color:var(--mu)">${r.itCupom.toFixed(1).replace('.',',')} it/cupom</small>`},{h:'Venda s/ entrada',n:1,v:r=>r.semEnt??-1,f:(v,r)=>v<0?'—':`<span class="tag ${v>30?'no':v>15?'at':'nt'}" title="venda de produtos sem nenhuma entrada registrada na loja: provável transferência do CD (${fmt0(r.semEntRS)})">${pctS(v)}</span>`},{h:'Meses c/ dados',n:1,v:r=>r.meses},{h:'NFs',n:1,v:r=>r.nfs},{h:'Ticket NF',n:1,v:r=>r.tk,f:fmt0},{h:'SKUs',n:1,v:r=>r.skus},{h:'Fornec.',n:1,v:r=>r.forn},{h:'Principal fabricante',v:r=>r.fab}],rows,{sort:1});
-  tabela($('#tbRefLoja'),[{h:'Unidade',v:r=>r.u,f:v=>esc(lojaLbl(v))},{h:'Compra comparável',n:1,v:r=>refLoja[r.u]?.comp||0,f:fmt0},{h:'Produtos comparáveis',n:1,v:r=>r.nComp},{h:'Acima da referência',n:1,v:r=>r.nAcima,f:(v,r)=>`${v} <small style="color:var(--mu)">(${r.nComp?pctS(v/r.nComp*100):'—'})</small>`},{h:'Desvio médio',n:1,v:r=>r.desvio??-999,f:v=>v<-900?'—':`<span class="tag ${v>5?'no':v>1?'at':'ok'}">${pct(v)}</span>`},{h:'Sobrepreço',n:1,v:r=>r.sobre,f:v=>`<span style="color:${v>0?'#B34A0B':'var(--vd)'}">${fmt0(v)}</span>`},{h:'',v:r=>Math.max(0,r.sobre),f:v=>barCell(v,Math.max(...rows.map(x=>Math.max(0,x.sobre)),1),'o')}],rows.filter(r=>r.nComp>0),{sort:5});
-  const regi=(el,k)=>{const m=new Map();rows.forEach(r=>{const key=k(r.L)||'(não cadastrado)';const o=m.get(key)||{k:key,t:0,n:0,tot:0};o.t+=r.t;o.n++;m.set(key,o)});
-    const cad=new Map();LOJAS.filter(l=>l.status==='Ativa').forEach(l=>{const key=k(l)||'(não cadastrado)';cad.set(key,(cad.get(key)||0)+1)});cad.forEach((v,key)=>{if(!m.has(key))m.set(key,{k:key,t:0,n:0});m.get(key).tot=v});
-    const ar=[...m.values()];const mx=Math.max(...ar.map(x=>x.t),1);
-    tabela(el,[{h:'',v:r=>r.k},{h:'Lojas c/ dados',n:1,v:r=>r.n,f:(v,r)=>`${v} / ${r.tot||0}`},{h:'Comprado',n:1,v:r=>r.t,f:fmt0},{h:'Média/loja',n:1,v:r=>r.n?r.t/r.n:0,f:fmt0},{h:'',v:r=>r.t,f:v=>barCell(v,mx)}],ar,{sort:2})};
-  regi($('#tbUF'),l=>l.uf);regi($('#tbCons'),l=>l.consultor);
-  // dispersão de custo por produto entre unidades
+  UNI_D=D;
+  const porU=uniMontar(D);
+  // venda no periodo (resumo mensal por loja, ja em memoria; nao depende do detalhe)
+  porU.forEach(o=>{o.venda=somaV(vmesRows(false,o.u)).venda||0});
+  const tot=sum([...porU.values()],o=>o.t);const nL=porU.size;const media=nL?tot/nL:0;
+  const agr=$('#uAgr').value||'loja';const vis=$('#uVis').value||'all';
+  let rows;
+  if(agr==='loja'){
+    let lista=[...porU.values()];
+    if(UNI_FILTRO)lista=lista.filter(o=>((lojaDe(o.u)[UNI_FILTRO.k])||'(não cadastrado)')===UNI_FILTRO.v);
+    rows=lista.map(o=>uniLinha(o,lojaDe(o.u),media,1));
+  }else{
+    const g=uniAgrupar(porU,l=>agr==='uf'?l.uf:l.consultor);
+    rows=[...g.values()].map(a=>uniLinha(a,{nome:a.u,cidade:'',uf:'',consultor:''},media,a.lojas.length));
+  }
+  if(vis==='alerta')rows=rows.filter(r=>r.al.length);else if(vis!=='all')rows=rows.filter(r=>r.al.includes(vis));
+  UNI_ROWS=rows;
+  const chip=$('#uChip');if(chip)chip.innerHTML=UNI_FILTRO?`<span class="tag nt" style="font-size:12px;padding:6px 10px">mostrando lojas de <b>${esc(UNI_FILTRO.v)}</b> <a data-limpa style="cursor:pointer;margin-left:6px;font-weight:800">✕</a></span>`:'';
+  if(chip){const x=chip.querySelector('[data-limpa]');if(x)x.onclick=()=>{UNI_FILTRO=null;renderUnid(UNI_D)}}
+  // KPIs — cada um e um filtro
+  const todas=[...porU.values()].map(o=>uniLinha(o,lojaDe(o.u),media,1));
+  const kpi=(cls,act,label,val,sub)=>`<div class="kpi ${cls} clic" data-uvis="${act}"><span>${label}</span><b>${val}</b><i>${sub}</i></div>`;
+  const nCaro=todas.filter(r=>r.al.includes('caro')).length,nPad=todas.filter(r=>r.al.includes('padrao')).length,nEst=todas.filter(r=>r.al.includes('estoque')).length;
+  const sobreTot=sum(todas.filter(r=>r.sobre>0),r=>r.sobre);
+  $('#kpisUni').innerHTML=
+    kpi('','all','Unidades com compras',nL,`média ${fmt0(media)} por unidade no período`)+
+    kpi('o','caro','Sobrepreço da rede',fmt0(sobreTot),`${nCaro} loja(s) pagando caro · clique para ver`)+
+    kpi('a','padrao','Fora do padrão',nPad,`compra muito acima ou abaixo da média · clique para ver`)+
+    kpi('z','estoque','Comprando mais do que vendem',nEst,`venda ÷ compra abaixo de 1,0× · ${todas.filter(r=>r.vc!=null).length} com BI Global`);
+  $('#kpisUni').querySelectorAll('[data-uvis]').forEach(k=>k.onclick=()=>{$('#uVis').value=k.dataset.uvis;$('#uAgr').value='loja';UNI_FILTRO=null;renderUnid(UNI_D)});
+  // tabela
+  const tagVs=v=>`<span class="tag ${v<50||v>200?'at':v<70||v>140?'nt':'ok'}">${v.toFixed(0)}%</span>`;
+  const tagTend=v=>v==null?'<small style="color:var(--mu)">—</small>':`<span class="tag ${v<-20?'no':v<-5?'at':v>5?'dn':'nt'}">${pct(v)}</span>`;
+  const tagDesv=(r)=>r.desvio==null?'<small style="color:var(--mu)">—</small>':`<span class="tag ${r.desvio>5?'no':r.desvio>1?'at':'ok'}" title="${r.nAcima} de ${r.nComp} produto(s) comparáveis acima da referência">${pct(r.desvio)}</span>`;
+  const tagConc=r=>r.fabTop?`<span class="tag ${r.conc>60?'at':'nt'}">${esc(r.fabTop[0])} ${r.conc.toFixed(0)}%</span>`:'—';
+  const tagVC=r=>r.vc==null?'<small style="color:var(--mu)" title="sem BI Global no período">—</small>':`<span class="tag ${r.vc<1?'at':r.vc>1.6?'nt':'ok'}">${r.vc.toFixed(2).replace('.',',')}×</span>`;
+  const badges=r=>r.al.map(a=>`<span class="tag ${ALERTA_ROT[a][1]}" title="${ALERTA_ROT[a][2]}" style="margin:1px">${ALERTA_ROT[a][0]}</span>`).join('')||'<span class="tag ok">ok</span>';
+  const cols=[
+    {h:agr==='loja'?'Unidade':agr==='uf'?'UF':'Consultor',v:r=>r.u,f:(v,r)=>agr==='loja'
+      ?`${esc(v)}<br><small style="color:var(--mu)">${esc(r.L.cidade||'')}${r.L.uf?' · '+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}${idade(r.L)!=null?' · '+idade(r.L).toFixed(1)+' anos':''}</small>`
+      :`${esc(v)}<br><small style="color:var(--mu)">${r.n} loja(s) com dados</small>`},
+    {h:'Comprado',n:1,v:r=>r.t,f:(v,r)=>`${fmt0(v)}<br><small style="color:var(--mu)">${fmt0(r.med)}/mês · ${r.mesesN} m</small>`},
+    {h:agr==='loja'?'vs. esperado':'Média/loja vs. rede',n:1,v:r=>r.vsMedia,f:tagVs},
+    {h:'Tendência 3m',n:1,v:r=>r.tend??-999,f:(v,r)=>tagTend(r.tend)},
+    {h:'Sobrepreço',n:1,v:r=>r.sobre,f:(v,r)=>`<span style="color:${v>0?'#B34A0B':'var(--vd)'};font-weight:700">${fmt0(v)}</span><br>${tagDesv(r)}`},
+    {h:'Concentração',n:1,v:r=>r.conc,f:(v,r)=>tagConc(r)},
+    {h:'Venda ÷ compra',n:1,v:r=>r.vc??-1,f:(v,r)=>tagVC(r)},
+    {h:'Alertas',v:r=>r.al.length,f:(v,r)=>badges(r)}];
+  tabela($('#tbUni'),cols,rows,{sort:4,onClick:r=>{
+    if(agr!=='loja'){UNI_FILTRO={k:agr==='uf'?'uf':'consultor',v:r.u};$('#uAgr').value='loja';renderUnid(UNI_D);irPara('unid');return}
+    uniDetalhe(r)}});
+  // dispersao por produto so quando o bloco esta aberto
+  const cd=$('#cardDisp');if(cd&&cd.open)renderDisp(D);
+}
+function uniDetalhe(r){
+  const card=$('#cardUniDet');card.style.display='';
+  const o=r.o;const L=r.L;
+  // margem verificavel no periodo, do agregado do painel executivo (servidor)
+  let margem=null,cob=null;
+  if(TVSRV&&Array.isArray(TVSRV.loja_mes)){const lid=LJ[r.u]?.id;const lm=TVSRV.loja_mes.filter(x=>x.loja_id===lid&&x.mes>=F.de&&x.mes<=F.ate);
+    const cc=lm.reduce((a,x)=>a+(+x.com_custo||0),0),lu=lm.reduce((a,x)=>a+(+x.lucro||0),0),vp=lm.reduce((a,x)=>a+(+x.venda_prod||0),0);
+    if(cc>0){margem=lu/cc*100;cob=vp?cc/vp*100:null}}
+  $('#uniDetTit').innerHTML=`${esc(r.u)} <small>${esc(L.cidade||'')}${L.uf?' · '+L.uf:''}${L.consultor?' · '+esc(L.consultor):''} · ${mesLabel(F.de)} a ${mesLabel(F.ate)}</small>`;
+  const k=(l,v,s)=>`<div><b style="color:var(--mu);font-size:11px;text-transform:uppercase">${l}</b><br><span style="font-size:18px;font-weight:800">${v}</span>${s?`<br><small style="color:var(--mu)">${s}</small>`:''}</div>`;
+  const cab=`<div style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:14px">
+    ${k('Comprado',fmt0(r.t),fmt0(r.med)+' por mês')}
+    ${k('Vendido',r.venda?fmt0(r.venda):'—',r.vc!=null?r.vc.toFixed(2).replace('.',',')+'× a compra':'sem BI Global no período')}
+    ${k('Margem verificável',margem!=null?pctS(margem):'—',cob!=null?pctS(cob)+' da venda com custo':'')}
+    ${k('Sobrepreço',fmt0(r.sobre),r.desvio!=null?pct(r.desvio)+' sobre '+fmt0(r.comp)+' comparáveis':'sem produto comparável')}
+    ${k('Alertas',r.al.length?r.al.map(a=>`<span class="tag ${ALERTA_ROT[a][1]}">${ALERTA_ROT[a][0]}</span>`).join(' '):'<span class="tag ok">nenhum</span>','')}
+  </div>`;
+  // A) onde esta o sobrepreco
+  const prods=[...o.prod.values()].map(p=>({...p,custo:p.q?p.v/p.q:0,ref:p.q?p.refv/p.q:0,dif:p.refv?(p.v/p.refv-1)*100:0,fo:[...p.fos.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''})).sort((a,b)=>b.sobre-a.sobre);
+  const top=prods.slice(0,15);
+  const blocoA=`<h4 style="margin:14px 0 6px">Onde está o sobrepreço <small style="color:var(--mu);font-weight:400">· 15 produtos que mais custam acima da referência da rede${prods.length>15?' · <a data-uexp="prod" style="cursor:pointer;color:var(--v);font-weight:700">exportar todos ('+prods.length+')</a>':''}</small></h4>
+    <table style="font-size:13px"><thead><tr><th>Produto</th><th>Fornecedor principal</th><th class="n">Qtd</th><th class="n">Custo pago</th><th class="n">Referência</th><th class="n">Dif.</th><th class="n">Sobrepreço</th></tr></thead><tbody>
+    ${top.map(p=>`<tr><td>${esc(p.p)}<br><small style="color:var(--mu)">${esc(p.fa)} · cód ${esc(p.cod)}</small></td><td>${esc(p.fo)}</td><td class="n">${p.q.toLocaleString('pt-BR')}</td><td class="n">${fmt(p.custo)}</td><td class="n">${fmt(p.ref)}</td><td class="n"><span class="tag ${p.dif>5?'no':p.dif>0?'at':'ok'}">${pct(p.dif)}</span></td><td class="n" style="font-weight:700;color:${p.sobre>0?'#B34A0B':'var(--vd)'}">${fmt0(p.sobre)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Nenhum produto comparável com outras lojas no período.</td></tr>'}</tbody></table>`;
+  // B) mix por fabricante vs rede
+  const redeFab=by(UNI_D,x=>x.fa,x=>x.t);const redeTot=sum(UNI_D,x=>x.t);
+  const fabs=[...o.fabs.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const blocoB=`<h4 style="margin:18px 0 6px">Mix por fabricante <small style="color:var(--mu);font-weight:400">· participação na loja vs. na rede</small></h4>
+    <table style="font-size:13px"><thead><tr><th>Fabricante</th><th class="n">Comprado</th><th class="n">Na loja</th><th class="n">Na rede</th><th class="n">Diferença</th></tr></thead><tbody>
+    ${fabs.map(([f,v])=>{const pl=v/r.t*100,pr=(redeFab.get(f)||0)/redeTot*100;const d=pl-pr;return `<tr><td>${esc(f)}</td><td class="n">${fmt0(v)}</td><td class="n">${pctS(pl)}</td><td class="n">${pctS(pr)}</td><td class="n"><span class="tag ${Math.abs(d)>15?'at':'nt'}">${d>0?'+':''}${d.toFixed(1).replace('.',',')} pp</span></td></tr>`}).join('')}</tbody></table>`;
+  // C) compra x venda mes a mes
+  const meses=MESES.filter(m=>m>=F.de&&m<=F.ate).slice(-12);
+  const vm=VMES[r.u]||{};
+  const blocoC=`<h4 style="margin:18px 0 6px">Compra × venda mês a mês <small style="color:var(--mu);font-weight:400">· últimos ${meses.length} meses do período</small></h4>
+    <table style="font-size:13px"><thead><tr><th>Mês</th><th class="n">Compra</th><th class="n">Venda</th><th class="n">Venda ÷ compra</th></tr></thead><tbody>
+    ${meses.map(m=>{const c=o.ms.get(m)||0,v=+(vm[m]?.venda||0);const q=c&&v?v/c:null;return `<tr><td>${mesLabel(m)}</td><td class="n">${c?fmt0(c):'—'}</td><td class="n">${v?fmt0(v):'—'}</td><td class="n">${q==null?'—':`<span class="tag ${q<1?'at':q>1.6?'nt':'ok'}">${q.toFixed(2).replace('.',',')}×</span>`}</td></tr>`}).join('')}</tbody></table>`;
+  // D) fornecedores
+  const fos=[...o.fos.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const blocoD=`<h4 style="margin:18px 0 6px">Fornecedores <small style="color:var(--mu);font-weight:400">· de quem a loja compra</small></h4>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${fos.map(([f,v])=>`<span class="tag nt" title="${fmt0(v)}">${esc(f||'(sem fornecedor)')} ${(v/r.t*100).toFixed(0)}%</span>`).join('')}</div>`;
+  $('#uniDet').innerHTML=cab+`<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px" class="uniDetGrid"><div>${blocoA}${blocoC}</div><div>${blocoB}${blocoD}</div></div>`;
+  const ex=$('#uniDet [data-uexp]');if(ex)ex.onclick=()=>baixarCSV(`sobrepreco_${(L.fra||r.u)}.csv`,prods.map(p=>({produto:p.p,fabricante:p.fa,codigo:p.cod,fornecedor:p.fo,qtd:p.q,custo_pago:p.custo.toFixed(2),referencia:p.ref.toFixed(2),dif_pct:p.dif.toFixed(1),sobrepreco:p.sobre.toFixed(2)})));
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function baixarCSV(nome,rows){if(!rows.length)return;const ks=Object.keys(rows[0]);const csv=[ks.join(';'),...rows.map(r=>ks.map(k=>'"'+String(r[k]??'').replace(/"/g,'""')+'"').join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download=nome;a.click()}
+function renderDisp(D){
   const un=+$('#uN').value||2;const ms=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;if(!ms.has(r.cod))ms.set(r.cod,{cod:r.cod,p:r.p,fa:r.fa,t:0,q:0,us:new Map()});const o=ms.get(r.cod);o.t+=r.t;o.q+=r.q;const x=o.us.get(r.u)||{q:0,v:0};x.q+=r.q;x.v+=r.t;o.us.set(r.u,x)});
   const disp=[];ms.forEach(o=>{if(o.us.size<un)return;const cs=[...o.us.values()].map(x=>x.v/x.q);const medc=mediana(cs);o.us.forEach((x,u)=>{if(x.v/x.q<medc*0.2)o.us.delete(u)});if(o.us.size<un)return;const ar=[...o.us.entries()].map(([u,x])=>({u,med:x.v/x.q,q:x.q,v:x.v})).sort((a,b)=>a.med-b.med);const rede=o.t/o.q;const lo=ar[0],hi=ar[ar.length-1];
     disp.push({...o,ar,rede,lo,hi,dif:(hi.med/lo.med-1)*100,sobre:ar.reduce((s,x)=>s+(x.med-lo.med)*x.q,0)})});
   tabela($('#tbDisp'),[{h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${esc(r.fa)} · cód ${r.cod}</small>`},{h:'Unidades',n:1,v:r=>r.us.size},{h:'Total rede',n:1,v:r=>r.t,f:fmt0},{h:'Custo médio rede',n:1,v:r=>r.rede,f:fmt},
     {h:'Menor custo',n:1,v:r=>r.lo.med,f:(v,r)=>`${fmt(v)}<br><small style="color:var(--mu)">${esc(r.lo.u)}</small>`},{h:'Maior custo',n:1,v:r=>r.hi.med,f:(v,r)=>`${fmt(v)}<br><small style="color:var(--mu)">${esc(r.hi.u)}</small>`},
     {h:'Dispersão',n:1,v:r=>r.dif,f:v=>`<span class="tag ${v>10?'no':'at'}">${pct(v)}</span>`},{h:'Sobrecusto vs. menor',n:1,v:r=>r.sobre,f:fmt0}],disp,{sort:7,pageSize:25,pager:$('#pgDisp'),onClick:r=>{$('#cardDispDet').style.display='';$('#dispTitulo').innerHTML=`${esc(r.p)} <small>custo médio por unidade</small>`;const mx=r.hi.med;
-      $('#tbDispDet').innerHTML='<table><thead><tr><th>Unidade</th><th class="n">Qtd</th><th class="n">Total</th><th class="n">Custo médio</th><th class="n">vs. menor</th><th></th></tr></thead><tbody>'+r.ar.map(x=>`<tr><td>${esc(x.u)}</td><td class="n">${x.q}</td><td class="n">${fmt0(x.v)}</td><td class="n">${fmt(x.med)}</td><td class="n"><span class="tag ${x===r.lo?'ok':x.med/r.lo.med>1.1?'no':'at'}">${pct((x.med/r.lo.med-1)*100)}</span></td><td>${barCell(x.med,mx,x===r.lo?'':x.med/r.lo.med>1.1?'r':'a')}</td></tr>`).join('')+'</tbody></table>';$('#cardDispDet').scrollIntoView({behavior:'smooth'})}});
+      $('#tbDispDet').innerHTML='<table><thead><tr><th>Unidade</th><th class="n">Qtd</th><th class="n">Total</th><th class="n">Custo médio</th><th class="n">vs. menor</th><th></th></tr></thead><tbody>'+r.ar.map(x=>`<tr><td>${esc(x.u)}</td><td class="n">${x.q}</td><td class="n">${fmt0(x.v)}</td><td class="n">${fmt(x.med)}</td><td class="n"><span class="tag ${x.med>r.lo.med*1.1?'no':x.med>r.lo.med*1.02?'at':'ok'}">${pct((x.med/r.lo.med-1)*100)}</span></td><td>${barCell(x.med,mx,x===r.hi?'no':'')}</td></tr>`).join('')+'</tbody></table>';$('#cardDispDet').scrollIntoView({behavior:'smooth',block:'start'})}});
 }
-$('#uN').onchange=()=>renderUnid(filtrado());
+$('#uN').onchange=()=>renderDisp(UNI_D);
+$('#uAgr').onchange=()=>{UNI_FILTRO=null;renderUnid(UNI_D)};
+$('#uVis').onchange=()=>renderUnid(UNI_D);
+$('#cardDisp').addEventListener('toggle',()=>{if($('#cardDisp').open)renderDisp(UNI_D)});
+$('#uExp').onclick=()=>baixarCSV('comparativo_unidades.csv',UNI_ROWS.map(r=>({unidade:r.u,cidade:r.L.cidade||'',uf:r.L.uf||'',consultor:r.L.consultor||'',comprado:r.t.toFixed(2),media_mes:r.med.toFixed(2),meses:r.mesesN,vs_esperado_pct:r.vsMedia.toFixed(0),tendencia_3m_pct:r.tend==null?'':r.tend.toFixed(1),sobrepreco:r.sobre.toFixed(2),desvio_pct:r.desvio==null?'':r.desvio.toFixed(1),produtos_comparaveis:r.nComp,acima_da_referencia:r.nAcima,fabricante_principal:r.fabTop?r.fabTop[0]:'',concentracao_pct:r.conc.toFixed(0),venda:r.venda.toFixed(2),venda_div_compra:r.vc==null?'':r.vc.toFixed(2),alertas:r.al.map(a=>ALERTA_ROT[a][0]).join(' | ')})));
 
 /* ---------- carga de dados ---------- */
 
@@ -2088,11 +2233,12 @@ function montarTvRows(d){
   d.loja_mes.forEach(x=>{
     const l=LJID[x.loja_id];if(!l)return;const u=l.key,m=x.mes;
     const vp=+x.venda_prod||0, cc=+x.com_custo||0, lu=+x.lucro||0, sv=+x.venda_serv||0;
-    if(cc>0)      out.push({u,m,tipo:'Produto',inst:false,t:cc,ce:cc-lu,le:lu,cf:'sistema',n:+x.linhas||1,fa:'',seg:''});
-    if(vp-cc>0.005)out.push({u,m,tipo:'Produto',inst:false,t:vp-cc,ce:0,le:0,cf:'sem custo',n:0,fa:'',seg:''});
-    if(sv>0)      out.push({u,m,tipo:'Servico',inst:false,t:sv,ce:0,le:0,cf:'servico',n:0,fa:'',seg:''});
+    const d=x.ultima||(m+'-28');
+    if(cc>0)      out.push({u,m,d,tipo:'Produto',inst:false,t:cc,ce:cc-lu,le:lu,cf:'sistema',n:+x.linhas||1,fa:'',seg:''});
+    if(vp-cc>0.005)out.push({u,m,d,tipo:'Produto',inst:false,t:vp-cc,ce:0,le:0,cf:'sem custo',n:0,fa:'',seg:''});
+    if(sv>0)      out.push({u,m,d,tipo:'Servico',inst:false,t:sv,ce:0,le:0,cf:'servico',n:0,fa:'',seg:''});
     if(cc<=0&&vp-cc<=0.005&&sv<=0&&(+x.linhas||0)>0)
-                  out.push({u,m,tipo:'Produto',inst:false,t:0,ce:0,le:0,cf:'sem custo',n:+x.linhas||1,fa:'',seg:''});
+                  out.push({u,m,d,tipo:'Produto',inst:false,t:0,ce:0,le:0,cf:'sem custo',n:+x.linhas||1,fa:'',seg:''});
   });
   return out;
 }
@@ -2139,8 +2285,13 @@ function renderTV(){
   const compMes=sum(Cm,r=>r.t);const dcA=baseDelta(Cm,Ca,r=>r.t),dcY=baseDelta(Cm,Cy,r=>r.t);
   const lojasV=new Set(Vm.map(r=>r.u)).size,lojasC=new Set(Cm.map(r=>r.u)).size;
   // ---- cobertura por loja (até que mês, mês parcial)
-  const parcial=(rows)=>{const m=new Map();rows.forEach(r=>m.set(r.m,(m.get(r.m)||0)+(r.n===undefined?1:+r.n)));if(m.size<4)return null;const med=mediana([...m.values()]);const ult=[...m.keys()].sort().pop();return {ult,parc:m.get(ult)<med*0.5}};
-  const cov=UNIS.map(u=>{const c=parcial(DATA.filter(r=>r.u===u)),v=parcial(FONTE.filter(r=>r.u===u));const cU=c?.ult,vU=v?.ult;const atras=(cU&&cU<mc)||(vU&&vU<mv);const parc=(c?.parc)||(v?.parc);return {u,cU,vU,atras,parc,cls:atras?'r':parc?'a':''}}).sort((a,b)=>(+lojaDe(a.u).fra||9999)-(+lojaDe(b.u).fra||9999));
+  /* "Mes parcial" e decidido pela DATA da ultima linha do mes, nao pelo volume:
+     um mes em que a loja comprou pouco nao e um arquivo cortado no meio. Compra: ultima
+     data ate o dia 20 = arquivo parcial; venda (acontece todo dia): ate o dia 25.
+     O mes corrente e sempre parcial. Corrigido em 14/09/2026 (FRA 6 aparecia em amarelo
+     com o mes completo, so porque comprou menos em agosto). */
+  const parcial=(rows,limDia)=>{const m=new Map();rows.forEach(r=>{if(!r.m)return;const d=String(r.d||'');if(!m.has(r.m)||d>m.get(r.m))m.set(r.m,d)});if(!m.size)return null;const ult=[...m.keys()].sort().pop();const d=m.get(ult)||'';const dia=+d.slice(8,10)||31;return {ult,parc:ult>=mesAtual||dia<(limDia||20)}};
+  const cov=UNIS.map(u=>{const c=parcial(DATA.filter(r=>r.u===u),20),v=parcial(FONTE.filter(r=>r.u===u),25);const cU=c?.ult,vU=v?.ult;const atras=(cU&&cU<mc)||(vU&&vU<mv);const parc=(c?.parc)||(v?.parc);return {u,cU,vU,atras,parc,cls:atras?'r':parc?'a':''}}).sort((a,b)=>(+lojaDe(a.u).fra||9999)-(+lojaDe(b.u).fra||9999));
   const emDia=cov.filter(c=>!c.atras&&!c.parc).length;
   const covHtml=cov.map(c=>{const l=lojaDe(c.u);return `<span class="cv ${c.cls}" title="${esc(l.nome||c.u)}">FRA ${esc(l.fra||'?')}<small>${c.cU?'c '+mesLabel(c.cU)+(c.parc&&c.cU&&!c.atras?'*':''):'—'} · ${c.vU?'v '+mesLabel(c.vU):'—'}</small></span>`}).join('');
   // ---- 12 meses
@@ -2954,7 +3105,10 @@ async function cgGravar(){
     const novasMarcas=ROT_PEND.filter(r=>!pendAntes.has(r.rotulo));
     if(REL.length||msgs.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
   }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
-  finally{PROG.fechar();$('#cgStatus').textContent='';}
+  /* A faixa amarela (#status) e escrita por carregarVendasLoja a cada pagina e ninguem
+     a limpava ao fim da carga: ficava "Carregando vendas X…" com tudo ja gravado.
+     Corrigido em 14/09/2026. */
+  finally{PROG.fechar();$('#cgStatus').textContent='';$('#status').textContent='';}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -3063,6 +3217,7 @@ const HELP={
 'Histórico':{o:'Todas as compras do produto selecionado, com custo por loja e por fornecedor.',c:'Custo médio = média ponderada pela quantidade; Δ vs. menor = último custo da loja ÷ menor último custo entre as lojas − 1.',l:'Linhas bonificadas aparecem esmaecidas e não entram nos cálculos.'},
 'Ranking de unidades':{o:'Comparação entre lojas: compra, desvio de custo vs. rede, ticket de venda, venda sem entrada (CD), SKUs e fornecedores.',c:'Média mensal = total ÷ meses com dados. Desvio vs. rede = sobrepreço ÷ compra comparável (mediana da rede por produto e mês). Ticket venda = venda ÷ pedidos distintos; it/cupom = linhas de produto ÷ pedidos. Venda s/ entrada = venda de produtos sem nenhuma entrada registrada na loja (provável transferência do CD).',l:'Lojas com períodos carregados diferentes não são comparáveis em total; use média mensal.'},
 'Dispersão de custo entre unidades':{o:'Mesmo produto, custos diferentes entre lojas — a base da negociação de equalização de preço.',c:'Custo médio ponderado por loja; dispersão = (maior ÷ menor − 1). Sobrecusto = Σ (custo médio da loja − menor custo) × qtd da loja.',pd:()=>[['Mín. de unidades',$('#uN')?.value||'2']],l:'Compare o fornecedor nas duas lojas antes de concluir; pode ser fonte diferente, não preço diferente.'},
+'Comparativo de unidades':{o:'Uma linha por loja com o que decide alguma coisa: quanto compra vs. o esperado, se paga caro em relação à rede, se concentra a compra num fabricante, se a compra está caindo e se vende o que compra. Clique na linha para abrir o detalhe com os produtos do sobrepreço, o mix por fabricante, compra × venda mês a mês e fornecedores.',c:'Sobrepreço = Σ (custo da loja − referência da rede) × qtd, só em produtos comprados por 2+ lojas no mesmo mês; referência = mediana da rede por produto e mês. Vs. esperado = compra da loja ÷ média das lojas com dados no período. Tendência = últimos 3 meses ÷ 3 anteriores. Venda ÷ compra usa a venda do BI Global no mesmo período. Alertas: pagando caro (desvio > 5%), fora do padrão (< 50% ou > 200% da média), concentrada (> 60% num fabricante), compra caindo (tendência < −20%), compra > venda (venda ÷ compra < 1,0×).',l:'Loja nova ou com poucos meses distorce o "vs. esperado". Venda ÷ compra abaixo de 1 num mês isolado pode ser só estoque de campanha; olhe a série mensal no detalhe.'},
 'Por UF':{o:'Compra agregada por estado, com cobertura (lojas com dados ÷ lojas ativas na UF).',c:'Soma por UF do cadastro de lojas.'},
 'Por consultor':{o:'Compra agregada por consultor de campo responsável.',c:'Soma por consultor do cadastro de lojas.'},
 'Marca × região':{o:'Venda de cada marca por região (UF ou consultor) e sua penetração em lojas.',c:'Fonte: BI Global. Share = venda da marca ÷ venda da região. "x/y lj" = lojas que vendem a marca ÷ lojas com dados na região.',pd:()=>[['Institucionais',$('#fInst').selectedOptions[0].text],['Região',$('#vReg')?.selectedOptions[0].text||''],['Grupo',$('#vGrupo')?.selectedOptions[0].text||'todos'],['Top',$('#vTop')?.value||'']],l:'Marca identificada por EAN no mestre de produtos; o restante cai em DIVERSOS.'},
