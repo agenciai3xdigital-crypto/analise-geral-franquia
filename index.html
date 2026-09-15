@@ -8,7 +8,9 @@
      2) coluna Filial passou a vir como "FR - 59 NOME" (traco entre FR e numero) e a loja nao era encontrada. -->
 <!-- v6.25 · 15/09/2026 · comparativo de unidades: clique no produto do sobrepreço abre, mês a mês, a loja
      contra as lojas que formaram a referência (custo médio, quantidade, fornecedor) — mesma regra: produto + mês. -->
-<!-- v6.27 · 15/09/2026 · contagem de cobertura: 'com dados' só entre lojas ativas; card de carga separa não inauguradas × encerradas e avisa loja com dado sem estar ativa.
+<!-- v6.29 · 15/09/2026 · carga do BI Global: 'Preço Bruto' com código de barras no lugar do preço (bug de exportação do One Pet) não derruba mais a carga — vale o preço líquido.
+     v6.28 · 15/09/2026 · loja com status Encerrada some da tabela de carga (opção "Só encerradas" no Mostrar), dos filtros de unidade/UF/consultor, da busca ⌘K, da cobertura da TV e da qualidade por loja. Dados ficam no banco.
+     v6.27 · 15/09/2026 · contagem de cobertura: 'com dados' só entre lojas ativas; card de carga separa não inauguradas × encerradas e avisa loja com dado sem estar ativa.
      v6.26 · 15/09/2026 · varredura de segurança e consistência:
      1) saem do painel os botões "Apagar tudo" (entradas) e "Apagar preços homologados" — deleção em massa só pelo SQL Editor, com backup;
         remover dados de uma loja passa pela RPC ic_apagar_loja (exige digitar o nome da loja; aborta sem loja_id).
@@ -376,7 +378,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.27 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.29 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -682,7 +684,7 @@ body.filtrosOff .filters{display:none}
   <div class="card full">
     <div class="filters" style="padding:0 0 12px;border:none;background:none">
       <div style="flex:1;min-width:180px"><label>Filtrar</label><input id="cFiltro" placeholder="FRA, nome ou cidade"></div>
-      <div><label>Mostrar</label><select id="cVis"><option value="all">Todas as lojas</option><option value="com">Só com dados</option><option value="sem">Só sem dados</option></select></div>
+      <div><label>Mostrar</label><select id="cVis"><option value="all">Todas as lojas</option><option value="com">Só com dados</option><option value="sem">Só sem dados</option><option value="enc">Só encerradas (ocultas)</option></select></div>
     </div>
     <div class="tw" id="tbCarga"></div>
   </div>
@@ -773,6 +775,14 @@ const FIXO=CFG.url&&CFG.key&&CFG.key!=='COLE_AQUI_A_CHAVE_ANON';
 if(!FIXO){try{Object.assign(CFG,JSON.parse(localStorage.getItem('pop_sb_cfg')||'{}'))}catch(e){}}
 let sb=null,USER=null,LOJAS=[],LJ={},LJID={};
 const lojaDe=u=>LJ[u]||{fra:'',nome:u,consultor:'',cidade:'',uf:'',status:''};
+/* v6.29: o BI Global do One Pet às vezes exporta o CÓDIGO DE BARRAS na coluna "Preço Bruto" (ex.: 7.898.670.000.000,00).
+   Isso estourava a coluna numeric(12,2) e a carga inteira falhava com "numeric field overflow". Preço bruto absurdo
+   (acima de R$ 1 milhão ou 1000× o preço líquido) passa a valer o preço líquido; a ocorrência vai para o console. */
+let PB_SANEADOS=0;
+const saneiaPreco=(pb,pl)=>{if(pb>1e6||(pl>0&&pb>pl*1000)){PB_SANEADOS++;return pl}return pb};
+/* v6.28: loja Encerrada (desativada no cadastro) some da carga, dos filtros e da cobertura da TV; os dados dela ficam no banco e voltam se reativar. */
+const lojaAtivaOuNova=l=>!l||l.status!=='Encerrada';
+const UNIS_VIS=()=>UNIS.filter(u=>lojaAtivaOuNova(LJ[u]));
 const lojaLbl=u=>{const l=lojaDe(u);return l.fra?`${l.fra} · ${l.nome}`:u};
 const idade=l=>l.inaug?((Date.now()-new Date(l.inaug))/31557600000):null;
 const chaveLoja=l=>(l.fra&&l.fra!=='20x'?l.fra+' · ':'')+l.nome;
@@ -1017,17 +1027,17 @@ $('#fInst').onchange=()=>{F.inst=$('#fInst').value;render()};
 function fill(sel,arr,label){const s=$(sel);const v=s.value;s.innerHTML=s.dataset.all?`<option value="">${s.dataset.all}</option>`:'';arr.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=label?label(x):x;s.appendChild(o)});s.value=arr.includes(v)?v:''}
 $('#fUni').dataset.all='Todas';$('#fUF').dataset.all='Todas';$('#fCons').dataset.all='Todos';$('#fFab').dataset.all='Todos';$('#fFor').dataset.all='Todos';$('#fCat').dataset.all='Todas';
 function montarFiltros(keepPeriodo){
-  fill('#fUni',UNIS);fill('#fUF',[...new Set(UNIS.map(u=>lojaDe(u).uf).filter(Boolean))].sort());fill('#fCons',[...new Set(UNIS.map(u=>lojaDe(u).consultor).filter(Boolean))].sort());fill('#fFab',FABS);fill('#fFor',FORS);fill('#fCat',CATS);fill('#fDe',MESES,mesLabel);fill('#fAte',MESES,mesLabel);
+  const UV=UNIS_VIS();fill('#fUni',UV);fill('#fUF',[...new Set(UV.map(u=>lojaDe(u).uf).filter(Boolean))].sort());fill('#fCons',[...new Set(UV.map(u=>lojaDe(u).consultor).filter(Boolean))].sort());fill('#fFab',FABS);fill('#fFor',FORS);fill('#fCat',CATS);fill('#fDe',MESES,mesLabel);fill('#fAte',MESES,mesLabel);
   if(!keepPeriodo||!MESES.includes(F.de))F.de=MESES[0]||'';if(!keepPeriodo||!MESES.includes(F.ate))F.ate=MESES[MESES.length-1]||'';
   $('#fDe').value=F.de;$('#fAte').value=F.ate;F.u=$('#fUni').value;F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;
-  const _dl=$('#dlUni');if(_dl)_dl.innerHTML=UNIS.map(u=>`<option value="${esc(u)}">`).join('');
+  const _dl=$('#dlUni');if(_dl)_dl.innerHTML=UNIS_VIS().map(u=>`<option value="${esc(u)}">`).join('');
 }
 ['#fDe','#fAte','#fUni','#fUF','#fCons','#fFab','#fFor','#fCat'].forEach(s=>$(s).onchange=()=>{F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.de=$('#fDe').value;F.ate=$('#fAte').value;if(F.de>F.ate){[F.de,F.ate]=[F.ate,F.de];$('#fDe').value=F.de;$('#fAte').value=F.ate}F.u=$('#fUni').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;render()});
 (function(){const inp=$('#fUniTxt'),res=$('#fUniRes'),sel=$('#fUni');let list=[],idx=-1;
   window.syncUniTxt=()=>{inp.value=sel.value?lojaLbl(sel.value):'';inp.placeholder=sel.value?'':'Todas · nº FRA, nome ou cidade'};
   const norm=x=>(x||'').toString().toLowerCase();
   const montar=q=>{q=norm(q).trim();
-    list=UNIS.filter(u=>{const l=lojaDe(u);return !q||norm(u).includes(q)||norm(l.nome).includes(q)||norm(l.cidade).includes(q)||norm(l.fra).startsWith(q)});
+    list=UNIS_VIS().filter(u=>{const l=lojaDe(u);return !q||norm(u).includes(q)||norm(l.nome).includes(q)||norm(l.cidade).includes(q)||norm(l.fra).startsWith(q)});
     list.sort((a,b)=>(+lojaDe(a).fra||9999)-(+lojaDe(b).fra||9999));idx=-1;
     res.innerHTML=(q?'':'<div data-u=""><b>—</b>Todas as unidades<small>'+UNIS.length+' carregadas</small></div>')+(list.length?list.map(u=>{const l=lojaDe(u);return `<div data-u="${esc(u)}"><b>${esc(l.fra||'')}</b>${esc(l.nome||u)}<small>${esc(l.cidade||'')}${l.uf?'/'+esc(l.uf):''}</small></div>`}).join(''):'<div class="none">Nenhuma unidade carregada com esse termo</div>');
     res.classList.add('on');res.querySelectorAll('[data-u]').forEach(d=>d.onmousedown=e=>{e.preventDefault();escolher(d.dataset.u)})};
@@ -2001,8 +2011,8 @@ function renderCarga(){
       diversosPct:pv.length?sum(pv.filter(r=>r.fa==='DIVERSOS'),r=>r.t)/sum(pv,r=>r.t)*100:0,
       buracosC:mesesGap(msC),buracosV:mesesGap(msV),
       gap:(o&&temVenda&&msC[msC.length-1]!==msV[msV.length-1]?2:0)+mesesGap(msC)+mesesGap(msV)};};
-  const rows=[...LOJAS.map(l=>build(l,false)),...UNIS.filter(u=>!LJ[u]).map(u=>build({...lojaDe(u),key:u,nome:u},true))]
-    .filter(r=>vis==='all'||(vis==='com'?(r.tem||r.temV):!(r.tem||r.temV)))
+  const rows=[...LOJAS.filter(l=>vis==='enc'?l.status==='Encerrada':lojaAtivaOuNova(l)).map(l=>build(l,false)),...(vis==='enc'?[]:UNIS.filter(u=>!LJ[u]).map(u=>build({...lojaDe(u),key:u,nome:u},true)))]
+    .filter(r=>vis==='all'||vis==='enc'||(vis==='com'?(r.tem||r.temV):!(r.tem||r.temV)))
     .filter(r=>!fq||norm((r.L.fra||'')+' '+(r.L.nome||'')+' '+(r.L.cidade||'')+' '+(r.L.consultor||'')).includes(fq));
   tabela($('#tbCarga'),[
     {h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},
@@ -2101,7 +2111,7 @@ function biParaLinhas(text){
     const q=money(g(r,'q')),t=money(g(r,'t')),c=money(g(r,'c')),l=I.l>=0?money(g(r,'l')):t-c;
     const key=[d,g(r,'ped'),g(r,'cod'),q,t].join('|');const seq=(seqMap.get(key)||0)+1;seqMap.set(key,seq);
     if(!filial&&g(r,'fi'))filial=g(r,'fi');
-    out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:money(g(r,'pb')),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve'),
+    out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:saneiaPreco(money(g(r,'pb')),money(g(r,'pl'))),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve'),
       tel:(t=>/\d{8,}/.test(t.replace(/\D/g,''))?t:'')((g(r,'tel')||g(r,'tel2')).split('/')[0].trim()),esp:g(r,'esp'),pag:dtHora(g(r,'pag')),
       can:g(r,'can'),dlv:I.dlv>=0?/^(s|sim|1|true)$/i.test(g(r,'dlv')):null,av:g(r,'av'),
       opbt:(g(r,'bt1')||g(r,'bt2')||g(r,'bt3')),vet:g(r,'vet'),
@@ -2432,7 +2442,7 @@ function renderTV(){
      O mes corrente e sempre parcial. Corrigido em 14/09/2026 (FRA 6 aparecia em amarelo
      com o mes completo, so porque comprou menos em agosto). */
   const parcial=(rows,limDia)=>{const m=new Map();rows.forEach(r=>{if(!r.m)return;const d=String(r.d||'');if(!m.has(r.m)||d>m.get(r.m))m.set(r.m,d)});if(!m.size)return null;const ult=[...m.keys()].sort().pop();const d=m.get(ult)||'';const dia=+d.slice(8,10)||31;return {ult,parc:ult>=mesAtual||dia<(limDia||20)}};
-  const cov=UNIS.map(u=>{const c=parcial(DATA.filter(r=>r.u===u),20),v=parcial(FONTE.filter(r=>r.u===u),25);const cU=c?.ult,vU=v?.ult;const atras=(cU&&cU<mc)||(vU&&vU<mv);const parc=(c?.parc)||(v?.parc);return {u,cU,vU,atras,parc,cls:atras?'r':parc?'a':''}}).sort((a,b)=>(+lojaDe(a.u).fra||9999)-(+lojaDe(b.u).fra||9999));
+  const cov=UNIS_VIS().map(u=>{const c=parcial(DATA.filter(r=>r.u===u),20),v=parcial(FONTE.filter(r=>r.u===u),25);const cU=c?.ult,vU=v?.ult;const atras=(cU&&cU<mc)||(vU&&vU<mv);const parc=(c?.parc)||(v?.parc);return {u,cU,vU,atras,parc,cls:atras?'r':parc?'a':''}}).sort((a,b)=>(+lojaDe(a.u).fra||9999)-(+lojaDe(b.u).fra||9999));
   const emDia=cov.filter(c=>!c.atras&&!c.parc).length;
   const covHtml=cov.map(c=>{const l=lojaDe(c.u);return `<span class="cv ${c.cls}" title="${esc(l.nome||c.u)}">FRA ${esc(l.fra||'?')}<small>${c.cU?'c '+mesLabel(c.cU)+(c.parc&&c.cU&&!c.atras?'*':''):'—'} · ${c.vU?'v '+mesLabel(c.vU):'—'}</small></span>`}).join('');
   // ---- 12 meses
@@ -2459,7 +2469,7 @@ function renderTV(){
   const rebHtml=acs.sort((a,b)=>b.meta-a.meta).slice(0,5).map(a=>{const esc_=Math.max(a.meta,a.proj,a.comp,1);const cor=a.st==='ok'?'var(--v)':a.st==='ritmo'?'var(--vd)':'#C0392B';return `<div class="tvreb"><div class="l"><span>${esc(a.fab)}<small>${a.st==='ok'?'meta batida':a.st==='ritmo'?'no ritmo · projeção '+fmtK(a.proj):'em risco'+(a.mesesRest?` · faltam ${fmtK(a.falta)} em ${a.mesesRest} m`:'')}</small></span><b>${fmtK(a.comp)}<small style="display:inline;margin-left:4px">/ ${fmtK(a.meta)}</small></b></div><div class="bar"><i class="p" style="width:${a.proj/esc_*100}%"></i><i style="width:${Math.min(100,a.comp/esc_*100)}%;background:${cor}"></i><u style="left:${a.meta/esc_*100}%"></u></div></div>`}).join('')||'<div class="tvrow"><span>Nenhum acordo com meta cadastrada</span></div>';
   // ---- alertas: reajustes do mês por impacto, marca sem identificação, atraso de carga
   // v6.27: "com dados" conta só lojas ATIVAS (antes contava toda unidade com dado, inclusive as não inauguradas/encerradas, e a soma não fechava)
-  const ativas=LOJAS.filter(l=>l.status==='Ativa').length;const comDados=UNIS.filter(u=>lojaDe(u).status==='Ativa').length;const foraAtivas=UNIS.length-comDados;
+  const ativas=LOJAS.filter(l=>l.status==='Ativa').length;const comDados=UNIS.filter(u=>lojaDe(u).status==='Ativa').length;const foraAtivas=UNIS_VIS().length-comDados;
   let semMarcaPct=0;
   if(TVSRV&&Array.isArray(TVSRV.loja_mes)){
     const lm=TVSRV.loja_mes.filter(x=>x.mes===mv);
@@ -3159,7 +3169,7 @@ function abrirRelCarga(REL,tot){
       <div>itens de compra<b style="color:var(--v)">${tot.addE.toLocaleString('pt-BR')}</b></div>
       <div>linhas de venda<b style="color:var(--v)">${tot.addV.toLocaleString('pt-BR')}</b></div>
       <div>repetidas ignoradas<b style="color:var(--mu)">${(tot.dupE+tot.dupV).toLocaleString('pt-BR')}</b></div>
-      <div>arquivos<b>${REL.length}</b></div></div>
+      <div>arquivos<b>${REL.length}</b></div>${PB_SANEADOS?`<div title="linhas em que o One Pet exportou o código de barras no lugar do preço bruto; ficou valendo o preço líquido">preço bruto corrigido<b style="color:#a34608">${PB_SANEADOS.toLocaleString('pt-BR')}</b></div>`:''}</div>
     ${err.map(e=>`<div class="relf"><div class="rt">${esc(e.arquivo)}</div><div class="relav ruim">${esc(e.erro)}</div></div>`).join('')}
     ${ent.map(cartao).join('')}
     ${bi.map(r=>`<div class="relf"><div class="rt">${esc(r.arquivo)}</div><div class="rs">${esc(r.loja)} · BI Global</div>
@@ -3332,7 +3342,7 @@ function renderAgir(){const el=$('#agirList');if(!el)return;const D=filtrado();c
 (function(){const inp=$('#leiBusca'),res=$('#leiRes');let itens=[];
   const fechar=()=>{res.style.display='none';res.innerHTML=''};
   inp.oninput=()=>{const q=inp.value.trim().toLowerCase();if(q.length<2){fechar();return}itens=[];
-    UNIS.filter(u=>u.toLowerCase().includes(q)||(lojaDe(u).cidade||'').toLowerCase().includes(q)).slice(0,4).forEach(u=>itens.push({k:'Loja',v:u,f:'#fUni',go:'unid'}));
+    UNIS_VIS().filter(u=>u.toLowerCase().includes(q)||(lojaDe(u).cidade||'').toLowerCase().includes(q)).slice(0,4).forEach(u=>itens.push({k:'Loja',v:u,f:'#fUni',go:'unid'}));
     FABS.filter(x=>x.toLowerCase().includes(q)).slice(0,4).forEach(x=>itens.push({k:'Indústria',v:x,f:'#fFab',go:'rebate'}));
     FORS.filter(x=>x.toLowerCase().includes(q)).slice(0,4).forEach(x=>itens.push({k:'Fornecedor',v:x,f:'#fFor',go:'fornec'}));
     const ps=new Map();for(const r of DATA){if(ps.size>=6)break;if(!ps.has(r.cod)&&(r.p.toLowerCase().includes(q)||String(r.cod).includes(q)))ps.set(r.cod,r.p)}ps.forEach((p,cod)=>itens.push({k:'Produto',v:p,q:String(cod),go:'precos'}));
@@ -3510,7 +3520,7 @@ function renderSazon(){const el=$('#tbSazon');if(!el)return;const C=filtrado(tru
   el.innerHTML='<table><thead><tr><th>Mês</th><th class="n">Compras</th><th class="n">Ano anterior</th><th class="n">Var.</th><th class="n">Vendas</th><th class="n">Ano anterior</th><th class="n">Var.</th></tr></thead><tbody>'+rows.map(r=>`<tr><td>${mesLabel(r.m)} <small style="color:var(--mu)">vs ${mesLabel(mesAnoAnt(r.m))}</small></td><td class="n">${fmt0(r.c)}</td><td class="n">${r.ca!=null?fmt0(r.ca):'—'}</td><td class="n">${d(r.c,r.ca)}</td><td class="n">${r.v?fmt0(r.v):'—'}</td><td class="n">${r.va!=null?fmt0(r.va):'—'}</td><td class="n">${d(r.v,r.va)}</td></tr>`).join('')+'</tbody></table>'}
 /* ---------- entradas sem custo por loja ---------- */
 function renderSemCusto(){const el=$('#tbSemCusto');if(!el)return;const D=filtrado();const VV=vfiltrado();const meses=MESES.filter(m=>m>=F.de&&m<=F.ate).slice(-6);
-  const rows=UNIS.map(u=>{const d=D.filter(r=>r.u===u);if(!d.length)return null;const z=d.filter(r=>!(r.c>0));const codsZ=new Set(z.map(r=>r.cod));const vendaZ=sum(VV.filter(r=>r.u===u&&r.tipo==='Produto'&&codsZ.has(r.cod)),r=>r.t);
+  const rows=UNIS_VIS().map(u=>{const d=D.filter(r=>r.u===u);if(!d.length)return null;const z=d.filter(r=>!(r.c>0));const codsZ=new Set(z.map(r=>r.cod));const vendaZ=sum(VV.filter(r=>r.u===u&&r.tipo==='Produto'&&codsZ.has(r.cod)),r=>r.t);
     const serie=meses.map(m=>{const dm=d.filter(r=>r.m===m);return dm.length?dm.filter(r=>!(r.c>0)).length/dm.length*100:null});const ult=[...serie].reverse().find(x=>x!=null);const pri=serie.find(x=>x!=null);
     return {u,n:d.length,z:z.length,pct:z.length/d.length*100,skus:codsZ.size,vendaZ,serie,tend:ult!=null&&pri!=null?ult-pri:null}}).filter(Boolean);
   tabela(el,[{h:'Unidade',v:r=>r.u,f:v=>esc(lojaLbl(v))},{h:'Linhas de entrada',n:1,v:r=>r.n},{h:'Sem custo',n:1,v:r=>r.z},{h:'% sem custo',n:1,v:r=>r.pct,f:v=>`<span class="tag ${v>metaDe('custo_zero_pct',3)*3?'no':v>metaDe('custo_zero_pct',3)?'at':'ok'}">${pctS(v)}</span>`},{h:'SKUs afetados',n:1,v:r=>r.skus},{h:'Venda desses produtos',n:1,v:r=>r.vendaZ,f:v=>v?fmt0(v):'—'},{h:'Últimos '+meses.length+' meses',v:r=>r.pct,f:(v,r)=>'<div style="display:flex;gap:2px;align-items:flex-end;height:22px;min-width:90px">'+r.serie.map((x,i)=>`<i title="${mesLabel(meses[i])}: ${x==null?'sem dados':pctS(x)}" style="flex:1;height:${x==null?2:Math.max(2,x)}%;background:${x==null?'var(--ln)':x>10?'#B34A0B':x>3?'var(--am)':'var(--v)'};border-radius:2px 2px 0 0"></i>`).join('')+'</div>'},{h:'Tendência',n:1,v:r=>r.tend??0,f:v=>v==null?'—':`<span class="tag ${v<-1?'dn':v>1?'up':'nt'}">${v<-1?'melhorando':v>1?'piorando':'estável'}</span>`}],rows,{sort:3})}
