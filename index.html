@@ -8,7 +8,8 @@
      2) coluna Filial passou a vir como "FR - 59 NOME" (traco entre FR e numero) e a loja nao era encontrada. -->
 <!-- v6.25 · 15/09/2026 · comparativo de unidades: clique no produto do sobrepreço abre, mês a mês, a loja
      contra as lojas que formaram a referência (custo médio, quantidade, fornecedor) — mesma regra: produto + mês. -->
-<!-- v6.26 · 15/09/2026 · varredura de segurança e consistência:
+<!-- v6.27 · 15/09/2026 · contagem de cobertura: 'com dados' só entre lojas ativas; card de carga separa não inauguradas × encerradas e avisa loja com dado sem estar ativa.
+     v6.26 · 15/09/2026 · varredura de segurança e consistência:
      1) saem do painel os botões "Apagar tudo" (entradas) e "Apagar preços homologados" — deleção em massa só pelo SQL Editor, com backup;
         remover dados de uma loja passa pela RPC ic_apagar_loja (exige digitar o nome da loja; aborta sem loja_id).
      2) carga de entradas confere a coluna Filial/CNPJ do arquivo contra a loja escolhida e pede confirmação se divergir; filial vai para o log.
@@ -375,7 +376,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.26 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.27 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -1968,7 +1969,7 @@ function renderCarga(){
   $('#cResumo').textContent=`${nUni} unidade(s) com dados · ${nItens.toLocaleString('pt-BR')} itens`;
   const comV=ativas.filter(temV).length;
   const semNada=ativas.filter(l=>!temC(l)&&!temV(l)).length;
-  $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas</span><b>${ativas.length}</b><i>${LOJAS.length-ativas.length} não inauguradas</i></div><div class="kpi o"><span>Com compras</span><b>${com}</b><i>${ativas.length?(com/ativas.length*100).toFixed(0):0}% da rede</i></div><div class="kpi z"><span>Com vendas</span><b>${comV}</b><i>BI Global</i></div><div class="kpi a"><span>Sem nenhum dado</span><b>${semNada}</b><i>${fora?fora+' fora do cadastro':'aguardando carga'}</i></div>`;
+  $('#kpisCarga').innerHTML=`<div class="kpi"><span>Lojas ativas</span><b>${ativas.length}</b><i>${LOJAS.filter(l=>l.status==='Não inaugurada').length} não inaugurada(s) · ${LOJAS.filter(l=>l.status==='Encerrada').length} encerrada(s)${(()=>{const n=LOJAS.filter(l=>l.status!=='Ativa'&&(temC(l)||temV(l))).length;return n?` · <b style="color:#C0392B">${n} com dado sem estar ativa</b>`:''})()}</i></div><div class="kpi o"><span>Com compras</span><b>${com}</b><i>${ativas.length?(com/ativas.length*100).toFixed(0):0}% da rede</i></div><div class="kpi z"><span>Com vendas</span><b>${comV}</b><i>BI Global</i></div><div class="kpi a"><span>Sem nenhum dado</span><b>${semNada}</b><i>${fora?fora+' fora do cadastro':'aguardando carga'}</i></div>`;
   const vis=$('#cVis').value;const fq=norm($('#cFiltro')?$('#cFiltro').value:'');
   const mesesGap=(arr)=>{if(arr.length<2)return 0;const s=[...new Set(arr)].sort();return mesesEntre(s[0],s[s.length-1]).filter(m=>!s.includes(m)).length};
   const build=(l,fora)=>{const o=UNIDADES[l.key];const ov=VENDAS[l.key];const d=o?o.rows:[];const dv=ov?ov.rows:[];
@@ -2457,7 +2458,8 @@ function renderTV(){
     const st=comp>=+a.meta?'ok':proj>=+a.meta?'ritmo':'risco';reb[st]++;acs.push({fab:a.fab,comp,proj,meta:+a.meta,st,fim:a.fim,falta:Math.max(0,+a.meta-comp),mesesRest:vig.filter(m=>m>ult).length})});
   const rebHtml=acs.sort((a,b)=>b.meta-a.meta).slice(0,5).map(a=>{const esc_=Math.max(a.meta,a.proj,a.comp,1);const cor=a.st==='ok'?'var(--v)':a.st==='ritmo'?'var(--vd)':'#C0392B';return `<div class="tvreb"><div class="l"><span>${esc(a.fab)}<small>${a.st==='ok'?'meta batida':a.st==='ritmo'?'no ritmo · projeção '+fmtK(a.proj):'em risco'+(a.mesesRest?` · faltam ${fmtK(a.falta)} em ${a.mesesRest} m`:'')}</small></span><b>${fmtK(a.comp)}<small style="display:inline;margin-left:4px">/ ${fmtK(a.meta)}</small></b></div><div class="bar"><i class="p" style="width:${a.proj/esc_*100}%"></i><i style="width:${Math.min(100,a.comp/esc_*100)}%;background:${cor}"></i><u style="left:${a.meta/esc_*100}%"></u></div></div>`}).join('')||'<div class="tvrow"><span>Nenhum acordo com meta cadastrada</span></div>';
   // ---- alertas: reajustes do mês por impacto, marca sem identificação, atraso de carga
-  const ativas=LOJAS.filter(l=>l.status==='Ativa').length;const comDados=UNIS.length;
+  // v6.27: "com dados" conta só lojas ATIVAS (antes contava toda unidade com dado, inclusive as não inauguradas/encerradas, e a soma não fechava)
+  const ativas=LOJAS.filter(l=>l.status==='Ativa').length;const comDados=UNIS.filter(u=>lojaDe(u).status==='Ativa').length;const foraAtivas=UNIS.length-comDados;
   let semMarcaPct=0;
   if(TVSRV&&Array.isArray(TVSRV.loja_mes)){
     const lm=TVSRV.loja_mes.filter(x=>x.mes===mv);
@@ -2476,7 +2478,7 @@ function renderTV(){
 
   el.innerHTML=`
    <div class="tvhead"><h2>Rede Pop Pet Center <small>painel executivo · ${mv?mesNome(mv):''}</small></h2><span class="clock" id="tvClock">${TV.erro?`<span style="color:#FDAE25">⚠ sem atualizar há ${TV.erro} ciclo(s)</span> · `:''}${new Date().toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</span></div>
-   <div class="tvcov"><span><b style="color:var(--vd)">${comDados}</b>/${ativas} lojas ativas com dados · <b style="color:var(--vd)">${emDia}</b> em dia</span>${covHtml}<span style="margin-left:auto">* mês parcial · vermelho = atrasada</span></div>
+   <div class="tvcov"><span><b style="color:var(--vd)">${comDados}</b>/${ativas} lojas ativas com dados${foraAtivas?` <small title="unidades com dado cujo cadastro não está como Ativa">(+${foraAtivas} fora das ativas)</small>`:''} · <b style="color:var(--vd)">${emDia}</b> em dia</span>${covHtml}<span style="margin-left:auto">* mês parcial · vermelho = atrasada</span></div>
    <div class="tvkpis">
     ${card('o','Vendas · '+(mv?mesNome(mv):'—'),fmtK(vendaMes),`<i>${dvA.html} vs mês anterior</i><i>${dvY.html} vs ${mv?mesLabel(mesAnoAnt(mv)):''}</i><i>${lojasV} loja(s) · base ${dvA.n}/${dvY.n}</i>`)}
     ${card('','Compras · '+(mc?mesNome(mc):'—'),fmtK(compMes),`<i>${dcA.html} vs mês anterior</i><i>${dcY.html} vs ${mc?mesLabel(mesAnoAnt(mc)):''}</i><i>${lojasC} loja(s) · base ${dcA.n}/${dcY.n}</i>`)}
