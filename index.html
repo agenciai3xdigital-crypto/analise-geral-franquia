@@ -8,6 +8,17 @@
      2) coluna Filial passou a vir como "FR - 59 NOME" (traco entre FR e numero) e a loja nao era encontrada. -->
 <!-- v6.25 · 15/09/2026 · comparativo de unidades: clique no produto do sobrepreço abre, mês a mês, a loja
      contra as lojas que formaram a referência (custo médio, quantidade, fornecedor) — mesma regra: produto + mês. -->
+<!-- v6.26 · 15/09/2026 · varredura de segurança e consistência:
+     1) saem do painel os botões "Apagar tudo" (entradas) e "Apagar preços homologados" — deleção em massa só pelo SQL Editor, com backup;
+        remover dados de uma loja passa pela RPC ic_apagar_loja (exige digitar o nome da loja; aborta sem loja_id).
+     2) carga de entradas confere a coluna Filial/CNPJ do arquivo contra a loja escolhida e pede confirmação se divergir; filial vai para o log.
+     3) referência de custo (comparativo) calculada sempre sobre a base inteira, chave por EAN (fallback código), exige 3+ lojas no mês (2 = "referência fraca").
+     4) cache IndexedDB é limpo ao sair e expira em 7 dias.  5) tabela() escapa HTML por padrão (coluna sem f); html:true para HTML intencional.
+     6) mês atual em hora local, não UTC.  7) fetchAll() pagina lojas, acordos, metas, alertas, produtos_mestre, precos_homologados e vendas_mes_loja de 1000 em 1000.
+     8) recarga de vendas mostra "N novas · M serão sobrescritas" e pede confirmação.  9) cobertura mostra última compra/venda e dias com movimento; lote sem fimC tratado.
+     10) cards do servidor (rebate/ranking/qualidade) mostram o recorte aplicado.  11) CSV protege células que começam com = + - @.
+     12) fornecedor homologado casa por igualdade normalizada; "contém" vira match aproximado, sinalizado.  13) supabase-js fixado em 2.45.4.
+     14) depois de gravar entradas, o último mês do arquivo é comparado com a média dos 3 meses anteriores no banco; abaixo de 70% avisa "confira o export". -->
 <!-- v6.24 · 14/09/2026 · varredura: colunas de B&T so por nome exato ("Entrada" casava com "Data Entrada");
      telefone "-" ou sem digitos vira null; relatorio da carga distingue recarga de linha repetida. -->
 <html lang="pt-BR">
@@ -16,7 +27,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Inteligência Comercial — Rede Pop Pet Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Financeiro v1 · migrado do Central POP em 03/09/2026 -->
 <style>
@@ -364,7 +375,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.25 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.26 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -581,7 +592,7 @@ body.filtrosOff .filters{display:none}
       <button class="btn g" id="acExp">Exportar JSON</button>
       <label class="btn g" style="cursor:pointer">Importar JSON<input type="file" id="acImp" accept=".json" style="display:none"></label>
       <label class="btn g" style="cursor:pointer" title="CSV com colunas Fornecedor, EAN (ou Cód. Produto), Produto, Preço, Início, Fim">Importar preços homologados (CSV)<input type="file" id="homImp" accept=".csv,.txt" style="display:none"></label>
-      <button class="btn g" id="homLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar preços homologados</button> <span class="note" id="homInfo"></span>
+      <span class="note" title="v6.26: o botão de apagar em massa saiu do painel">Para apagar todos os preços homologados: faça pelo SQL Editor do Supabase, com backup antes.</span> <span class="note" id="homInfo"></span>
     </p>
     <p class="note"><b>Faixas:</b> "piso" é o valor comprado a partir do qual a indústria paga aquele %. Deixe o piso <b>em branco ou 0</b> quando o % for fixo sobre tudo; use a própria meta como piso quando só paga ao bater a meta. <b>Distribuidor homologado:</b> pode listar mais de um separado por ";" (ex.: FVO ALIMENTOS; FVO - BRASILIA) — variações de grafia são aceitas. <b>Indústria:</b> é um acordo por indústria, não por marca. Escolha a indústria na primeira coluna e o campo "Marcas incluídas" preenche sozinho com as marcas relacionadas a ela na aba <b>🏭 Parametrização de marcas</b> (ex.: ADIMAX = MAGNUS; FORMULA NATURAL; ORIGENS; BOMGUY; CAPITAO DOG; GATAN). Se faltar marca na lista, o lugar de corrigir é lá, não aqui.<br>Meta e faixas na <b>base escolhida</b>: R$ (custo de entrada) ou kg (peso extraído da descrição — só ração/petisco; faixas de peso de cão em medicamentos são ignoradas). Marcas incluídas: os nomes de fabricante que somam no acordo (ex.: Adimax = MAGNUS; FORMULA NATURAL; ORIGENS; CAPITAO DOG; GATAN). Se a meta for por volume ou por outra base, registre em Obs. e a leitura da aba Rebate deve ser feita com essa ressalva. O nome do fabricante precisa ser idêntico ao que aparece nos relatórios (a lista sugere os nomes existentes).</p>
   </div>
@@ -691,7 +702,7 @@ body.filtrosOff .filters{display:none}
       <p style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn g" id="cExp">Exportar backup completo</button>
         <label class="btn g" style="cursor:pointer">Importar backup<input type="file" id="cImp" accept=".json" style="display:none"></label>
-        <button class="btn g" id="cLimpar" style="color:#B34A0B;border-color:#B34A0B">Apagar tudo</button>
+        <span class="note" title="v6.26: o botão de apagar em massa saiu do painel">Apagar todas as entradas: só pelo SQL Editor do Supabase, com backup antes.</span>
       </p>
     </div>
   </details>
@@ -704,10 +715,12 @@ body.filtrosOff .filters{display:none}
 const fmt=n=>'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt0=n=>'R$ '+Math.round(n).toLocaleString('pt-BR');
 const pct=n=>!isFinite(n)?'—':(n>0?'+':'')+n.toFixed(1).replace('.',',')+'%';
+const diaMes=d=>{const m=String(d||'').match(/(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]:'—'};   // v6.26
 const mesLabel=m=>{if(!m)return '—';const [y,mo]=m.split('-');return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mo-1]+'/'+y.slice(2)};
 const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
 const by=(a,k,f)=>{const m=new Map();for(const x of a){const key=k(x);m.set(key,(m.get(key)||0)+f(x))}return m};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mesLocal=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};   // v6.26: ano/mês locais (toISOString era UTC)
 const $=s=>document.querySelector(s);
 
 /* ---------- categoria por nome ---------- */
@@ -737,11 +750,17 @@ function csvParaLinhas(text,uni){
   const I={d:ix('data'),nf:ix('numeroda','nf'),fo:ix('fornecedor'),fa:ix('fabricante'),ean:ix('codbarra','ean'),cod:ix('codproduto','cdproduto','codigo'),p:ix('produto','descricao','descrição'),q:ix('quantidade','qtd'),c:ix('custofinal','custo')};
   const falt=Object.entries(I).filter(([k,v])=>v<0&&!['ean','fa'].includes(k)).map(([k])=>k);
   if(falt.length)throw new Error('colunas não encontradas: '+falt.join(', '));
+  /* v6.26: identificação da unidade dentro do arquivo (quando o export traz). Só por nome exato de cabeçalho —
+     "unidade" fica de fora porque também é unidade de medida. Devolvida em out.filial para conferir com a loja escolhida. */
+  const iFi=hd.findIndex(h=>['filial','loja','empresa','cnpj','nomefantasia','razaosocial','unidadefranquia','fra'].includes(h));
+  let filial='';
   const out=[];for(const r of rows.slice(1)){
+    if(!filial&&iFi>=0&&r[iFi])filial=String(r[iFi]).trim();
     const dm=String(r[I.d]||'').match(/(\d{2})\/(\d{2})\/(\d{4})/)||String(r[I.d]||'').match(/(\d{4})-(\d{2})-(\d{2})/);if(!dm)continue;
     const d=dm[0].includes('/')?`${dm[3]}-${dm[2]}-${dm[1]}`:dm[0];
     const q=parseInt(r[I.q])||0,c=money(r[I.c]);const p=String(r[I.p]||'').trim();if(!p)continue;
     out.push({u:uni,d,m:d.slice(0,7),nf:String(r[I.nf]||'').trim(),fo:String(r[I.fo]||'').trim()||'(sem fornecedor)',fa:I.fa>=0?String(r[I.fa]||'').trim()||'(sem fabricante)':'(sem fabricante)',cod:String(r[I.cod]||'').trim(),ean:I.ean>=0?String(r[I.ean]||'').trim():'',p,q,c,t:Math.round(q*c*100)/100,cat:categoria(p)})}
+  out.filial=filial;out.temColunaFilial=iFi>=0;
   return out;
 }
 
@@ -784,16 +803,19 @@ $('#lEntrar').onclick=async()=>{try{
 function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_PEND=[];ROT_REV=[];ROT_PARAM=[];INTEG=[];IND_DIST=[];DIST_MARCA=[];MARCAS_CAD=[];INDUSTRIAS_CAD=[];UNIDADES={};VENDAS={};VDATA=[];DATA=[];MESES=[];FABS=[];FORS=[];CATS=[];UNIS=[];LOJAS=[];LJ={};LJID={};ACORDOS=[];MESTRE={};MAPA={};RESUMO={};RESUMO_V={};USER=null;
   Object.assign(F,{de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''});$('#fBusca').value='';$('#hUser').textContent='—';$('#status').textContent='';
   montarFiltros();renderAcordos();render();document.body.classList.add('deslogado')}
-$('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
+$('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}try{await CACHE.limpar()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
 const sbErr=(e,ctx)=>{console.error(ctx,e);alert((ctx?ctx+': ':'')+(e.message||e))};
+/* v6.26: o servidor devolve no máximo 1000 linhas por resposta. Todo select de tabela inteira passa por aqui:
+   mk() devolve um builder novo (o range é aplicado por página); aceita também um builder pronto. */
+async function fetchAll(mk,passo=1000){const out=[];for(let de=0;de<5e6;de+=passo){const b=typeof mk==='function'?mk():mk;const {data,error}=await b.range(de,de+passo-1);if(error)throw error;const d=data||[];out.push(...d);if(d.length<passo)break}return out}
 
 async function carregarLojas(){
-  const {data,error}=await sb.from('lojas').select('*').order('fra');if(error)throw error;
+  const data=await fetchAll(()=>sb.from('lojas').select('*').order('fra').order('id'));
   LOJAS=data.map(r=>({id:r.id,fra:r.fra||'',nome:r.nome,razao:r.razao||'',cnpj:r.cnpj||'',cidade:r.cidade||'',uf:r.uf||'',consultor:r.consultor||'',resp:r.responsavel||'',inaug:r.inauguracao,status:r.status||'Ativa'}));
   LJ={};LJID={};LOJAS.forEach(l=>{l.key=chaveLoja(l);LJ[l.key]=l;LJID[l.id]=l});
 }
 async function carregarAcordos(){
-  const {data,error}=await sb.from('acordos').select('*').order('fabricante');if(error)throw error;
+  const data=await fetchAll(()=>sb.from('acordos').select('*').order('fabricante').order('id'));
   ACORDOS=data.map(r=>({id:r.id,rot:r.rotulo||r.fabricante,fab:r.fabricante,marcas:r.marcas||r.fabricante||'',filtro:r.filtro_produto||'',base:r.base||'valor',dist:r.distribuidor||'',ini:r.inicio||'',fim:r.fim||'',meta:r.meta||'',f1:r.f1||'',p1:r.p1||'',f2:r.f2||'',p2:r.p2||'',f3:r.f3||'',p3:r.p3||'',obs:r.obs||''}));
   ACORDOS_IDS_DB=new Set(ACORDOS.map(a=>a.id));   // o que o painel sabe que existe no banco
 }
@@ -893,7 +915,9 @@ async function carregarLoja(l){
   const esperado=+(RESUMO[l.id]?.itens||0);
   let rows=[],apos=0,maxId=0,doCache=false;
   const c=await CACHE.get(l.id);
-  if(c&&Array.isArray(c.rows)&&c.n<=esperado&&c.maxId>0){rows=c.rows;rows.forEach(r=>r.u=l.key);apos=c.maxId;maxId=c.maxId;doCache=true}
+  const CACHE_TTL=7*24*3600*1000;   // v6.26: registro com mais de 7 dias é descartado (o campo em ja era gravado)
+  if(c&&!(Date.now()-(+c.em||0)<CACHE_TTL)){CACHE.del(l.id)}
+  else if(c&&Array.isArray(c.rows)&&c.n<=esperado&&c.maxId>0){rows=c.rows;rows.forEach(r=>r.u=l.key);apos=c.maxId;maxId=c.maxId;doCache=true}
   // O servidor tem teto próprio de linhas por resposta (menor que o p_limit pedido).
   // Por isso a única parada segura é "veio página vazia" — nunca "veio menos que pedi".
   const baixar=async()=>{const lim=10000;let voltas=0;
@@ -915,7 +939,7 @@ let RESUMO={};
 async function carregarTudo(){
   try{LOADER.abrir();LOADER.fase('Conectando…',0);$('#status').textContent='Conectando…';$('#hUser').textContent=USER.email;
     const{data:perfil}=await sb.from('perfis').select('is_admin').eq('id',USER.id).maybeSingle();
-    if(!perfil||!perfil.is_admin){LOADER.fechar();alert('Este painel é restrito à diretoria/administração. Fale com o André para liberar seu acesso.');await sb.auth.signOut();limparTudo();showLogin('Acesso não autorizado para este e-mail.');return;}
+    if(!perfil||!perfil.is_admin){LOADER.fechar();alert('Este painel é restrito à diretoria/administração. Fale com o André para liberar seu acesso.');await sb.auth.signOut();try{await CACHE.limpar()}catch(e){}limparTudo();showLogin('Acesso não autorizado para este e-mail.');return;}
     await carregarLojas();await carregarAcordos();await carregarMarcas();await carregarMetas();await carregarHomolog();await carregarAlertasDB();
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
     UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
@@ -965,8 +989,17 @@ async function enviarEntradas(loja,linhas,arquivo){
       gravadas=g.data||[]}catch(e){}
   const grav={};let gravValor=0;
   gravadas.forEach(r=>{const m=String(r.data).slice(0,7);const a=grav[m]||(grav[m]={n:0,valor:0});a.n++;a.valor+=+r.total||0;gravValor+=+r.total||0});
+  /* v6.26: mês parcial. resumo_carga() não devolve por mês, então o total dos 3 meses anteriores vem de
+     select count (head) por loja+mês. Último mês do arquivo abaixo de 70% da média dos anteriores = aviso. */
+  let parcial=null;
+  try{const mesesArq=Object.keys(arq.meses).sort();const ult=mesesArq[mesesArq.length-1];
+    if(ult){let [y,mo]=ult.split('-').map(Number);const ant=[];for(let i=0;i<3;i++){mo--;if(mo<1){mo=12;y--}ant.push(`${y}-${String(mo).padStart(2,'0')}`)}
+      const cnt=[];for(const m of ant){const [yy,mm]=m.split('-').map(Number);const fim=new Date(yy,mm,0).getDate();
+        const r=await sb.from('entradas').select('id',{count:'exact',head:true}).eq('loja_id',loja.id).gte('data',m+'-01').lte('data',m+'-'+String(fim).padStart(2,'0'));if(r.error)throw r.error;if(+r.count>0)cnt.push(+r.count)}
+      if(cnt.length>=2){const media=cnt.reduce((a,b)=>a+b,0)/cnt.length;const n=arq.meses[ult].n;const p=Math.round(n/media*100);if(p<70)parcial={mes:ult,n,media:Math.round(media),pct:p,base:cnt.length}}}}
+  catch(e){console.warn('mês parcial',e)}
   $('#status').textContent='';
-  return {ins,dup:rows.length-ins,lidas:rows.length,arq,grav,gravValor,repetidas,
+  return {ins,dup:rows.length-ins,lidas:rows.length,arq,grav,gravValor,repetidas,parcial,
           fabricantes:arq.fabricantes.size,fornecedores:arq.fornecedores.size,nfs:arq.nfs.size};
 }
 
@@ -1032,7 +1065,8 @@ function tabela(el,cols,rows,opts={}){
   const ps=opts.pageSize||0;const show=ps?sorted.slice(st.page*ps,(st.page+1)*ps):sorted;
   let h='<table><thead><tr>'+cols.map((c,i)=>`<th class="${c.n?'n':''} ${i===st.k?'s':''}" data-i="${i}">${c.h}</th>`).join('')+'</tr></thead><tbody>';
   if(!show.length)h+=`<tr><td colspan="${cols.length}" class="empty">Nenhum registro com os filtros atuais.</td></tr>`;
-  show.forEach((r,i)=>{h+=`<tr class="${opts.onClick?'click':''}" data-i="${i}">`+cols.map(c=>`<td class="${c.n?'n':''}">${c.f?c.f(c.v(r),r):c.v(r)}</td>`).join('')+'</tr>'});
+  /* v6.26: coluna sem f é texto — escapada. HTML intencional passa por f ou declara html:true. */
+  show.forEach((r,i)=>{h+=`<tr class="${opts.onClick?'click':''}" data-i="${i}">`+cols.map(c=>`<td class="${c.n?'n':''}">${c.f?c.f(c.v(r),r):c.html?c.v(r):esc(String(c.v(r)??''))}</td>`).join('')+'</tr>'});
   el.innerHTML=h+'</tbody></table>';
   el.querySelectorAll('th').forEach(t=>t.onclick=()=>{const i=+t.dataset.i;if(st.k===i)st.asc=!st.asc;else{st.k=i;st.asc=false}st.page=0;tabela(el,cols,rows,opts)});
   if(opts.onClick)el.querySelectorAll('tr.click').forEach(t=>t.onclick=()=>{el.querySelectorAll('tr.sel').forEach(x=>x.classList.remove('sel'));t.classList.add('sel');opts.onClick(show[+t.dataset.i])});
@@ -1354,18 +1388,24 @@ function renderDistrib(){
 let ACORDOS=[];
 /* ---------- metas (tabela metas) ---------- */
 let METAS=[];
-async function carregarMetas(){const {data,error}=await sb.from('metas').select('*');if(error){console.warn('metas',error.message);METAS=[];return}METAS=data||[]}
+async function carregarMetas(){try{METAS=await fetchAll(()=>sb.from('metas').select('*').order('id'))}catch(error){console.warn('metas',error.message);METAS=[]}}
 function metaDe(ind,def,ref){const m=METAS.find(x=>x.indicador===ind&&x.escopo!=='rede'&&x.ref===ref)||METAS.find(x=>x.indicador===ind&&x.escopo==='rede');return m?+m.valor:def}
 /* ---------- preços homologados (tabela precos_homologados) ---------- */
 let HOMOLOG=[];
-async function carregarHomolog(){const {data,error}=await sb.from('precos_homologados').select('*').range(0,49999);if(error){console.warn('precos_homologados',error.message);HOMOLOG=[];return}HOMOLOG=data||[]}
+async function carregarHomolog(){try{HOMOLOG=await fetchAll(()=>sb.from('precos_homologados').select('*').order('id'))}catch(error){console.warn('precos_homologados',error.message);HOMOLOG=[]}}
+/* v6.26: fornecedor casa por igualdade normalizada (sem acento/caixa). Sem match exato, aceita "contém", mas o
+   resultado volta marcado aprox:true para a tela sinalizar "match aproximado". */
 function homologDe(r){ // preço homologado válido para a linha de entrada r (match por EAN ou código; fornecedor se informado; vigência)
-  let best=null;for(const h of HOMOLOG){if(h.ean&&r.ean&&h.ean!==r.ean)continue;if(!h.ean&&h.cod_produto&&h.cod_produto!==r.cod)continue;if(!h.ean&&!h.cod_produto)continue;
-    if(h.fornecedor&&normFab(h.fornecedor)!==normFab(r.fo)&&!normFab(r.fo).includes(normFab(h.fornecedor)))continue;if(h.inicio&&r.d<h.inicio)continue;if(h.fim&&r.d>h.fim)continue;
-    if(!best||(h.fornecedor&&!best.fornecedor)||(h.inicio||'')>(best.inicio||''))best=h}return best}
+  let best=null,bestAprox=null;const fo=normFab(r.fo);
+  for(const h of HOMOLOG){if(h.ean&&r.ean&&h.ean!==r.ean)continue;if(!h.ean&&h.cod_produto&&h.cod_produto!==r.cod)continue;if(!h.ean&&!h.cod_produto)continue;
+    if(h.inicio&&r.d<h.inicio)continue;if(h.fim&&r.d>h.fim)continue;
+    let aprox=false;if(h.fornecedor){const hf=normFab(h.fornecedor);if(hf!==fo){if(hf&&fo&&(fo.includes(hf)||hf.includes(fo)))aprox=true;else continue}}
+    if(aprox){if(!bestAprox||(h.inicio||'')>(bestAprox.inicio||''))bestAprox=h;continue}
+    if(!best||(h.fornecedor&&!best.fornecedor)||(h.inicio||'')>(best.inicio||''))best=h}
+  return best||(bestAprox?{...bestAprox,aprox:true}:null)}
 /* ---------- alertas com dono (tabela alertas) ---------- */
 let ALERTAS_DB=[];
-async function carregarAlertasDB(){const {data,error}=await sb.from('alertas').select('*').order('criado_em',{ascending:false});if(error){console.warn('alertas',error.message);ALERTAS_DB=[];return}ALERTAS_DB=data||[]}
+async function carregarAlertasDB(){try{ALERTAS_DB=await fetchAll(()=>sb.from('alertas').select('*').order('criado_em',{ascending:false}).order('id'))}catch(error){console.warn('alertas',error.message);ALERTAS_DB=[]}}
 async function registrarAlerta(a){const rec={chave:a.chave,tipo:a.tag,titulo:a.t,detalhe:a.s,status:'aberto',valor:a.valor||null,loja:a.loja||null,fabricante:a.fa||null,fornecedor:a.fo||null,cod_produto:a.cod||null,atualizado_em:new Date().toISOString()};
   const {error}=await sb.from('alertas').upsert(rec,{onConflict:'chave',ignoreDuplicates:true});if(error)throw error;await carregarAlertasDB();renderAlertasDB()}
 async function salvarAlertaDB(id,campos){const {error}=await sb.from('alertas').update({...campos,atualizado_em:new Date().toISOString()}).eq('id',id);if(error)throw error;await carregarAlertasDB();renderAlertasDB()}
@@ -1377,7 +1417,9 @@ function renderAlertasDB(){const el=$('#alertasDB');if(!el)return;const rows=ALE
 /* acordo de uma marca: pelo nome do acordo OU pela lista "Marcas incluídas" (ex.: MAGNUS → acordo ADIMAX) */
 const acordoDe=fa=>{const n=normFab(fa);if(!n)return undefined;return ACORDOS.find(a=>normFab(a.fab)===n)||ACORDOS.find(a=>(a.marcas||'').split(';').map(normFab).includes(n))};
 /* fornecedor bate com o(s) distribuidor(es) homologado(s)? aceita vários separados por ";" e variações de grafia (contém) */
-const homologOk=(fo,dist)=>{if(!dist)return true;const f=normFab(fo);return String(dist).split(';').map(normFab).filter(Boolean).some(d=>f===d||f.includes(d)||d.includes(f))};
+/* v6.26: homologMatch devolve 'exato' (igualdade normalizada), 'aprox' (só "contém") ou null. homologOk mantém o contrato booleano. */
+const homologMatch=(fo,dist)=>{if(!dist)return 'exato';const f=normFab(fo);const ds=String(dist).split(';').map(normFab).filter(Boolean);if(ds.some(d=>f===d))return 'exato';if(f&&ds.some(d=>f.includes(d)||d.includes(f)))return 'aprox';return null};
+const homologOk=(fo,dist)=>!!homologMatch(fo,dist);
 function renderAcordos(){
   const tb=$('#tbAcordos tbody');
   const opts='<datalist id="dlFab">'+INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')+'</datalist><datalist id="dlFor">'+FORS.map(f=>`<option value="${esc(f)}">`).join('')+'</datalist>';
@@ -1420,7 +1462,7 @@ $('#acAdd').onclick=()=>{ACORDOS.push({fab:'',dist:'',ini:MESES[0],fim:MESES[MES
 $('#acSalvar').onclick=async()=>{try{await salvarAcordos();await carregarAcordos();await carregarMarcas();renderAcordos();render();alert('Acordos salvos no banco central.')}catch(e){sbErr(e,'Erro ao salvar acordos')}};
 $('#acExp').onclick=()=>{const b=new Blob([JSON.stringify(ACORDOS,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='acordos_pop.json';a.click()};
 $('#homImp').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const n=await importarHomologCSV(await f.text());$('#homInfo').textContent=`${n} preço(s) importado(s) · ${HOMOLOG.length} no total`;render()}catch(x){sbErr(x,'Erro ao importar preços homologados')}e.target.value=''};
-$('#homLimpar').onclick=async()=>{if(!confirm('Apagar TODOS os preços homologados cadastrados?'))return;try{const {error}=await sb.from('precos_homologados').delete().gte('id',0);if(error)throw error;await carregarHomolog();render()}catch(x){sbErr(x,'Erro ao apagar')}};
+/* v6.26: apagar todos os preços homologados saiu do painel — faça pelo SQL Editor do Supabase, com backup. */
 $('#acImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{ACORDOS=JSON.parse(r.result);renderAcordos();$('#acSalvar').click()}catch(x){alert('Arquivo inválido.')}};r.readAsText(f)};
 
 /* ---------- render principal ---------- */
@@ -1482,7 +1524,8 @@ const fmtBase=(v,base)=>base==='kg'?(v>=1000?(v/1000).toLocaleString('pt-BR',{ma
 const v2Filtros=()=>({p_desde:F.de,p_ate:F.ate,...(F.uf?{p_uf:F.uf}:{}),...(F.cons?{p_consultor:F.cons}:{}),...(F.u&&LJ[F.u]?{p_loja:LJ[F.u].id}:{})});
 const v2Rec=()=>{const p=[mesLabel(F.de)+' – '+mesLabel(F.ate)];if(F.u)p.push(lojaLbl(F.u));if(F.uf)p.push('UF '+F.uf);if(F.cons)p.push('consultor '+F.cons);return p.join(' · ')};
 const v2Pc=v=>v==null?'—':(+v).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-const v2Aviso=()=>(F.fa||F.fo||F.cat||F.q)?'<p class="note">⚠ Os filtros de fabricante, fornecedor, categoria e busca <b>não se aplicam</b> a esta aba (ela usa período, UF, consultor e loja).</p>':'';
+/* v6.26: todo card servido por RPC v2 (rebate, ranking, qualidade) mostra sempre o recorte que o servidor usou. */
+const v2Aviso=()=>'<p class="note">recorte: <b>'+esc(v2Rec())+'</b>'+(F.uf?'':' · UF: todas')+(F.cons?'':' · consultor: todos')+(F.u?'':' · loja: todas')+' <span style="color:var(--mu)">(fabricante/fornecedor/categoria não se aplicam aqui)</span>'+((F.fa||F.fo||F.cat||F.q)?'<br>⚠ Os filtros de fabricante, fornecedor, categoria e busca <b>não se aplicam</b> a esta aba (ela usa período, UF, consultor e loja).':'')+'</p>';
 function renderRebate(){
   const kp=$('#kpisReb'),ind=$('#tbRebInd'),tb=$('#tbReb');if(!tb)return;
   if(!sb||!USER)return;
@@ -1517,7 +1560,7 @@ function renderFornec(D){
     const lista=[...s.entries()].sort((a,b)=>b[1]-a[1]);const forah=hom?lista.filter(x=>!homologOk(x[0],hom)).reduce((a,x)=>a+x[1],0):0;
     rows.push({fa,tot,n:s.size,hom,forah,forahP:hom?forah/tot*100:null,lista})});
   tabela($('#tbFabFor'),[{h:'Fabricante',v:r=>r.fa},{h:'Comprado',n:1,v:r=>r.tot,f:fmt0},{h:'Fornec.',n:1,v:r=>r.n},
-    {h:'Distribuição por fornecedor',v:r=>r.n,f:(v,r)=>r.lista.map(([fo,val])=>`<span class="tag ${r.hom?(homologOk(fo,r.hom)?'ok':'no'):'nt'}" title="${fmt0(val)}">${esc(fo)} ${(val/r.tot*100).toFixed(0)}%</span>`).join(' ')},
+    {h:'Distribuição por fornecedor',v:r=>r.n,f:(v,r)=>r.lista.map(([fo,val])=>{const mt=r.hom?homologMatch(fo,r.hom):null;return `<span class="tag ${r.hom?(mt?'ok':'no'):'nt'}" title="${fmt0(val)}${mt==='aprox'?' · match aproximado: o nome do fornecedor só contém o do homologado':''}">${esc(fo)} ${(val/r.tot*100).toFixed(0)}%${mt==='aprox'?' <small title="match aproximado">≈</small>':''}</span>`}).join(' ')},
     {h:'Homologado',v:r=>r.hom||'',f:v=>v||'<small style="color:var(--mu)">não cadastrado</small>'},
     {h:'Fora do homologado',n:1,v:r=>r.forahP??-1,f:(v,r)=>v<0?'—':v===0?'<span class="tag ok">0%</span>':`<span class="tag no">${v.toFixed(0)}% · ${fmt0(r.forah)}</span>`}],rows,{sort:1});
   const ms=new Map();D.forEach(r=>{if(!ms.has(r.cod))ms.set(r.cod,{cod:r.cod,p:r.p,fa:r.fa,fos:new Map(),t:0});const o=ms.get(r.cod);o.t+=r.t;const f=o.fos.get(r.fo)||{q:0,v:0};f.q+=r.q;f.v+=r.t;o.fos.set(r.fo,f)});
@@ -1637,21 +1680,29 @@ function renderItens(D){
   $('#itensCount').textContent=D.length.toLocaleString('pt-BR')+' itens';
   ITENS=tabela($('#tbItens'),[{h:'Unidade',v:r=>r.u},{h:'Data',v:r=>r.d,f:v=>v.split('-').reverse().join('/')},{h:'NF',v:r=>r.nf},{h:'Fornecedor',v:r=>r.fo},{h:'Fabricante',v:r=>r.fa},{h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">cód ${r.cod} · ${r.ean}</small>`},{h:'Categoria',v:r=>r.cat},{h:'Qtd',n:1,v:r=>r.q},{h:'Custo',n:1,v:r=>r.c,f:fmt},{h:'Total',n:1,v:r=>r.t,f:fmt}],D,{sort:0,asc:false,pageSize:50,pager:$('#pgItens')});
 }
-$('#btnCsv').onclick=()=>{const h='Unidade;Data;NF;Fornecedor;Fabricante;Cod;EAN;Produto;Categoria;Qtd;Custo;Total\n';const b=ITENS.map(r=>[r.u,r.d,r.nf,r.fo,r.fa,r.cod,r.ean,r.p,r.cat,r.q,String(r.c).replace('.',','),String(r.t).replace('.',',')].map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';')).join('\n');
+$('#btnCsv').onclick=()=>{const h='Unidade;Data;NF;Fornecedor;Fabricante;Cod;EAN;Produto;Categoria;Qtd;Custo;Total\n';const b=ITENS.map(r=>[r.u,r.d,r.nf,r.fo,r.fa,r.cod,r.ean,r.p,r.cat,r.q,String(r.c).replace('.',','),String(r.t).replace('.',',')].map(csvCel).join(';')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+h+b],{type:'text/csv'}));a.download='itens_filtrados.csv';a.click()};
 
 
 /* ---------- comparativo de unidades ---------- */
-function calcRef(D){REF={};REFD={};const m=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;const k=r.cod+'|'+r.m;if(!m.has(k))m.set(k,new Map());const s=m.get(k);const l=s.get(r.u)||{c:0,q:0,fos:new Map()};l.c+=r.c*r.q;l.q+=r.q;l.fos.set(r.fo||'',(l.fos.get(r.fo||'')||0)+r.q);s.set(r.u,l)});
-  m.forEach((s,k)=>{if(s.size<2)return;const lojas=[...s.entries()].map(([u,l])=>({u,c:l.c/l.q,q:l.q,fo:[...l.fos.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''})).sort((a,b)=>a.c-b.c);REF[k]=mediana(lojas.map(l=>l.c));REFD[k]=lojas});return REF}
+/* v6.26: a referência é SEMPRE calculada sobre a base inteira (DATA), nunca sobre o recorte dos filtros — senão
+   filtrar por UF/consultor mudava a referência e o sobrepreço. Chave por EAN quando existe (fallback código) + mês.
+   Precisa de 3+ lojas no mês para valer (REF); com 2 lojas fica só em REFD, marcada fraca, para o detalhe mostrar
+   "referência fraca" sem entrar no sobrepreço. Cacheada por identidade/tamanho de DATA. */
+const refKey=r=>(r.ean?'e'+r.ean:'c'+r.cod)+'|'+r.m;
+let _REF_SRC=null,_REF_N=-1;
+function calcRef(){if(_REF_SRC===DATA&&_REF_N===DATA.length)return REF;_REF_SRC=DATA;_REF_N=DATA.length;
+  REF={};REFD={};const m=new Map();DATA.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;const k=refKey(r);if(!m.has(k))m.set(k,new Map());const s=m.get(k);const l=s.get(r.u)||{c:0,q:0,fos:new Map()};l.c+=r.c*r.q;l.q+=r.q;l.fos.set(r.fo||'',(l.fos.get(r.fo||'')||0)+r.q);s.set(r.u,l)});
+  m.forEach((s,k)=>{if(s.size<2)return;const lojas=[...s.entries()].map(([u,l])=>({u,c:l.c/l.q,q:l.q,fo:[...l.fos.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''})).sort((a,b)=>a.c-b.c);lojas.fraca=s.size<3;lojas.med=mediana(lojas.map(l=>l.c));REFD[k]=lojas;if(s.size>=3)REF[k]=lojas.med});return REF}
 /* detalhe da referencia: com quais lojas, em que mes, a que custo — o mesmo mes sempre (a referencia e por produto E mes) */
 function refDetalheHTML(u,cod){
-  const meses=[...new Set(UNI_D.filter(r=>r.u===u&&r.cod===cod&&r.c>0&&r.q>0).map(r=>r.m))].sort();
-  const linhas=meses.map(mm=>{const k=cod+'|'+mm;const lojas=REFD[k];if(!lojas)return `<tr><td>${mesLabel(mm)}</td><td colspan="4" style="color:var(--mu)">só esta loja comprou neste mês — fora da conta</td></tr>`;
-    const eu=lojas.find(l=>l.u===u);const outras=lojas.filter(l=>l.u!==u);const ref=REF[k];
+  const porMes=new Map();UNI_D.forEach(r=>{if(r.u===u&&r.cod===cod&&r.c>0&&r.q>0&&!porMes.has(r.m))porMes.set(r.m,refKey(r))});
+  const meses=[...porMes.keys()].sort();
+  const linhas=meses.map(mm=>{const k=porMes.get(mm);const lojas=REFD[k];if(!lojas)return `<tr><td>${mesLabel(mm)}</td><td colspan="4" style="color:var(--mu)">só esta loja comprou neste mês — fora da conta</td></tr>`;
+    const eu=lojas.find(l=>l.u===u);const outras=lojas.filter(l=>l.u!==u);const ref=REF[k]??lojas.med;const fraca=!!lojas.fraca;
     const lista=outras.map(l=>`<span class="tag ${l.c<=ref?'ok':'at'}" title="${esc(l.fo||'sem fornecedor')}">${esc(lojaLbl(l.u))} · ${fmt(l.c)} · ${l.q.toLocaleString('pt-BR')} un</span>`).join(' ');
-    return `<tr><td style="white-space:nowrap">${mesLabel(mm)}</td><td class="n" style="white-space:nowrap">${eu?fmt(eu.c):'—'}<br><small style="color:var(--mu)">${eu?eu.q.toLocaleString('pt-BR')+' un · '+esc(eu.fo||'—'):''}</small></td><td class="n" style="white-space:nowrap"><b>${fmt(ref)}</b><br><small style="color:var(--mu)">mediana de ${lojas.length} lojas</small></td><td class="n">${eu?`<span class="tag ${eu.c>ref*1.02?'no':eu.c>ref?'at':'ok'}">${pct((eu.c/ref-1)*100)}</span>`:'—'}</td><td style="line-height:1.9">${lista}</td></tr>`}).join('');
-  return `<tr class="refdet"><td colspan="7" style="background:#F4F8F5;padding:10px 12px"><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Referência = mediana do custo médio das lojas que compraram <b>este produto no mesmo mês</b> (filtros de UF/consultor/período aplicados). Verde = pagou até a mediana, amarelo = acima. Passe o mouse na loja para ver o fornecedor.</div>
+    return `<tr><td style="white-space:nowrap">${mesLabel(mm)}</td><td class="n" style="white-space:nowrap">${eu?fmt(eu.c):'—'}<br><small style="color:var(--mu)">${eu?eu.q.toLocaleString('pt-BR')+' un · '+esc(eu.fo||'—'):''}</small></td><td class="n" style="white-space:nowrap"${fraca?' title="referência fraca: só 2 lojas compraram neste mês — não entra no sobrepreço"':''}><b>${fmt(ref)}</b>${fraca?' <span class="tag at" title="referência fraca: só 2 lojas compraram neste mês — não entra no sobrepreço">referência fraca</span>':''}<br><small style="color:var(--mu)">mediana de ${lojas.length} lojas</small></td><td class="n">${eu?`<span class="tag ${eu.c>ref*1.02?'no':eu.c>ref?'at':'ok'}">${pct((eu.c/ref-1)*100)}</span>`:'—'}</td><td style="line-height:1.9">${lista}</td></tr>`}).join('');
+  return `<tr class="refdet"><td colspan="7" style="background:#F4F8F5;padding:10px 12px"><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Referência = mediana do custo médio das lojas que compraram <b>este produto (mesmo EAN, ou código quando não há EAN) no mesmo mês</b>, na rede inteira — os filtros de UF/consultor/período não mudam a referência. Precisa de 3 ou mais lojas no mês; com 2 lojas aparece como <b>referência fraca</b> e não entra no sobrepreço. Verde = pagou até a mediana, amarelo = acima. Passe o mouse na loja para ver o fornecedor.</div>
     <div class="tw"><table style="font-size:12.5px"><thead><tr><th>Mês</th><th class="n">Esta loja pagou</th><th class="n">Referência</th><th class="n">Dif.</th><th>Lojas comparadas (custo médio no mês)</th></tr></thead><tbody>${linhas||'<tr><td colspan="5" class="empty">Sem compras comparáveis.</td></tr>'}</tbody></table></div></td></tr>`}
 /* ======================= COMPARATIVO DE UNIDADES (reescrito 14/09/2026) =======================
    Uma linha por loja com so o que decide alguma coisa: quanto compra vs. o esperado, se esta
@@ -1660,12 +1711,12 @@ function refDetalheHTML(u,cod){
    Agrupar por consultor/UF usa exatamente as mesmas colunas; clicar num grupo filtra as lojas. */
 let UNI_ROWS=[],UNI_FILTRO=null,UNI_D=[],REFD={};
 function uniMontar(D){
-  calcRef(D);
+  calcRef();
   const porU=new Map();
   D.forEach(r=>{let o=porU.get(r.u);
     if(!o){o={u:r.u,t:0,ms:new Map(),fabs:new Map(),fos:new Map(),comp:0,sobre:0,nComp:new Set(),nAcima:new Set(),prod:new Map()};porU.set(r.u,o)}
     o.t+=r.t;o.ms.set(r.m,(o.ms.get(r.m)||0)+r.t);o.fabs.set(r.fa,(o.fabs.get(r.fa)||0)+r.t);o.fos.set(r.fo,(o.fos.get(r.fo)||0)+r.t);
-    const ref=REF[r.cod+'|'+r.m];
+    const ref=REF[refKey(r)];
     if(ref!=null&&r.c>0&&r.q>0){const sb_=(r.c-ref)*r.q;o.comp+=r.t;o.sobre+=sb_;o.nComp.add(r.cod);if(r.c>ref*1.02)o.nAcima.add(r.cod);
       let p=o.prod.get(r.cod);if(!p){p={cod:r.cod,p:r.p,fa:r.fa,q:0,v:0,refv:0,sobre:0,fos:new Map(),n:0};o.prod.set(r.cod,p)}
       p.q+=r.q;p.v+=r.c*r.q;p.refv+=ref*r.q;p.sobre+=sb_;p.n++;p.fos.set(r.fo,(p.fos.get(r.fo)||0)+r.t)}
@@ -1802,7 +1853,9 @@ function uniDetalhe(r){
   const ex=$('#uniDet [data-uexp]');if(ex)ex.onclick=()=>baixarCSV(`sobrepreco_${(L.fra||r.u)}.csv`,prods.map(p=>({produto:p.p,fabricante:p.fa,codigo:p.cod,fornecedor:p.fo,qtd:p.q,custo_pago:p.custo.toFixed(2),referencia:p.ref.toFixed(2),dif_pct:p.dif.toFixed(1),sobrepreco:p.sobre.toFixed(2)})));
   card.scrollIntoView({behavior:'smooth',block:'start'});
 }
-function baixarCSV(nome,rows){if(!rows.length)return;const ks=Object.keys(rows[0]);const csv=[ks.join(';'),...rows.map(r=>ks.map(k=>'"'+String(r[k]??'').replace(/"/g,'""')+'"').join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download=nome;a.click()}
+/* v6.26: célula que começa com = + - @ ganha apóstrofo (injeção de fórmula no Excel); número puro (ex.: -12,5) fica como está. */
+const csvCel=x=>{let s=String(x??'');if(/^[=+\-@]/.test(s)&&!/^[+-]?\d+([.,]\d+)?$/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+function baixarCSV(nome,rows){if(!rows.length)return;const ks=Object.keys(rows[0]);const csv=[ks.join(';'),...rows.map(r=>ks.map(k=>csvCel(r[k])).join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download=nome;a.click()}
 function renderDisp(D){
   const un=+$('#uN').value||2;const ms=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;if(!ms.has(r.cod))ms.set(r.cod,{cod:r.cod,p:r.p,fa:r.fa,t:0,q:0,us:new Map()});const o=ms.get(r.cod);o.t+=r.t;o.q+=r.q;const x=o.us.get(r.u)||{q:0,v:0};x.q+=r.q;x.v+=r.t;o.us.set(r.u,x)});
   const disp=[];ms.forEach(o=>{if(o.us.size<un)return;const cs=[...o.us.values()].map(x=>x.v/x.q);const medc=mediana(cs);o.us.forEach((x,u)=>{if(x.v/x.q<medc*0.2)o.us.delete(u)});if(o.us.size<un)return;const ar=[...o.us.entries()].map(([u,x])=>({u,med:x.v/x.q,q:x.q,v:x.v})).sort((a,b)=>a.med-b.med);const rede=o.t/o.q;const lo=ar[0],hi=ar[ar.length-1];
@@ -1821,7 +1874,19 @@ $('#uExp').onclick=()=>baixarCSV('comparativo_unidades.csv',UNI_ROWS.map(r=>({un
 /* ---------- carga de dados ---------- */
 
 function ligarAcoesCarga(ctx){
-  ctx.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;if(!confirm(`Remover todas as compras E vendas de "${u}" do banco central?`))return;try{const _idDel=UNIDADES[u].id;const {error}=await sb.from('entradas').delete().eq('loja_id',_idDel);if(error)throw error;delete UNIDADES[u];await CACHE.del(_idDel);const rv=await sb.from('vendas').delete().eq('loja_id',LJ[u]?.id);if(rv.error&&!/vendas/i.test(rv.error.message))throw rv.error;if(LJ[u]?.id)await sb.rpc('refresh_vendas_agg',{p_loja:LJ[u].id});delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[LJ[u]?.id];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
+  /* v6.26: a exclusão por loja passou para a RPC ic_apagar_loja (SECURITY DEFINER, só admin), que exige o nome
+     exato da loja como confirmação, apaga entradas + vendas, refaz os agregados e grava auditoria. Nunca chama
+     .eq('loja_id', undefined): sem loja_id, aborta. */
+  ctx.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=b.dataset.del;
+    const lojaId=LJ[u]?.id??UNIDADES[u]?.id??VENDAS[u]?.id??null;
+    if(lojaId==null){alert(`"${u}" não tem loja_id no cadastro — nada foi removido. Corrija o cadastro de lojas ou use "Renomear" para mover as entradas.`);return}
+    const L=LJ[u]||LJID[lojaId];const nomeEsperado=String(L?.nome||'').trim();
+    if(!nomeEsperado){alert('Loja sem nome no cadastro — a exclusão exige o nome para confirmar. Nada foi removido.');return}
+    const conf=prompt(`Remover TODAS as compras E vendas de "${u}" do banco central?\n\nEsta ação não pode ser desfeita. Para confirmar, digite exatamente o nome da loja:\n\n${nomeEsperado}`);
+    if(conf==null)return;
+    if(conf.trim()!==nomeEsperado){alert('O nome digitado não confere com o cadastro — nada foi removido.');return}
+    try{const {error}=await sb.rpc('ic_apagar_loja',{p_loja_id:lojaId,p_confirmacao:conf.trim()});if(error)throw error;
+      delete UNIDADES[u];await CACHE.del(lojaId);delete VENDAS[u];delete VMES[u];recomporVendas();delete RESUMO[lojaId];delete RESUMO_V[lojaId];recompor();montarFiltros(true);render()}catch(e){sbErr(e,'Erro ao remover')}});
   ctx.querySelectorAll('[data-ren]').forEach(b=>b.onclick=async()=>{const u=b.dataset.ren;const n=prompt('Mover as entradas para qual loja do cadastro? (nome exato, ex.: "93 · POP PET JARAGUÁ")',u);if(!n||n===u)return;const alvo=LJ[n];if(!alvo){alert('Loja não encontrada no cadastro.');return}try{const {error}=await sb.from('entradas').update({loja_id:alvo.id}).eq('loja_id',UNIDADES[u].id);if(error)throw error;await carregarTudo()}catch(e){sbErr(e,'Erro ao mover')}});
 }
 /* ---------- conferência banco × memória ----------
@@ -1919,9 +1984,15 @@ function renderCarga(){
     const pv=dv.filter(r=>r.tipo==='Produto'&&!r.inst);const pc=pv.filter(r=>r.cf!=='sem custo');
     const tv=ov?sum(dv.filter(r=>!r.inst),r=>r.t):Object.values(vm).reduce((a,x)=>a+(+x.venda||0),0);
     const t=sum(d,r=>r.t);
-    return {u:l.key,L:l,fora,tem:!!o,temV:temVenda,detV:!!ov,n:d.length,
+    /* v6.26: no modo lote a loja é gravada sem trazer os itens para a memória — fimC vinha indefinido.
+       Cai no resumo do banco (RESUMO). Última compra/venda e dias com movimento vêm das linhas em memória. */
+    const rs=RESUMO[l.id]||null;const fimC=msC[msC.length-1]||(rs?rs.mes_fim:undefined);
+    let ultC='',diasC=0;if(d.length){d.forEach(r=>{if(r.d>ultC)ultC=r.d});diasC=new Set(d.filter(r=>r.m===fimC).map(r=>r.d)).size}
+    let ultV='';dv.forEach(r=>{const x=r.ult||r.d||'';if(x>ultV)ultV=x});
+    return {u:l.key,L:l,fora,tem:!!o||!!rs,temV:temVenda,detV:!!ov,n:d.length||+(rs?.itens||0),emMem:!!o&&d.length>0,
+      ultC,diasC,ultV,
       nv:ov?sum(dv,r=>r.n||1):Object.values(vm).reduce((a,x)=>a+(+x.linhas||0),0),
-      mesesC:msC.length,iniC:msC[0],fimC:msC[msC.length-1],arqC:new Set(d.map(r=>r.arq).filter(Boolean)).size||(o?.arqs?.length||0),
+      mesesC:msC.length||+(rs?.meses||0),iniC:msC[0]||(rs?rs.mes_ini:undefined),fimC,arqC:new Set(d.map(r=>r.arq).filter(Boolean)).size||(o?.arqs?.length||0),
       mesesV:msV.length,iniV:msV[0],fimV:msV[msV.length-1],arqV:somaV(vmesRows(true,l.key)).arqs.size,
       t,tv,margem:pc.length?sum(pc,r=>r.le)/sum(pc,r=>r.t)*100:null,
       custo0:d.filter(r=>r.c===0).length,
@@ -1935,8 +2006,8 @@ function renderCarga(){
   tabela($('#tbCarga'),[
     {h:'FRA',n:1,v:r=>+r.L.fra||9999,f:(v,r)=>r.L.fra||'—'},
     {h:'Loja',v:r=>r.L.nome,f:(v,r)=>`${esc(v)}${r.fora?' <span class="tag no">fora do cadastro</span>':''}<br><small style="color:var(--mu)">${esc(r.L.cidade||'')}${r.L.uf?'/'+r.L.uf:''}${r.L.consultor?' · '+esc(r.L.consultor):''}</small>`},
-    {h:'Compras',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ok">até ${mesLabel(r.fimC)}</span><br><small style="color:var(--mu)">${r.mesesC} m · ${r.n.toLocaleString('pt-BR')} it</small>`:'<span class="tag nt">—</span>'},
-    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>r.temV?`<span class="tag ok">até ${mesLabel(r.fimV)}</span><br><small style="color:var(--mu)">${r.mesesV} m · ${(r.nv||0).toLocaleString('pt-BR')} it</small>`:'<span class="tag nt">—</span>'},
+    {h:'Compras',v:r=>r.tem?1:0,f:(v,r)=>r.tem?`<span class="tag ${r.fimC?'ok':'at'}" title="${r.emMem?'':'itens não carregados na memória — resumo do banco'}">até ${r.fimC?mesLabel(r.fimC):'?'}</span><br><small style="color:var(--mu)">${r.mesesC} m · ${r.n.toLocaleString('pt-BR')} it${r.ultC?`<br>última compra em ${diaMes(r.ultC)} · ${r.diasC} dia(s) com movimento em ${mesLabel(r.fimC)}`:(r.emMem?'':'<br>itens não carregados (resumo do banco)')}</small>`:'<span class="tag nt">—</span>'},
+    {h:'Vendas',v:r=>r.temV?1:0,f:(v,r)=>r.temV?`<span class="tag ok">até ${mesLabel(r.fimV)}</span><br><small style="color:var(--mu)">${r.mesesV} m · ${(r.nv||0).toLocaleString('pt-BR')} it${r.ultV?`<br>última venda em ${diaMes(r.ultV)}`:''}</small>`:'<span class="tag nt">—</span>'},
     {h:'',v:r=>r.u,f:(v,r)=>`<button class="btn g" data-sel="${esc(v)}" style="font-size:11px;padding:3px 9px">+ carregar</button>${r.tem||r.temV?` <button class="btn g" data-det="${esc(v)}" style="font-size:11px;padding:3px 9px">Detalhe</button>`:''}`}
   ],rows,{sort:0,asc:true});
   const porU={};rows.forEach(r=>porU[r.u]=r);
@@ -1979,7 +2050,7 @@ $('#cExp').onclick=()=>{const b=new Blob([JSON.stringify({acordos:ACORDOS,unidad
 $('#cImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const j=JSON.parse(r.result);let tot=0;
   for(const o of j.unidades||[]){let loja=LJ[o.u];if(!loja){const {data,error}=await sb.from('lojas').insert({nome:o.u,status:'Ativa'}).select().single();if(error)throw error;await carregarLojas();loja=LJID[data.id]}const rr=await enviarEntradas(loja,o.rows,'backup');tot+=rr.ins}
   if(j.acordos){ACORDOS=j.acordos;await salvarAcordos()}await carregarTudo();alert('Backup importado: '+tot+' itens novos gravados.')}catch(x){$('#status').textContent='';sbErr(x,'Erro ao importar')}};r.readAsText(f);e.target.value=''};
-$('#cLimpar').onclick=async()=>{if(!confirm('Apagar TODAS as entradas de TODAS as lojas no banco central? Esta ação não pode ser desfeita.'))return;if(prompt('Digite APAGAR para confirmar')!=='APAGAR')return;try{const {error}=await sb.from('entradas').delete().gte('id',0);if(error)throw error;await CACHE.limpar();await carregarTudo()}catch(e){sbErr(e,'Erro ao apagar')}};
+/* v6.26: "Apagar tudo" (entradas de todas as lojas) saiu do painel — faça pelo SQL Editor do Supabase, com backup. */
 /* ======================= MÓDULO DE VENDAS (BI Global) ======================= */
 let VENDAS={};      // chave loja -> {u,id,rows}
 let VDATA=[];       // todas as linhas de venda
@@ -2049,6 +2120,8 @@ const lojaPorFilial=f=>{
   if(n){const l=LOJAS.find(l=>rotNorm(l.nome)===n);if(l)return l}
   return null;
 };
+/* v6.26: identificação vinda do arquivo de entradas pode ser CNPJ (14 dígitos) ou o texto da filial. */
+const lojaPorIdent=f=>{const dg=String(f||'').replace(/\D/g,'');if(dg.length===14){const l=LOJAS.find(l=>String(l.cnpj||'').replace(/\D/g,'')===dg);if(l)return l}return lojaPorFilial(f)};
 
 /* ---- resolução de marca / segmento / custo ---- */
 let MAPA={};  // ean -> {fab, fonte, seg, custoKg, custoUn, custoFonte}
@@ -2079,7 +2152,7 @@ function custoDe(r){ // retorna {c, fonte}
 function enriquecer(){VDATA.forEach(r=>{r.inst=r.tipo==='Produto'&&(r.instS!==undefined?r.instS:r.q>=50);r.fa=marcaDe(r);r.fonte=fonteMarca(r);r.seg=segDe(r);const c=custoDe(r);r.ce=c.c;r.cf=c.fonte;r.le=r.t-r.ce})}
 
 /* ---- Supabase ---- */
-async function carregarMestre(){const {data,error}=await sb.from('produtos_mestre').select('*');if(error)throw error;MESTRE={};data.forEach(r=>MESTRE[r.ean]=r)}
+async function carregarMestre(){const data=await fetchAll(()=>sb.from('produtos_mestre').select('*').order('ean'));MESTRE={};data.forEach(r=>MESTRE[r.ean]=r)}
 /* FASE 2: as vendas chegam AGREGADAS por loja × mês × produto (tabela vendas_mes_sku), 4× menos linhas que o BI Global bruto.
    Cada linha traz n (linhas originais), np (pedidos distintos), nc0/tc0 (linhas e valor sem custo), nneg/pneg (venda abaixo do custo) e inst (regra composta calculada no banco). */
 const mapV=(r,key)=>({u:key,d:r.primeira||(r.mes+'-01'),m:r.mes,ped:'',seq:0,cod:r.cod_produto,ean:r.ean||'',p:r.produto,gr:r.grupo||'',sg:r.subgrupo||'',faL:normFab(r.fabricante_loja),fo:r.fornecedor||'',tipo:r.tipo||'Produto',bal:!!r.balanca,q:+r.qtd,pb:0,pl:0,t:+r.total,c:+r.custo,l:+r.lucro,cc:'',cl:'',ba:'',ve:'',n:+r.n||1,np:+r.pedidos||0,instS:!!r.inst,nc0:+r.n_custo0||0,tc0:+r.total_custo0||0,nneg:+r.n_neg||0,pneg:+r.perda_neg||0,ult:r.ultima||''});
@@ -2093,7 +2166,7 @@ async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=10000;le
   rows.sort((a,b)=>a.m<b.m?-1:a.m>b.m?1:0);
   VENDAS[l.key]={u:l.key,id:l.id,rows}}
 let VMES={};   // loja -> mês -> resumo (pedidos, clientes, venda, identificação) da tabela vendas_mes_loja
-async function carregarVMes(){const {data,error}=await sb.from('vendas_mes_loja').select('*').range(0,49999);if(error)throw error;VMES={};data.forEach(r=>{const l=LJID[r.loja_id];if(!l)return;(VMES[l.key]=VMES[l.key]||{})[r.mes]=r})}
+async function carregarVMes(){const data=await fetchAll(()=>sb.from('vendas_mes_loja').select('*').order('loja_id').order('mes'));VMES={};data.forEach(r=>{const l=LJID[r.loja_id];if(!l)return;(VMES[l.key]=VMES[l.key]||{})[r.mes]=r})}
 /* linhas de resumo mensal dentro dos filtros de loja/UF/consultor (e período, salvo ignoreMes). Filtros de marca/fornecedor/produto NÃO se aplicam (pedido é do cupom inteiro). */
 function vmesRows(ignoreMes,uOnly){const out=[];Object.entries(VMES).forEach(([u,ms])=>{if(uOnly&&u!==uOnly)return;if(!uOnly&&((F.u&&u!==F.u)||(F.uf&&lojaDe(u).uf!==F.uf)||(F.cons&&lojaDe(u).consultor!==F.cons)))return;Object.entries(ms).forEach(([m,r])=>{if(!ignoreMes&&(m<F.de||m>F.ate))return;out.push({u,m,r})})});return out}
 function somaV(rows){const o={ped:0,pedv:0,cli:0,venda:0,vprod:0,vserv:0,vinst:0,vsem:0,pedsem:0,pedserv:0,itens:0,linhas:0,meses:0,lojas:new Set(),arqs:new Set()};rows.forEach(({u,r})=>{o.ped+=r.pedidos;o.pedv+=r.pedidos_varejo;o.cli+=r.clientes;o.venda+=+r.venda;o.vprod+=+r.venda_prod;o.vserv+=+r.venda_serv;o.vinst+=+r.venda_inst;o.vsem+=+r.venda_sem_cadastro;o.pedsem+=r.pedidos_sem_cadastro;o.pedserv+=r.pedidos_com_servico;o.itens+=r.itens_prod;o.linhas+=r.linhas;o.meses++;o.lojas.add(u);String(r.arquivos||'').split('; ').filter(Boolean).forEach(a=>o.arqs.add(a))});return o}
@@ -2145,6 +2218,14 @@ async function enviarVendas(loja,linhas,arquivo){
     cliente_tel:r.tel||null,especie:r.esp||null,pago_em:r.pag,canal:r.can||null,delivery:r.dlv,
     avaliacao:r.av||null,operador_bt:r.opbt||null,veterinario:r.vet||null,desconto_pct:r.dsc,
     arquivo}));
+  /* v6.26: recarga sobrescreve. Antes de gravar, conta o que já existe no banco para a loja nos meses do arquivo
+     e pede confirmação com "N novas · M serão sobrescritas". Cancelar aborta só este arquivo. */
+  if(RECARGA){const meses=[...new Set(rows.map(r=>String(r.data).slice(0,7)))].sort();let exist=0;const det=[];
+    for(const m of meses){const [y,mo]=m.split('-').map(Number);const fim=new Date(y,mo,0).getDate();
+      const r=await sb.from('vendas').select('id',{count:'exact',head:true}).eq('loja_id',loja.id).gte('data',m+'-01').lte('data',m+'-'+String(fim).padStart(2,'0'));if(r.error)throw r.error;
+      const n=+r.count||0;exist+=n;det.push(relMes(m)+': '+n.toLocaleString('pt-BR'))}
+    const novas=Math.max(0,rows.length-exist);
+    if(!confirm('Recarga · '+loja.key+'\n'+arquivo+'\n\n'+rows.length.toLocaleString('pt-BR')+' linhas no arquivo\n≈ '+novas.toLocaleString('pt-BR')+' linhas novas · '+exist.toLocaleString('pt-BR')+' linhas já existentes no banco serão SOBRESCRITAS\n(já no banco por mês: '+det.join(' · ')+')\n\nContinuar?'))throw new Error('recarga cancelada — nada foi gravado para este arquivo')}
   let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:!RECARGA}).select('id');if(error)throw error;ins+=data.length;const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
     PROG.set(PROG._tit||('Enviando vendas '+loja.key),`${feito.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas`,PROG._base+(PROG._fatia||0)*feito/rows.length);await respira()}
   $('#status').textContent='Atualizando resumos de '+loja.key+'…';const rf=await sb.rpc('refresh_vendas_agg',{p_loja:loja.id});if(rf.error)throw rf.error;
@@ -2325,7 +2406,7 @@ function renderTV(){
   const V=FONTE.filter(r=>!r.inst);const P=V.filter(r=>r.tipo==='Produto');
   const mesesV=[...new Set(FONTE.map(r=>r.m))].sort(),mesesC=[...new Set(DATA.map(r=>r.m))].sort();
   const mv=mesesV[mesesV.length-1],mc=mesesC[mesesC.length-1];
-  const mesAtual=new Date().toISOString().slice(0,7);
+  const mesAtual=mesLocal();
   if(!mv&&!mc){el.innerHTML='<div class="empty" style="font-size:22px">Sem dados carregados.</div>';return}
   const n=x=>x.toLocaleString('pt-BR');
   // ---- mesma base: só lojas presentes nos DOIS meses comparados
@@ -2518,7 +2599,7 @@ async function abrirQualidadeItens(lojaId,check){
   try{const {data,error}=await sb.rpc('v2_qualidade_itens',{p_loja:lojaId,p_check:check,p_desde:F.de,p_ate:F.ate,p_limite:300});if(error)throw error;
     tabela(tb,[{h:'Ref.',v:r=>r.ref||''},{h:'Data/mês',v:r=>r.data||''},{h:'Produto',v:r=>r.produto||'',f:esc},{h:'Fornecedor',v:r=>r.fornecedor||'',f:esc},
       {h:'Qtd',v:r=>+r.qtd||0,n:true},{h:'Valor',v:r=>+r.valor||0,n:true,f:fmt0},{h:'Detalhe',v:r=>r.detalhe||'',f:esc}],data,{sort:5,pageSize:50,pager:(()=>{let pg=$('#qPager');if(!pg){pg=document.createElement('p');pg.id='qPager';pg.className='note';tb.after(pg)}return pg})()});
-    $('#qExp').onclick=()=>{const csv=['ref;data;produto;fornecedor;qtd;valor;detalhe',...data.map(r=>[r.ref,r.data,r.produto,r.fornecedor,r.qtd,r.valor,r.detalhe].map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(';'))].join('\n');
+    $('#qExp').onclick=()=>{const csv=['ref;data;produto;fornecedor;qtd;valor;detalhe',...data.map(r=>[r.ref,r.data,r.produto,r.fornecedor,r.qtd,r.valor,r.detalhe].map(csvCel).join(';'))].join('\n');
       const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=`qualidade_${check}_${lojaId}.csv`;a.click()};
   }catch(e){tb.innerHTML=`<div class="empty">${esc(e.message||e)}</div>`}
 }
@@ -2814,7 +2895,7 @@ async function processarUploadFaturamentoIC(file){
     if(kFra&&kFat){linhas=tmp;colValor=kFat;break;}
   }
   if(!linhas){alert('Não encontrei as colunas esperadas (FRA + FATURAMENTO ...) em nenhuma aba desse arquivo.');return;}
-  const mesSugestao=new Date().toISOString().slice(0,7)+'-01';
+  const mesSugestao=mesLocal()+'-01';
   const mesInformado=prompt('Confirme o mês de referência deste faturamento (formato AAAA-MM-01):',mesSugestao);
   if(!mesInformado||!/^\d{4}-\d{2}-01$/.test(mesInformado)){alert('Mês inválido, upload cancelado.');return;}
   const registros=linhas.map(l=>{const fra=Number(l['FRA']),valor=Number(l[colValor]);if(!Number.isFinite(fra)||!Number.isFinite(valor))return null;return{fra,mes_ano:mesInformado,valor,registros_no_mes:1,fonte:'upload_mensal'};}).filter(Boolean);
@@ -2837,7 +2918,7 @@ async function processarUploadInadimplenciaIC(file){
     if(idx>=0){brutas=tmp.slice(idx+1);break;}
   }
   if(!brutas){alert('Não encontrei a coluna "Nome do cliente ou fornecedor" em nenhuma aba. Confirme que é o export de Análise de inadimplência do Conta Azul.');return;}
-  const mesSugestao=new Date().toISOString().slice(0,7)+'-01';
+  const mesSugestao=mesLocal()+'-01';
   const mesInformado=prompt('Confirme o mês de referência deste snapshot de inadimplência (formato AAAA-MM-01):',mesSugestao);
   if(!mesInformado||!/^\d{4}-\d{2}-01$/.test(mesInformado)){alert('Mês inválido, upload cancelado.');return;}
   const registros=[];
@@ -3053,10 +3134,11 @@ function abrirRelCarga(REL,tot){
     if(!r.ins)avisos.push('<div class="relav ruim">Nenhuma linha nova. Este arquivo já tinha sido carregado por inteiro.</div>');
     if(r.arq?.zerados)avisos.push(`<div class="relav">${r.arq.zerados} linha(s) com valor zero ou negativo (bonificação, brinde ou devolução). Entram no banco, mas não somam custo.</div>`);
     if(r.arq?.qtdZero)avisos.push(`<div class="relav ruim">${r.arq.qtdZero} linha(s) com quantidade zerada — vale conferir no relatório de origem.</div>`);
+    if(r.parcial)avisos.push(`<div class="relav ruim"><b>Mês ${relMes(r.parcial.mes)} veio com ${r.parcial.pct}% do esperado</b> — ${r.parcial.n.toLocaleString('pt-BR')} linha(s) no arquivo contra média de ${r.parcial.media.toLocaleString('pt-BR')} nos ${r.parcial.base} mês(es) anteriores já no banco. Confira o export: pode ter vindo cortado.</div>`);
     if(r.repetidas)avisos.push(`<div class="relav ruim"><b>Conferir:</b> ${r.repetidas} linha(s) idêntica(s) dentro da mesma NF — mesmo produto, mesma quantidade, mesmo custo. Em dados antigos do OnePet isso costuma ser defeito de exportação, não compra real. Abra a NF no ERP e compare o valor total antes de confiar neste número.</div>`);
     return `<div class="relf">
       <div class="rt">${esc(r.arquivo)}</div>
-      <div class="rs">${esc(r.loja)} · ${mesesArq.length?relMes(mesesArq[0])+' a '+relMes(mesesArq[mesesArq.length-1]):'sem período'} · ${r.nfs||0} NF(s) · ${r.fornecedores||0} fornecedor(es) · ${r.fabricantes||0} fabricante(s)</div>
+      <div class="rs">${esc(r.loja)} · ${mesesArq.length?relMes(mesesArq[0])+' a '+relMes(mesesArq[mesesArq.length-1]):'sem período'} · ${r.nfs||0} NF(s) · ${r.fornecedores||0} fornecedor(es) · ${r.fabricantes||0} fabricante(s)${r.filial?' · filial no arquivo: <b>'+esc(r.filial)+'</b>'+(r.filialDiverge?' <span class="tag no">divergente de '+esc(r.loja)+' — gravado por confirmação</span>':''):''}</div>
       <div class="relnum">
         <div>lidas do arquivo<b>${(r.lidas||0).toLocaleString('pt-BR')}</b></div>
         <div>gravadas agora<b style="color:var(--v)">${(r.ins||0).toLocaleString('pt-BR')}</b></div>
@@ -3079,6 +3161,7 @@ function abrirRelCarga(REL,tot){
     ${err.map(e=>`<div class="relf"><div class="rt">${esc(e.arquivo)}</div><div class="relav ruim">${esc(e.erro)}</div></div>`).join('')}
     ${ent.map(cartao).join('')}
     ${bi.map(r=>`<div class="relf"><div class="rt">${esc(r.arquivo)}</div><div class="rs">${esc(r.loja)} · BI Global</div>
+      ${r.filial?`<div class="rs">filial no arquivo: <b>${esc(r.filial)}</b></div>`:''}
       <div class="relnum"><div>lidas<b>${(r.lidas||0).toLocaleString('pt-BR')}</b></div>
       <div>gravadas<b style="color:var(--v)">${(r.ins||0).toLocaleString('pt-BR')}</b></div>
       <div>já existiam<b style="color:var(--mu)">${(r.dup||0).toLocaleString('pt-BR')}</b></div></div></div>`).join('')}
@@ -3125,18 +3208,26 @@ async function cgGravar(){
           let loja=LJ[i.lojaKey];
           if(!loja){const _m='loja "'+i.lojaKey+'" não está no cadastro';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
           const txt=await i.file.text();const ls=csvParaLinhas(txt,loja.key);
+          /* v6.26: o arquivo diz de que unidade é? Se a filial/CNPJ do arquivo resolver para outra loja do cadastro,
+             só grava com confirmação explícita mostrando os dois nomes. A filial sempre vai para o log e o relatório. */
+          const filialArq=ls.filial||'';const lojaArq=filialArq?lojaPorIdent(filialArq):null;
+          let filialNota=ls.temColunaFilial?(filialArq?' · filial no arquivo: "'+esc(filialArq)+'"'+(lojaArq?(lojaArq.id===loja.id?' (confere)':' ⚠ = '+esc(lojaArq.key)+', gravado por confirmação'):' (não reconhecida no cadastro)'):' · coluna de filial vazia'):' · arquivo sem coluna de filial';
+          if(lojaArq&&lojaArq.id!==loja.id){
+            const okDiv=confirm('ATENÇÃO — '+i.file.name+'\n\nO arquivo diz que é da filial "'+filialArq+'"\n→ no cadastro: '+lojaArq.key+'\n\nMas a loja escolhida na lista foi:\n→ '+loja.key+'\n\nGravar mesmo assim em "'+loja.key+'"?\n(Cancelar = pular este arquivo)');
+            if(!okDiv){const _m='filial do arquivo "'+filialArq+'" ('+lojaArq.key+') diverge da loja escolhida "'+loja.key+'" — arquivo pulado';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
+          }
           const r=await enviarEntradas(loja,ls,i.file.name);
           addE+=r.ins;dupE+=r.dup;tocadasE.add(loja.key);
-          REL.push({tipo:'entradas',arquivo:i.file.name,loja:loja.key,...r});
-          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' itens'+(r.dup?' ('+r.dup+' já existiam)':''));
+          REL.push({tipo:'entradas',arquivo:i.file.name,loja:loja.key,filial:filialArq,filialDiverge:!!(lojaArq&&lojaArq.id!==loja.id),filialLoja:lojaArq?lojaArq.key:'',...r});
+          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' itens'+(r.dup?' ('+r.dup+' já existiam)':'')+filialNota+(r.parcial?' · ⚠ '+relMes(r.parcial.mes)+' veio com '+r.parcial.pct+'% do esperado — confira o export':''));
         }else if(i.tipo==='bi'){
           const txt=await i.file.text();const{linhas,filial}=biParaLinhas(txt);
           const loja=lojaPorFilial(filial);
           if(!loja){const _m='filial "'+(filial||'(coluna Filial vazia)')+'" não encontrada no cadastro — confira o número da FRA na aba Lojas';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
           const r=await enviarVendas(loja,linhas,i.file.name);
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
-          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
-          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(RECARGA?' gravadas ou atualizadas (recarga)':(r.dup?' ('+r.dup+' já existiam)':'')));
+          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,filial,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
+          msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(RECARGA?' gravadas ou atualizadas (recarga)':(r.dup?' ('+r.dup+' já existiam)':''))+' · filial no arquivo: "'+esc(filial)+'"');
         }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
@@ -3381,20 +3472,21 @@ function renderIdxFab(D){const el=$('#tbIdxFab');if(!el)return;const ms=new Map(
 function renderConc(D){const el=$('#tbConc');if(!el)return;const m=new Map();D.forEach(r=>{const o=m.get(r.fa)||{fa:r.fa,t:0,fo:new Map(),lojas:new Set()};o.t+=r.t;o.fo.set(r.fo,(o.fo.get(r.fo)||0)+r.t);o.lojas.add(r.u);m.set(r.fa,o)});
   const rows=[...m.values()].filter(o=>o.t>0).map(o=>{const ar=[...o.fo.entries()].sort((a,b)=>b[1]-a[1]);const top=ar[0];const hhi=sum(ar,x=>Math.pow(x[1]/o.t*100,2));return {fa:o.fa,t:o.t,n:ar.length,top:top[0],share:top[1]/o.t*100,seg:ar[1]?ar[1][0]+' ('+pctS(ar[1][1]/o.t*100)+')':'—',hhi,lojas:o.lojas.size}});
   tabela(el,[{h:'Indústria',v:r=>r.fa,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${r.lojas} loja(s)</small>`},{h:'Comprado',n:1,v:r=>r.t,f:fmt0},{h:'Fornecedores',n:1,v:r=>r.n},{h:'Principal',v:r=>r.top,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">2º: ${esc(r.seg)}</small>`},{h:'Share do principal',n:1,v:r=>r.share,f:v=>`<span class="tag ${v>=90?'no':v>=70?'at':'ok'}" title="${v>=90?'dependência: sem alternativa cotada':v>=70?'concentrado':'pulverizado'}">${pctS(v)}</span>`},{h:'',v:r=>r.share,f:v=>barCell(v,100,v>=90?'o':'')}],rows,{sort:1})}
-function renderSobreFor(D){const el=$('#tbSobreFor');if(!el)return;const m=new Map();D.forEach(r=>{const ref=REF[r.cod+'|'+r.m];if(ref==null||!(r.c>0))return;const o=m.get(r.fo)||{fo:r.fo,comp:0,sobre:0,n:new Set(),acima:new Set(),lojas:new Set()};o.comp+=r.t;o.sobre+=(r.c-ref)*r.q;o.n.add(r.cod);if(r.c>ref*1.02)o.acima.add(r.cod);o.lojas.add(r.u);m.set(r.fo,o)});
+function renderSobreFor(D){const el=$('#tbSobreFor');if(!el)return;calcRef();const m=new Map();D.forEach(r=>{const ref=REF[refKey(r)];if(ref==null||!(r.c>0))return;const o=m.get(r.fo)||{fo:r.fo,comp:0,sobre:0,n:new Set(),acima:new Set(),lojas:new Set()};o.comp+=r.t;o.sobre+=(r.c-ref)*r.q;o.n.add(r.cod);if(r.c>ref*1.02)o.acima.add(r.cod);o.lojas.add(r.u);m.set(r.fo,o)});
   const rows=[...m.values()].map(o=>({...o,n:o.n.size,acima:o.acima.size,lojas:o.lojas.size,desvio:o.comp?o.sobre/o.comp*100:0}));const mx=Math.max(...rows.map(r=>Math.max(0,r.sobre)),1);
   tabela(el,[{h:'Fornecedor',v:r=>r.fo,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">${r.lojas} loja(s)</small>`},{h:'Compra comparável',n:1,v:r=>r.comp,f:fmt0},{h:'Produtos',n:1,v:r=>r.n},{h:'Acima da referência',n:1,v:r=>r.acima,f:(v,r)=>`${v} <small style="color:var(--mu)">(${pctS(v/r.n*100)})</small>`},{h:'Desvio médio',n:1,v:r=>r.desvio,f:v=>`<span class="tag ${v>5?'no':v>1?'at':'ok'}">${pct(v)}</span>`},{h:'Sobrepreço',n:1,v:r=>r.sobre,f:v=>`<span style="color:${v>0?'#B34A0B':'var(--vd)'}">${fmt0(v)}</span>`},{h:'',v:r=>Math.max(0,r.sobre),f:v=>barCell(v,mx,'o')}],rows,{sort:5})}
 /* ---------- aderência ao preço homologado ---------- */
 function renderHomolog(D){const el=$('#tbHomFor');if(!el)return;
   if(!HOMOLOG.length){$('#kpisHom').innerHTML='';el.innerHTML='<div class="empty">Nenhum preço homologado cadastrado. Importe a tabela negociada (CSV) em <b>Cadastro de acordos</b> → "Importar preços homologados".</div>';$('#tbHomLoja').innerHTML='';$('#homNote').textContent='';return}
   const porFo=new Map(),porLoja=new Map();let comp=0,compH=0,sobre=0,nAcima=0,nComp=0,semRef=0;
-  D.forEach(r=>{if(!(r.c>0))return;comp+=r.t;const h=homologDe(r);if(!h){semRef+=r.t;return}const ref=+h.preco;nComp++;compH+=r.t;const dif=(r.c-ref)*r.q;const acima=r.c>ref*1.005;if(acima){sobre+=dif;nAcima++}
+  let nAprox=0;
+  D.forEach(r=>{if(!(r.c>0))return;comp+=r.t;const h=homologDe(r);if(!h){semRef+=r.t;return}if(h.aprox)nAprox++;const ref=+h.preco;nComp++;compH+=r.t;const dif=(r.c-ref)*r.q;const acima=r.c>ref*1.005;if(acima){sobre+=dif;nAcima++}
     const f=porFo.get(r.fo)||{fo:r.fo,comp:0,sobre:0,n:0,acima:0,prods:new Set(),lojas:new Set()};f.comp+=r.t;f.n++;if(acima){f.sobre+=dif;f.acima++;f.prods.add(r.cod)}f.lojas.add(r.u);porFo.set(r.fo,f);
     const l=porLoja.get(r.u)||{u:r.u,comp:0,sobre:0,n:0,acima:0,prods:new Set()};l.comp+=r.t;l.n++;if(acima){l.sobre+=dif;l.acima++;l.prods.add(r.cod)}porLoja.set(r.u,l)});
   $('#kpisHom').innerHTML=`<div class="kpi"><span>Compra com preço homologado</span><b>${pctS(comp?compH/comp*100:0)}</b><i>${fmt0(compH)} de ${fmt0(comp)} · ${HOMOLOG.length} preços cadastrados</i></div><div class="kpi o"><span>Sobrepreço vs. homologado</span><b>${fmt0(sobre)}</b><i>${nAcima} de ${nComp} linhas acima do negociado</i></div><div class="kpi a"><span>Aderência</span><b>${pctS(nComp?100-nAcima/nComp*100:0)}</b><i>linhas no preço ou abaixo</i></div>`;
   const cols=(k)=>[{h:k==='fo'?'Fornecedor':'Unidade',v:r=>k==='fo'?r.fo:r.u,f:(v,r)=>`${esc(k==='fo'?v:lojaLbl(v))}${r.lojas?`<br><small style="color:var(--mu)">${r.lojas.size} loja(s)</small>`:''}`},{h:'Compra c/ homologado',n:1,v:r=>r.comp,f:fmt0},{h:'Linhas',n:1,v:r=>r.n},{h:'Acima do negociado',n:1,v:r=>r.acima,f:(v,r)=>`${v} <small style="color:var(--mu)">(${pctS(v/r.n*100)}) · ${r.prods.size} produto(s)</small>`},{h:'Sobrepreço',n:1,v:r=>r.sobre,f:v=>`<span style="color:${v>0?'#B34A0B':'var(--vd)'}">${fmt0(v)}</span>`},{h:'Aderência',n:1,v:r=>100-r.acima/r.n*100,f:v=>`<span class="tag ${v>=95?'ok':v>=85?'at':'no'}">${pctS(v)}</span>`}];
   tabela(el,cols('fo'),[...porFo.values()],{sort:4});tabela($('#tbHomLoja'),cols('u'),[...porLoja.values()],{sort:4});
-  $('#homNote').textContent=`Compras sem preço homologado correspondente (EAN/código, fornecedor ou vigência fora): ${fmt0(semRef)}. Tolerância de 0,5%. Só linhas com custo > 0.`}
+  $('#homNote').textContent=`Compras sem preço homologado correspondente (EAN/código, fornecedor ou vigência fora): ${fmt0(semRef)}. Tolerância de 0,5%. Só linhas com custo > 0.`+(nAprox?` ${nAprox} linha(s) com match aproximado de fornecedor (nome só "contém" o homologado) — confira a grafia no cadastro.`:'')}
 async function importarHomologCSV(text){const rows=parseCSV(text);if(rows.length<2)throw new Error('arquivo vazio');const hd=rows[0].map(norm);const ix=(...a)=>{for(const x of a){const i=hd.findIndex(h=>h===norm(x));if(i>=0)return i}for(const x of a){const i=hd.findIndex(h=>h.includes(norm(x)));if(i>=0)return i}return -1};
   const I={fo:ix('fornecedor','distribuidor'),fa:ix('fabricante','industria','marca'),ean:ix('ean','codbarra','codigodebarras'),cod:ix('codproduto','codigo','cod'),p:ix('produto','descricao'),pr:ix('preco','precohomologado','valor','custo'),un:ix('unidade','un'),ini:ix('inicio','vigenciainicio','de'),fim:ix('fim','vigenciafim','ate'),cond:ix('condicao','condicoes','prazo'),obs:ix('obs','observacao')};
   if(I.fo<0||I.pr<0||(I.ean<0&&I.cod<0))throw new Error('precisa das colunas Fornecedor, Preço e EAN (ou Cód. Produto)');
