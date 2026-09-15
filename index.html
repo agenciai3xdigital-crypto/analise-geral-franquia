@@ -6,6 +6,8 @@
 <!-- v6.23 · 14/09/2026 · dois consertos na carga:
      1) "Data Pagamento" vem como 0000-00-00 00:00:00 em pedido nao pago; agora vira null em vez de derrubar o arquivo.
      2) coluna Filial passou a vir como "FR - 59 NOME" (traco entre FR e numero) e a loja nao era encontrada. -->
+<!-- v6.25 · 15/09/2026 · comparativo de unidades: clique no produto do sobrepreço abre, mês a mês, a loja
+     contra as lojas que formaram a referência (custo médio, quantidade, fornecedor) — mesma regra: produto + mês. -->
 <!-- v6.24 · 14/09/2026 · varredura: colunas de B&T so por nome exato ("Entrada" casava com "Data Entrada");
      telefone "-" ou sem digitos vira null; relatorio da carga distingue recarga de linha repetida. -->
 <html lang="pt-BR">
@@ -362,7 +364,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.24 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.25 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -1640,14 +1642,23 @@ $('#btnCsv').onclick=()=>{const h='Unidade;Data;NF;Fornecedor;Fabricante;Cod;EAN
 
 
 /* ---------- comparativo de unidades ---------- */
-function calcRef(D){REF={};const m=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;const k=r.cod+'|'+r.m;if(!m.has(k))m.set(k,new Map());const s=m.get(k);const l=s.get(r.u)||{c:0,q:0};l.c+=r.c*r.q;l.q+=r.q;s.set(r.u,l)});
-  m.forEach((s,k)=>{if(s.size<2)return;REF[k]=mediana([...s.values()].map(l=>l.c/l.q))});return REF}
+function calcRef(D){REF={};REFD={};const m=new Map();D.forEach(r=>{if(!(r.c>0)||!(r.q>0))return;const k=r.cod+'|'+r.m;if(!m.has(k))m.set(k,new Map());const s=m.get(k);const l=s.get(r.u)||{c:0,q:0,fos:new Map()};l.c+=r.c*r.q;l.q+=r.q;l.fos.set(r.fo||'',(l.fos.get(r.fo||'')||0)+r.q);s.set(r.u,l)});
+  m.forEach((s,k)=>{if(s.size<2)return;const lojas=[...s.entries()].map(([u,l])=>({u,c:l.c/l.q,q:l.q,fo:[...l.fos.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''})).sort((a,b)=>a.c-b.c);REF[k]=mediana(lojas.map(l=>l.c));REFD[k]=lojas});return REF}
+/* detalhe da referencia: com quais lojas, em que mes, a que custo — o mesmo mes sempre (a referencia e por produto E mes) */
+function refDetalheHTML(u,cod){
+  const meses=[...new Set(UNI_D.filter(r=>r.u===u&&r.cod===cod&&r.c>0&&r.q>0).map(r=>r.m))].sort();
+  const linhas=meses.map(mm=>{const k=cod+'|'+mm;const lojas=REFD[k];if(!lojas)return `<tr><td>${mesLabel(mm)}</td><td colspan="4" style="color:var(--mu)">só esta loja comprou neste mês — fora da conta</td></tr>`;
+    const eu=lojas.find(l=>l.u===u);const outras=lojas.filter(l=>l.u!==u);const ref=REF[k];
+    const lista=outras.map(l=>`<span class="tag ${l.c<=ref?'ok':'at'}" title="${esc(l.fo||'sem fornecedor')}">${esc(lojaLbl(l.u))} · ${fmt(l.c)} · ${l.q.toLocaleString('pt-BR')} un</span>`).join(' ');
+    return `<tr><td style="white-space:nowrap">${mesLabel(mm)}</td><td class="n" style="white-space:nowrap">${eu?fmt(eu.c):'—'}<br><small style="color:var(--mu)">${eu?eu.q.toLocaleString('pt-BR')+' un · '+esc(eu.fo||'—'):''}</small></td><td class="n" style="white-space:nowrap"><b>${fmt(ref)}</b><br><small style="color:var(--mu)">mediana de ${lojas.length} lojas</small></td><td class="n">${eu?`<span class="tag ${eu.c>ref*1.02?'no':eu.c>ref?'at':'ok'}">${pct((eu.c/ref-1)*100)}</span>`:'—'}</td><td style="line-height:1.9">${lista}</td></tr>`}).join('');
+  return `<tr class="refdet"><td colspan="7" style="background:#F4F8F5;padding:10px 12px"><div style="font-size:12px;color:var(--mu);margin-bottom:6px">Referência = mediana do custo médio das lojas que compraram <b>este produto no mesmo mês</b> (filtros de UF/consultor/período aplicados). Verde = pagou até a mediana, amarelo = acima. Passe o mouse na loja para ver o fornecedor.</div>
+    <div class="tw"><table style="font-size:12.5px"><thead><tr><th>Mês</th><th class="n">Esta loja pagou</th><th class="n">Referência</th><th class="n">Dif.</th><th>Lojas comparadas (custo médio no mês)</th></tr></thead><tbody>${linhas||'<tr><td colspan="5" class="empty">Sem compras comparáveis.</td></tr>'}</tbody></table></div></td></tr>`}
 /* ======================= COMPARATIVO DE UNIDADES (reescrito 14/09/2026) =======================
    Uma linha por loja com so o que decide alguma coisa: quanto compra vs. o esperado, se esta
    pagando caro (sobrepreco vs. referencia da rede), concentracao num fabricante, tendencia
    dos ultimos 3 meses e venda ÷ compra. Todo o detalhe abre no clique da linha.
    Agrupar por consultor/UF usa exatamente as mesmas colunas; clicar num grupo filtra as lojas. */
-let UNI_ROWS=[],UNI_FILTRO=null,UNI_D=[];
+let UNI_ROWS=[],UNI_FILTRO=null,UNI_D=[],REFD={};
 function uniMontar(D){
   calcRef(D);
   const porU=new Map();
@@ -1767,9 +1778,9 @@ function uniDetalhe(r){
   // A) onde esta o sobrepreco
   const prods=[...o.prod.values()].map(p=>({...p,custo:p.q?p.v/p.q:0,ref:p.q?p.refv/p.q:0,dif:p.refv?(p.v/p.refv-1)*100:0,fo:[...p.fos.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''})).sort((a,b)=>b.sobre-a.sobre);
   const top=prods.slice(0,15);
-  const blocoA=`<h4 style="margin:14px 0 6px">Onde está o sobrepreço <small style="color:var(--mu);font-weight:400">· 15 produtos que mais custam acima da referência da rede${prods.length>15?' · <a data-uexp="prod" style="cursor:pointer;color:var(--v);font-weight:700">exportar todos ('+prods.length+')</a>':''}</small></h4>
+  const blocoA=`<h4 style="margin:14px 0 6px">Onde está o sobrepreço <small style="color:var(--mu);font-weight:400">· 15 produtos que mais custam acima da referência da rede · <b>clique no produto para ver com quem está comparando</b>${prods.length>15?' · <a data-uexp="prod" style="cursor:pointer;color:var(--v);font-weight:700">exportar todos ('+prods.length+')</a>':''}</small></h4>
     <table style="font-size:13px"><thead><tr><th>Produto</th><th>Fornecedor principal</th><th class="n">Qtd</th><th class="n">Custo pago</th><th class="n">Referência</th><th class="n">Dif.</th><th class="n">Sobrepreço</th></tr></thead><tbody>
-    ${top.map(p=>`<tr><td>${esc(p.p)}<br><small style="color:var(--mu)">${esc(p.fa)} · cód ${esc(p.cod)}</small></td><td>${esc(p.fo)}</td><td class="n">${p.q.toLocaleString('pt-BR')}</td><td class="n">${fmt(p.custo)}</td><td class="n">${fmt(p.ref)}</td><td class="n"><span class="tag ${p.dif>5?'no':p.dif>0?'at':'ok'}">${pct(p.dif)}</span></td><td class="n" style="font-weight:700;color:${p.sobre>0?'#B34A0B':'var(--vd)'}">${fmt0(p.sobre)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Nenhum produto comparável com outras lojas no período.</td></tr>'}</tbody></table>`;
+    ${top.map(p=>`<tr data-pcod="${esc(p.cod)}" style="cursor:pointer" title="clique para ver com quais lojas e em quais meses a referência foi calculada"><td>${esc(p.p)}<br><small style="color:var(--mu)">${esc(p.fa)} · cód ${esc(p.cod)}</small></td><td>${esc(p.fo)}</td><td class="n">${p.q.toLocaleString('pt-BR')}</td><td class="n">${fmt(p.custo)}</td><td class="n">${fmt(p.ref)}</td><td class="n"><span class="tag ${p.dif>5?'no':p.dif>0?'at':'ok'}">${pct(p.dif)}</span></td><td class="n" style="font-weight:700;color:${p.sobre>0?'#B34A0B':'var(--vd)'}">${fmt0(p.sobre)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Nenhum produto comparável com outras lojas no período.</td></tr>'}</tbody></table>`;
   // B) mix por fabricante vs rede
   const redeFab=by(UNI_D,x=>x.fa,x=>x.t);const redeTot=sum(UNI_D,x=>x.t);
   const fabs=[...o.fabs.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -1787,6 +1798,7 @@ function uniDetalhe(r){
   const blocoD=`<h4 style="margin:18px 0 6px">Fornecedores <small style="color:var(--mu);font-weight:400">· de quem a loja compra</small></h4>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${fos.map(([f,v])=>`<span class="tag nt" title="${fmt0(v)}">${esc(f||'(sem fornecedor)')} ${(v/r.t*100).toFixed(0)}%</span>`).join('')}</div>`;
   $('#uniDet').innerHTML=cab+`<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px" class="uniDetGrid"><div>${blocoA}${blocoC}</div><div>${blocoB}${blocoD}</div></div>`;
+  if(!o.lojas)$('#uniDet').querySelectorAll('tr[data-pcod]').forEach(tr=>tr.onclick=()=>{const nx=tr.nextElementSibling;if(nx&&nx.classList.contains('refdet')){nx.remove();return}$('#uniDet').querySelectorAll('tr.refdet').forEach(x=>x.remove());tr.insertAdjacentHTML('afterend',refDetalheHTML(o.u,tr.dataset.pcod))});
   const ex=$('#uniDet [data-uexp]');if(ex)ex.onclick=()=>baixarCSV(`sobrepreco_${(L.fra||r.u)}.csv`,prods.map(p=>({produto:p.p,fabricante:p.fa,codigo:p.cod,fornecedor:p.fo,qtd:p.q,custo_pago:p.custo.toFixed(2),referencia:p.ref.toFixed(2),dif_pct:p.dif.toFixed(1),sobrepreco:p.sobre.toFixed(2)})));
   card.scrollIntoView({behavior:'smooth',block:'start'});
 }
