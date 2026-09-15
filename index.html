@@ -8,7 +8,8 @@
      2) coluna Filial passou a vir como "FR - 59 NOME" (traco entre FR e numero) e a loja nao era encontrada. -->
 <!-- v6.25 · 15/09/2026 · comparativo de unidades: clique no produto do sobrepreço abre, mês a mês, a loja
      contra as lojas que formaram a referência (custo médio, quantidade, fornecedor) — mesma regra: produto + mês. -->
-<!-- v6.29 · 15/09/2026 · carga do BI Global: 'Preço Bruto' com código de barras no lugar do preço (bug de exportação do One Pet) não derruba mais a carga — vale o preço líquido.
+<!-- v6.30 · 15/09/2026 · janela de carga: no login entram só os últimos 12 meses (compras e venda por produto); escolher um "De" anterior no filtro carrega os meses antigos sob demanda. RPCs entradas_lote3, vendas_agg_lote3, resumo_carga_janela, conferencia_carga_janela.
+     v6.29 · 15/09/2026 · carga do BI Global: 'Preço Bruto' com código de barras no lugar do preço (bug de exportação do One Pet) não derruba mais a carga — vale o preço líquido.
      v6.28 · 15/09/2026 · loja com status Encerrada some da tabela de carga (opção "Só encerradas" no Mostrar), dos filtros de unidade/UF/consultor, da busca ⌘K, da cobertura da TV e da qualidade por loja. Dados ficam no banco.
      v6.27 · 15/09/2026 · contagem de cobertura: 'com dados' só entre lojas ativas; card de carga separa não inauguradas × encerradas e avisa loja com dado sem estar ativa.
      v6.26 · 15/09/2026 · varredura de segurança e consistência:
@@ -378,7 +379,7 @@ body.filtrosOff .filters{display:none}
 </header>
 <aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.29 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.30 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -775,6 +776,17 @@ const FIXO=CFG.url&&CFG.key&&CFG.key!=='COLE_AQUI_A_CHAVE_ANON';
 if(!FIXO){try{Object.assign(CFG,JSON.parse(localStorage.getItem('pop_sb_cfg')||'{}'))}catch(e){}}
 let sb=null,USER=null,LOJAS=[],LJ={},LJID={};
 const lojaDe=u=>LJ[u]||{fra:'',nome:u,consultor:'',cidade:'',uf:'',status:''};
+/* v6.30: JANELA DE CARGA. No login o painel traz só os últimos 12 meses de compras (e de venda por produto,
+   quando alguém abre Mercado/TV). Os meses mais antigos continuam no banco e entram sob demanda: basta
+   escolher um "De" anterior ao início da janela — ampliarJanela() recarrega as lojas com o novo início.
+   Resumos mensais (vendas_mes_loja, tv_loja_mes) continuam vindo inteiros: são leves e alimentam a cobertura. */
+const JANELA={desde:null,meses:12};   // desde = 'YYYY-MM-01'
+let RESUMO_W={};                       // itens/valor por loja dentro da janela (resumo_carga_janela)
+const mesMenos=(ym,n)=>{let [y,m]=ym.split('-').map(Number);m-=n;while(m<1){m+=12;y--}while(m>12){m-=12;y++}return y+'-'+String(m).padStart(2,'0')};
+const BASE_MESES=()=>{const ini=[...Object.values(RESUMO).map(r=>r.mes_ini),...Object.values(RESUMO_V).map(r=>r.mes_ini)].filter(Boolean).sort()[0];
+  const fim=[...Object.values(RESUMO).map(r=>r.mes_fim),...Object.values(RESUMO_V).map(r=>r.mes_fim)].filter(Boolean).sort().pop();
+  if(!ini||!fim)return MESES.slice();const out=[];let m=ini;while(m<=fim&&out.length<600){out.push(m);m=mesMenos(m,-1)}return out};
+async function carregarResumoJanela(){const {data,error}=await sb.rpc('resumo_carga_janela',{p_desde:JANELA.desde});if(error)throw error;RESUMO_W={};(data||[]).forEach(r=>RESUMO_W[r.loja_id]=r)}
 /* v6.29: o BI Global do One Pet às vezes exporta o CÓDIGO DE BARRAS na coluna "Preço Bruto" (ex.: 7.898.670.000.000,00).
    Isso estourava a coluna numeric(12,2) e a carga inteira falhava com "numeric field overflow". Preço bruto absurdo
    (acima de R$ 1 milhão ou 1000× o preço líquido) passa a valer o preço líquido; a ocorrência vai para o console. */
@@ -923,16 +935,17 @@ const CACHE={db:null,
 };
 let CACHE_STATS={cache:0,rede:0};
 async function carregarLoja(l){
-  const esperado=+(RESUMO[l.id]?.itens||0);
+  const esperado=+((RESUMO_W[l.id]||{}).itens||0);
   let rows=[],apos=0,maxId=0,doCache=false;
-  const c=await CACHE.get(l.id);
+  let c=await CACHE.get(l.id);
+  if(c&&c.desde!==JANELA.desde){CACHE.del(l.id);c=null}   // cache gravado com outra janela não serve
   const CACHE_TTL=7*24*3600*1000;   // v6.26: registro com mais de 7 dias é descartado (o campo em ja era gravado)
   if(c&&!(Date.now()-(+c.em||0)<CACHE_TTL)){CACHE.del(l.id)}
   else if(c&&Array.isArray(c.rows)&&c.n<=esperado&&c.maxId>0){rows=c.rows;rows.forEach(r=>r.u=l.key);apos=c.maxId;maxId=c.maxId;doCache=true}
   // O servidor tem teto próprio de linhas por resposta (menor que o p_limit pedido).
   // Por isso a única parada segura é "veio página vazia" — nunca "veio menos que pedi".
   const baixar=async()=>{const lim=10000;let voltas=0;
-    while(true){const {data,error}=await sb.rpc('entradas_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
+    while(true){const {data,error}=await sb.rpc('entradas_lote3',{p_loja:l.id,p_apos:apos,p_limit:lim,p_desde:JANELA.desde});if(error)throw error;
       if(!data||!data.length)break;
       data.forEach(r=>rows.push(mapRow(r,l.key)));
       apos=data[data.length-1].id;maxId=apos;
@@ -944,7 +957,7 @@ async function carregarLoja(l){
   if(doCache)CACHE_STATS.cache++;else CACHE_STATS.rede++;
   rows.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(+a.nf||0)-(+b.nf||0));
   UNIDADES[l.key]={u:l.key,id:l.id,rows,arqs:[...new Set(rows.map(r=>r.arq).filter(Boolean))]};
-  CACHE.set(l.id,{maxId,n:rows.length,rows,em:Date.now()});   // nao espera: grava em paralelo
+  CACHE.set(l.id,{maxId,n:rows.length,rows,em:Date.now(),desde:JANELA.desde});   // nao espera: grava em paralelo
 }
 let RESUMO={};
 async function carregarTudo(){
@@ -953,7 +966,13 @@ async function carregarTudo(){
     if(!perfil||!perfil.is_admin){LOADER.fechar();alert('Este painel é restrito à diretoria/administração. Fale com o André para liberar seu acesso.');await sb.auth.signOut();try{await CACHE.limpar()}catch(e){}limparTudo();showLogin('Acesso não autorizado para este e-mail.');return;}
     await carregarLojas();await carregarAcordos();await carregarMarcas();await carregarMetas();await carregarHomolog();await carregarAlertasDB();
     const {data:res,error}=await sb.rpc('resumo_carga');if(error)throw error;RESUMO={};res.forEach(r=>RESUMO[r.loja_id]=r);
-    UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]);let i=0;
+    // janela inicial: últimos 12 meses contados do mês mais recente que existe no banco
+    const fimBase=Object.values(RESUMO).map(r=>r.mes_fim).filter(Boolean).sort().pop()||mesLocal();
+    JANELA.desde=mesMenos(fimBase,JANELA.meses-1)+'-01';
+    // acordo comercial vigente que começa antes da janela puxa a janela para trás (o rebate soma a compra desde o início do acordo)
+    const minAc=(ACORDOS||[]).map(a=>a.ini).filter(Boolean).sort()[0];if(minAc&&minAc+'-01'<JANELA.desde)JANELA.desde=minAc+'-01';
+    await carregarResumoJanela();
+    UNIDADES={};const comDados=LOJAS.filter(l=>RESUMO[l.id]&&RESUMO_W[l.id]);let i=0;
     CACHE_STATS={cache:0,rede:0};LOADER.fase('Compras',comDados.length);
     await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
     await carregarVendasTodas();await carregarTV();$('#status').textContent='';
@@ -1027,12 +1046,26 @@ $('#fInst').onchange=()=>{F.inst=$('#fInst').value;render()};
 function fill(sel,arr,label){const s=$(sel);const v=s.value;s.innerHTML=s.dataset.all?`<option value="">${s.dataset.all}</option>`:'';arr.forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=label?label(x):x;s.appendChild(o)});s.value=arr.includes(v)?v:''}
 $('#fUni').dataset.all='Todas';$('#fUF').dataset.all='Todas';$('#fCons').dataset.all='Todos';$('#fFab').dataset.all='Todos';$('#fFor').dataset.all='Todos';$('#fCat').dataset.all='Todas';
 function montarFiltros(keepPeriodo){
-  const UV=UNIS_VIS();fill('#fUni',UV);fill('#fUF',[...new Set(UV.map(u=>lojaDe(u).uf).filter(Boolean))].sort());fill('#fCons',[...new Set(UV.map(u=>lojaDe(u).consultor).filter(Boolean))].sort());fill('#fFab',FABS);fill('#fFor',FORS);fill('#fCat',CATS);fill('#fDe',MESES,mesLabel);fill('#fAte',MESES,mesLabel);
-  if(!keepPeriodo||!MESES.includes(F.de))F.de=MESES[0]||'';if(!keepPeriodo||!MESES.includes(F.ate))F.ate=MESES[MESES.length-1]||'';
+  const UV=UNIS_VIS();fill('#fUni',UV);fill('#fUF',[...new Set(UV.map(u=>lojaDe(u).uf).filter(Boolean))].sort());fill('#fCons',[...new Set(UV.map(u=>lojaDe(u).consultor).filter(Boolean))].sort());fill('#fFab',FABS);fill('#fFor',FORS);fill('#fCat',CATS);const BM=BASE_MESES();fill('#fDe',BM.length?BM:MESES,m=>mesLabel(m)+(JANELA.desde&&m<JANELA.desde.slice(0,7)?' · carregar':''));fill('#fAte',MESES,mesLabel);
+  if(!keepPeriodo||!(MESES.includes(F.de)||BM.includes(F.de)))F.de=MESES[0]||'';if(!keepPeriodo||!MESES.includes(F.ate))F.ate=MESES[MESES.length-1]||'';
   $('#fDe').value=F.de;$('#fAte').value=F.ate;F.u=$('#fUni').value;F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;
   const _dl=$('#dlUni');if(_dl)_dl.innerHTML=UNIS_VIS().map(u=>`<option value="${esc(u)}">`).join('');
 }
-['#fDe','#fAte','#fUni','#fUF','#fCons','#fFab','#fFor','#fCat'].forEach(s=>$(s).onchange=()=>{F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.de=$('#fDe').value;F.ate=$('#fAte').value;if(F.de>F.ate){[F.de,F.ate]=[F.ate,F.de];$('#fDe').value=F.de;$('#fAte').value=F.ate}F.u=$('#fUni').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;render()});
+async function ampliarJanela(mesDe){
+  const novo=mesDe+'-01';if(JANELA.desde&&novo>=JANELA.desde)return;
+  JANELA.desde=novo;
+  try{LOADER.abrir();LOADER.fase('Buscando meses anteriores…',0);$('#status').textContent='Ampliando o período carregado…';
+    await carregarResumoJanela();
+    const comDados=LOJAS.filter(l=>RESUMO[l.id]&&RESUMO_W[l.id]);let i=0;LOADER.fase('Compras desde '+mesLabel(mesDe),comDados.length);
+    await emParalelo(comDados,4,async l=>{i++;$('#status').textContent=`Carregando loja ${i}/${comDados.length}: ${l.key}…`;await carregarLoja(l);LOADER.passo()});
+    const _y=()=>new Promise(r=>setTimeout(r,0));
+    LOADER.fase('Organizando as compras…',0);await _y();recompor();
+    if(VDET==='ok'){VDET='nao';VENDAS={};VDATA=[];LOADER.fechar();await carregarVendasDetalhe();LOADER.abrir()}
+    F.de=mesDe;montarFiltros(true);$('#fDe').value=F.de;render();
+    $('#status').textContent='';conferir().catch(()=>{});
+  }catch(e){sbErr(e,'Erro ao ampliar o período')}finally{LOADER.fechar()}
+}
+['#fDe','#fAte','#fUni','#fUF','#fCons','#fFab','#fFor','#fCat'].forEach(s=>$(s).onchange=()=>{if(s==='#fDe'&&JANELA.desde&&$('#fDe').value&&$('#fDe').value+'-01'<JANELA.desde){F.de=$('#fDe').value;ampliarJanela(F.de);return}F.uf=$('#fUF').value;F.cons=$('#fCons').value;F.de=$('#fDe').value;F.ate=$('#fAte').value;if(F.de>F.ate){[F.de,F.ate]=[F.ate,F.de];$('#fDe').value=F.de;$('#fAte').value=F.ate}F.u=$('#fUni').value;F.fa=$('#fFab').value;F.fo=$('#fFor').value;F.cat=$('#fCat').value;render()});
 (function(){const inp=$('#fUniTxt'),res=$('#fUniRes'),sel=$('#fUni');let list=[],idx=-1;
   window.syncUniTxt=()=>{inp.value=sel.value?lojaLbl(sel.value):'';inp.placeholder=sel.value?'':'Todas · nº FRA, nome ou cidade'};
   const norm=x=>(x||'').toString().toLowerCase();
@@ -1481,7 +1514,7 @@ function render(){
   if(window.syncUniTxt)syncUniTxt();if($('#sideUser'))$('#sideUser').textContent=USER?USER.email:'—';
   if(!DATA.length&&!VDATA.length){if($('#sideDados'))$('#sideDados').textContent='sem dados';$('#hUni').textContent='0';$('#hPeriodo').textContent='sem dados';$('#hTotal').textContent='—';document.querySelectorAll('#kpis,#kpisReb,#kpisPre,#kpisUni').forEach(e=>e.innerHTML='');document.querySelectorAll('#chMes,#tbFab,#tbFor,#tbCat,#abc,#tbReb,#tbFabFor,#tbMulti,#tbPre,#tbUni,#tbDisp,#tbItens,#tbIdxFab,#tbConc,#tbSobreFor,#tbRefLoja,#tbSazon,#tbSemCusto').forEach(e=>e.innerHTML='<div class="empty">Nenhum dado no banco ainda. Vá em <b>Unidades e carga de dados</b> para enviar os relatórios de entrada.</div>');renderCarga();renderLojas();renderTV();montarAjuda();return}
   const D=filtrado();const tot=sum(D,r=>r.t);const nm=nMeses();
-  $('#hUni').textContent=F.u?lojaLbl(F.u):UNIS.length+' carregada(s)';if($('#sideDados'))$('#sideDados').textContent=`${UNIS.length} lojas · ${MESES.length?mesLabel(MESES[0])+'–'+mesLabel(MESES[MESES.length-1]):'—'}${VDET==='ok'?'':' · venda por produto não carregada'}`;$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';$('#hTotal').textContent=fmt0(tot);
+  $('#hUni').textContent=F.u?lojaLbl(F.u):UNIS.length+' carregada(s)';if($('#sideDados'))$('#sideDados').textContent=`${UNIS.length} lojas · ${MESES.length?mesLabel(MESES[0])+'–'+mesLabel(MESES[MESES.length-1]):'—'}${VDET==='ok'?'':' · venda por produto não carregada'}`;$('#hPeriodo').textContent=MESES.length?mesLabel(F.de)+' – '+mesLabel(F.ate):'sem dados';(()=>{const bm=BASE_MESES();const el=$('#hPeriodo');if(!el)return;el.title=JANELA.desde&&bm.length&&bm[0]<JANELA.desde.slice(0,7)?`Carregados ${MESES.length} meses (desde ${mesLabel(JANELA.desde.slice(0,7))}). O banco tem dados desde ${mesLabel(bm[0])}: escolha um "De" anterior para carregar.`:'Todo o período do banco está carregado.'})();$('#hTotal').textContent=fmt0(tot);
   /* visão geral */
   const nfs=new Set(D.map(r=>r.nf)).size,skus=new Set(D.map(r=>r.cod)).size;
   $('#kpis').innerHTML=`<div class="kpi"><span>Total comprado</span><b>${fmt0(tot)}</b><i>${nm} ${nm>1?'meses':'mês'}</i></div>
@@ -1907,7 +1940,7 @@ let CONF=[];
 async function conferir(){
   const btn=$('#btnConf');if(btn){btn.textContent='conferindo…';btn.disabled=true}
   try{
-    const {data,error}=await sb.rpc('conferencia_carga');
+    const {data,error}=JANELA.desde?await sb.rpc('conferencia_carga_janela',{p_desde:JANELA.desde}):await sb.rpc('conferencia_carga');
     if(error)throw error;
     const porLoja={};
     (data||[]).forEach(r=>{(porLoja[r.loja_id]=porLoja[r.loja_id]||{})[r.fonte]=r});
@@ -2003,7 +2036,7 @@ function renderCarga(){
     return {u:l.key,L:l,fora,tem:!!o||!!rs,temV:temVenda,detV:!!ov,n:d.length||+(rs?.itens||0),emMem:!!o&&d.length>0,
       ultC,diasC,ultV,
       nv:ov?sum(dv,r=>r.n||1):Object.values(vm).reduce((a,x)=>a+(+x.linhas||0),0),
-      mesesC:msC.length||+(rs?.meses||0),iniC:msC[0]||(rs?rs.mes_ini:undefined),fimC,arqC:new Set(d.map(r=>r.arq).filter(Boolean)).size||(o?.arqs?.length||0),
+      mesesC:+(rs?.meses||0)||msC.length,iniC:(rs&&rs.mes_ini)||msC[0],fimC,arqC:new Set(d.map(r=>r.arq).filter(Boolean)).size||(o?.arqs?.length||0),
       mesesV:msV.length,iniV:msV[0],fimV:msV[msV.length-1],arqV:somaV(vmesRows(true,l.key)).arqs.size,
       t,tv,margem:pc.length?sum(pc,r=>r.le)/sum(pc,r=>r.t)*100:null,
       custo0:d.filter(r=>r.c===0).length,
@@ -2168,7 +2201,7 @@ async function carregarMestre(){const data=await fetchAll(()=>sb.from('produtos_
    Cada linha traz n (linhas originais), np (pedidos distintos), nc0/tc0 (linhas e valor sem custo), nneg/pneg (venda abaixo do custo) e inst (regra composta calculada no banco). */
 const mapV=(r,key)=>({u:key,d:r.primeira||(r.mes+'-01'),m:r.mes,ped:'',seq:0,cod:r.cod_produto,ean:r.ean||'',p:r.produto,gr:r.grupo||'',sg:r.subgrupo||'',faL:normFab(r.fabricante_loja),fo:r.fornecedor||'',tipo:r.tipo||'Produto',bal:!!r.balanca,q:+r.qtd,pb:0,pl:0,t:+r.total,c:+r.custo,l:+r.lucro,cc:'',cl:'',ba:'',ve:'',n:+r.n||1,np:+r.pedidos||0,instS:!!r.inst,nc0:+r.n_custo0||0,tc0:+r.total_custo0||0,nneg:+r.n_neg||0,pneg:+r.perda_neg||0,ult:r.ultima||''});
 async function carregarVendasLoja(l){const rows=[];let apos=0;const lim=10000;let voltas=0;
-  while(true){const {data,error}=await sb.rpc('vendas_agg_lote2',{p_loja:l.id,p_apos:apos,p_limit:lim});if(error)throw error;
+  while(true){const {data,error}=await sb.rpc('vendas_agg_lote3',{p_loja:l.id,p_apos:apos,p_limit:lim,p_desde:JANELA.desde?JANELA.desde.slice(0,7):null});if(error)throw error;
     if(!data||!data.length)break;
     data.forEach(r=>rows.push(mapV(r,l.key)));
     apos=data[data.length-1].id;
@@ -3255,7 +3288,7 @@ async function cgGravar(){
       for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';PROG.set('Recarregando compras · '+k,'',100);await respira();await carregarLoja(LJ[k]);}
       for(const k of tocadasV){$('#cgStatus').textContent='Recarregando vendas '+k+'…';PROG.set('Recarregando vendas · '+k,'',100);await respira();await carregarVendasLoja(LJ[k]);}
     }else{PROG.set('Atualizando o resumo da rede','sem trazer os itens para a memória',100);await respira();}
-    if(tocadasE.size){const{data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);}
+    if(tocadasE.size){const{data:res}=await sb.rpc('resumo_carga');RESUMO={};(res||[]).forEach(r=>RESUMO[r.loja_id]=r);await carregarResumoJanela();}
     if(!puxar)msgs.push('<i>Carga em lote: '+tocadasE.size+' loja(s) gravadas. Os itens não foram trazidos para a memória — use "+ carregar" na aba de cobertura para abrir a loja que quiser analisar.</i>');
     if(tocadasV.size){await carregarVMes();const{data:res}=await sb.rpc('resumo_vendas');RESUMO_V={};(res||[]).forEach(r=>RESUMO_V[r.loja_id]=r);await carregarTV();}
     $('#cgStatus').textContent='';
