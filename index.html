@@ -4,6 +4,8 @@
      extrato financeiro lido só com receita conciliada, separando lojas × indústrias e cruzando com a inadimplência (recebido / em aberto / recuperado).
      Nova aba 📦 Produtos (ranking da rede por SKU com preço, custo, margem, lojas; detalhe por mês, fornecedor e loja) servida por v2_produtos*.
      Visão geral: tabelas de fabricantes, fornecedores e categorias ganham drill-down (clique abre a composição por marca / fornecedor / indústria / categoria).
+     Aba Produtos separa produto × serviço (coluna Tipo do BI Global) com seletor Produtos / Serviços / ambos.
+     Sessão expirada (refresh token recusado) passa a reabrir o login com aviso, em vez de "permission denied" nas telas.
      Versão visível no rodapé do menu lateral. -->
 <!-- v6.22 · 14/09/2026 · carga do BI passa a gravar telefone, especie, hora do pagamento, canal,
      delivery, avaliacao, operador de B&T, veterinario e desconto. Colunas que o arquivo ja trazia
@@ -481,7 +483,7 @@ body.filtrosOff .filters{display:none}
   <button data-t="precos">Evolução de preços</button>
   <button data-t="unid">Comparativo de unidades</button>
   <button data-t="mercado">Vendas: mercado por região</button>
-  <button data-t="produtos">📦 Produtos</button>
+  <button data-t="produtos">📦 Produtos e serviços</button>
   <button data-t="qual">⚠ Qualidade de dados por loja</button>
   <button data-t="itens">Explorar itens</button>
   <button data-t="acordos">⚙ Cadastro de acordos</button>
@@ -618,15 +620,16 @@ body.filtrosOff .filters{display:none}
 <section class="tab" id="t-produtos">
   <div class="kpis" id="kpisProd"></div>
   <div class="filters" style="padding:0 0 14px;border:none;background:none">
-    <div><label>Grupo de produto</label><select id="pdGrupo"><option value="">Todos os grupos</option></select></div>
+    <div><label>Tipo</label><select id="pdTipo"><option value="Produto" selected>Produtos</option><option value="Serviço">Serviços</option><option value="">Produtos + serviços</option></select></div>
+    <div><label>Grupo</label><select id="pdGrupo"><option value="">Todos os grupos</option></select></div>
     <div><label>Ordenar por</label><select id="pdOrdem"><option value="venda">Venda (R$)</option><option value="qtd">Quantidade vendida</option><option value="lucro">Lucro (R$)</option><option value="margem">Margem %</option><option value="lojas">Nº de lojas que vendem</option><option value="pedidos">Nº de pedidos</option></select></div>
     <div><label>Buscar produto, EAN ou marca</label><input id="pdBusca" placeholder="ex.: magnus 25kg · 7898363312822" autocomplete="off"></div>
     <div><label>Top</label><select id="pdTop"><option>50</option><option selected>100</option><option>200</option><option>500</option></select></div>
   </div>
   <div class="grid">
-    <div class="card full"><h3>Ranking de produtos da rede <small id="pdRankSub">clique num produto para abrir o detalhe (evolução, lojas, fornecedores)</small></h3>
+    <div class="card full"><h3 id="pdRankTit">Ranking de produtos da rede <small id="pdRankSub">clique num produto para abrir o detalhe (evolução, lojas, fornecedores)</small></h3>
       <div class="tw" id="tbProd" style="max-height:640px"></div>
-      <p class="note">Fonte: BI Global (vendas por SKU). <b>Preço médio</b> = venda ÷ quantidade. <b>Custo unit.</b> = custo registrado na venda ÷ quantidade (só linhas com custo). <b>Custo de compra</b> = média ponderada das notas de entrada do mesmo EAN no período. Margem sobre a venda com custo conhecido. Itens a granel são vendidos por kg e não têm EAN de compra próprio.</p></div>
+      <p class="note">Fonte: BI Global (vendas por SKU) — a coluna "Tipo" do BI separa produto de serviço; venda institucional (50+ un, R$ 1.500+ ou CNPJ) fica fora, como nas outras abas. <b>Preço médio</b> = venda ÷ quantidade. <b>Custo unit.</b> = custo registrado na venda ÷ quantidade (só linhas com custo). <b>Custo de compra</b> = média ponderada das notas de entrada do mesmo EAN no período. Margem sobre a venda com custo conhecido. Itens a granel são vendidos por kg e não têm EAN de compra próprio.</p></div>
     <div class="card full" id="cardProdDet" style="display:none"><h3 id="pdDetTit">Detalhe do produto</h3>
       <div class="kpis" id="kpisProdDet"></div>
       <div class="grid">
@@ -634,7 +637,7 @@ body.filtrosOff .filters{display:none}
         <div class="card full"><h3>Compras nas entradas <small>por fornecedor · custo unitário mín/méd/máx</small></h3><div class="tw" id="tbProdComp" style="max-height:360px"></div></div>
         <div class="card full"><h3>Por loja <small>quem vende mais, a que preço e com que custo — dispersão de preço entre unidades</small></h3><div class="tw" id="tbProdLoja" style="max-height:480px"></div></div>
       </div></div>
-    <div class="card full"><h3>Venda por grupo de produto <small>participação de cada grupo no período</small></h3><div class="tw" id="tbProdGrp"></div></div>
+    <div class="card full"><h3 id="pdGrpTit">Venda por grupo <small>participação de cada grupo no período · serviços marcados com a tag</small></h3><div class="tw" id="tbProdGrp"></div></div>
   </div>
 </section>
 
@@ -934,7 +937,11 @@ async function conectar(){if(!temLib())return false;
   sb=supabase.createClient(CFG.url,CFG.key);
   const {data:{session}}=await sb.auth.getSession();
   if(!session){showLogin('');return false}
-  USER=session.user;return true;
+  USER=session.user;
+  /* v6.31: se a sessão cair (refresh token recusado — outro dispositivo/aba renovou antes, ou ficou horas parado),
+     o painel avisa e pede login em vez de espalhar "permission denied" pelas telas. Nada que já foi salvo se perde. */
+  sb.auth.onAuthStateChange((ev,ses)=>{if(ev==='SIGNED_OUT'||(ev==='TOKEN_REFRESHED'&&!ses)){USER=null;showLogin('Sua sessão expirou ou foi renovada em outro dispositivo. Entre de novo para continuar — o que você já salvou está guardado.')}});
+  return true;
 }
 $('#lEntrar').onclick=async()=>{try{
   if(!temLib())return;
@@ -952,7 +959,10 @@ function limparTudo(){VMES={};METAS=[];HOMOLOG=[];ALERTAS_DB=[];MARCAMAP={};ROT_
   Object.assign(F,{de:'',ate:'',u:'',uf:'',cons:'',fa:'',fo:'',cat:'',q:''});$('#fBusca').value='';$('#hUser').textContent='—';$('#status').textContent='';
   montarFiltros();renderAcordos();render();document.body.classList.add('deslogado')}
 $('#btnSair').onclick=async()=>{try{if(sb)await sb.auth.signOut()}catch(e){}try{await CACHE.limpar()}catch(e){}limparTudo();$('#lSenha').value='';showLogin('Sessão encerrada.')};
-const sbErr=(e,ctx)=>{console.error(ctx,e);alert((ctx?ctx+': ':'')+(e.message||e))};
+const sbErr2=(x)=>typeof x==='string'?alert(x):sbErr(x,'Indústria/marca');
+const sbErr=(e,ctx)=>{console.error(ctx,e);const m=String(e?.message||e||'');
+  if(/permission denied|JWT expired|invalid claim|not authenticated|401/i.test(m)){USER=null;showLogin('Sua sessão expirou. Entre de novo para continuar — o que você já salvou está guardado.');return}
+  alert((ctx?ctx+': ':'')+m)};
 /* v6.26: o servidor devolve no máximo 1000 linhas por resposta. Todo select de tabela inteira passa por aqui:
    mk() devolve um builder novo (o range é aplicado por página); aceita também um builder pronto. */
 async function fetchAll(mk,passo=1000){const out=[];for(let de=0;de<5e6;de+=passo){const b=typeof mk==='function'?mk():mk;const {data,error}=await b.range(de,de+passo-1);if(error)throw error;const d=data||[];out.push(...d);if(d.length<passo)break}return out}
@@ -1360,7 +1370,7 @@ async function relacionarRotulo(rotulo,industria,marca){
   marca=((marca||'').trim()||rotulo).toUpperCase();
   let i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(industria));
   if(!i){const r=await sb.from('industrias').insert({nome:industria}).select('id,nome').single();
-    if(r.error)return alert(r.error.code==='23505'?`Já existe uma indústria com nome equivalente a "${industria}" (acentos e pontuação são ignorados na comparação). Escolha-a na lista em vez de criar outra.`:'Indústria: '+r.error.message);i=r.data}
+    if(r.error)return alert(r.error.code==='23505'?`Já existe uma indústria com nome equivalente a "${industria}" (acentos e pontuação são ignorados na comparação). Escolha-a na lista em vez de criar outra.`:sbErr2(r.error));i=r.data}
   let m=MARCAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(marca));
   if(!m){const r=await sb.from('marcas').insert({nome:marca,industria_id:i.id}).select('id,nome').single();
     if(r.error)return alert(r.error.code==='23505'?`A marca "${marca}" já existe e pertence a outra indústria. Uma marca só pode ter um dono: ou você escolhe a indústria já cadastrada, ou dá um nome distinto (ex.: "${marca} ${industria}").`:'Marca: '+r.error.message);m=r.data}
@@ -1376,7 +1386,7 @@ async function proprioRotulo(rotulos){
   const nomes=[...new Set(alvo.map(r=>(r.exemplo||r.rotulo).toUpperCase().trim()))];
   const faltaI=nomes.filter(n=>!INDUSTRIAS_CAD.some(x=>rotNorm(x.nome)===rotNorm(n)));
   if(faltaI.length){const r=await sb.from('industrias').insert(faltaI.map(n=>({nome:n}))).select('id,nome');
-    if(r.error)return alert('Indústria: '+r.error.message);INDUSTRIAS_CAD=INDUSTRIAS_CAD.concat(r.data)}
+    if(r.error)return sbErr2(r.error);INDUSTRIAS_CAD=INDUSTRIAS_CAD.concat(r.data)}
   const faltaM=nomes.filter(n=>!MARCAS_CAD.some(x=>rotNorm(x.nome)===rotNorm(n)));
   if(faltaM.length){const r=await sb.from('marcas').insert(faltaM.map(n=>({nome:n,
       industria_id:INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(n)).id}))).select('id,nome,industria_id');
@@ -1390,22 +1400,22 @@ async function proprioRotulo(rotulos){
 async function criarIndustria(nome,cnpj,obs){
   nome=(nome||'').trim().toUpperCase();if(!nome)return alert('Informe o nome da indústria.');
   const r=await sb.from('industrias').insert({nome,cnpj:cnpj||null,obs:obs||null}).select('id,nome').single();
-  if(r.error)return alert(r.error.code==='23505'?`Já existe indústria equivalente a "${nome}".`:r.error.message);
+  if(r.error)return sbErr2(r.error.code==='23505'?`Já existe indústria equivalente a "${nome}".`:r.error);
   await carregarMarcas();return r.data}
 async function renomearIndustria(id,nome){
   nome=(nome||'').trim().toUpperCase();if(!nome)return;
   const r=await sb.from('industrias').update({nome,atualizado_em:new Date().toISOString()}).eq('id',id);
-  if(r.error)return alert(r.error.code==='23505'?`Já existe indústria com esse nome.`:r.error.message);
+  if(r.error)return sbErr2(r.error.code==='23505'?`Já existe indústria com esse nome.`:r.error);
   await carregarMarcas();render()}
 async function moverMarca(marcaId,industriaNome){
   let i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(industriaNome));
   if(!i){if(!confirm(`A indústria "${industriaNome.toUpperCase()}" não existe. Criar agora?`))return;i=await criarIndustria(industriaNome);if(!i)return}
   const r=await sb.from('marcas').update({industria_id:i.id,atualizado_em:new Date().toISOString()}).eq('id',marcaId);
-  if(r.error)return alert(r.error.message);await carregarMarcas();render()}
+  if(r.error)return sbErr2(r.error);await carregarMarcas();render()}
 async function apagarIndustria(id,nome){
   if(!confirm(`Apagar a indústria "${nome}"?\n\nSó funciona se ela não tiver nenhuma marca. Nenhuma nota de entrada ou venda é afetada.`))return;
   const r=await sb.from('industrias').delete().eq('id',id);
-  if(r.error)return alert(r.error.code==='23503'?'Esta indústria ainda tem marcas. Mova as marcas para outra indústria antes de apagar.':r.error.message);
+  if(r.error)return sbErr2(r.error.code==='23503'?'Esta indústria ainda tem marcas. Mova as marcas para outra indústria antes de apagar.':r.error);
   await carregarMarcas();render()}
 async function papelDistribuidor(industriaId,distribuidor,papel){
   if(!industriaId||industriaId<0)return alert('Este fornecedor está ligado a rótulo sem indústria. Relacione a marca primeiro.');
@@ -1747,32 +1757,36 @@ function renderRebate(){
 
 /* ---- Produtos: ranking calculado no servidor (v2_produtos / v2_produtos_grupos / v2_produto_detalhe)
    sobre mv_produto_mes (BI Global agregado). 16/09/2026 ---- */
-const PD={grupo:'',ordem:'venda',busca:'',top:100,chave:null,rows:[],seq:0};
+const PD={grupo:'',ordem:'venda',busca:'',top:100,chave:null,rows:[],seq:0,tipo:'Produto'};
+const pdTipoLbl=()=>PD.tipo==='Produto'?'produtos':PD.tipo==='Serviço'?'serviços':'produtos e serviços';
 const fmtQ=n=>n==null?'—':(+n).toLocaleString('pt-BR',{maximumFractionDigits:Number.isInteger(+n)?0:1});
 function renderProdutos(){
   const kp=$('#kpisProd'),tb=$('#tbProd'),tg=$('#tbProdGrp');if(!tb||!sb||!USER)return;
   const ctl=$('#pdGrupo');
   if(!ctl._ok){ctl._ok=true;
     ctl.onchange=()=>{PD.grupo=ctl.value;pdCarregarLista()};
+    $('#pdTipo').onchange=()=>{PD.tipo=$('#pdTipo').value;PD.grupo='';renderProdutos()};
     $('#pdOrdem').onchange=()=>{PD.ordem=$('#pdOrdem').value;pdCarregarLista()};
     $('#pdTop').onchange=()=>{PD.top=+$('#pdTop').value;pdCarregarLista()};
     let tmr;$('#pdBusca').oninput=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{PD.busca=$('#pdBusca').value.trim();pdCarregarLista()},350)};
   }
   kp.innerHTML='<div class="empty">Calculando no servidor…</div>';
   (async()=>{try{
-    const {data:grp,error}=await sb.rpc('v2_produtos_grupos',v2Filtros());if(error)throw error;
+    const {data:grp,error}=await sb.rpc('v2_produtos_grupos',{...v2Filtros(),p_tipo:PD.tipo||null});if(error)throw error;
     const sum=k=>grp.reduce((s,r)=>s+(+r[k]||0),0);
-    const venda=sum('venda'),lucro=sum('lucro'),qtd=sum('qtd'),skus=sum('skus'),comCusto=grp.reduce((s,r)=>s+(r.margem_pct!=null?(+r.lucro||0)/(+r.margem_pct/100||1):0),0);
+    const venda=sum('venda'),lucro=sum('lucro'),qtd=sum('qtd'),skus=grp.length?+grp[0].skus_total:0;const isServ=PD.tipo==='Serviço';
     const marg=venda?100*lucro/venda:null;
-    kp.innerHTML=`<div class="kpi"><span>Produtos vendidos</span><b>${skus.toLocaleString('pt-BR')}</b><i>SKUs distintos · ${esc(v2Rec())}</i></div>
-      <div class="kpi"><span>Unidades vendidas</span><b>${fmtQ(Math.round(qtd))}</b><i>unidades / kg (granel)</i></div>
-      <div class="kpi o"><span>Venda de produtos</span><b>${fmtK(venda)}</b><i>BI Global · todos os grupos (inclui banho e tosa)</i></div>
-      <div class="kpi z"><span>Lucro bruto</span><b>${fmtK(lucro)}</b><i>venda − custo registrado</i></div>
+    kp.innerHTML=`<div class="kpi"><span>${isServ?'Serviços vendidos':PD.tipo?'Produtos vendidos':'Itens vendidos'}</span><b>${skus.toLocaleString('pt-BR')}</b><i>${isServ?'serviços':'SKUs'} distintos · ${esc(v2Rec())}</i></div>
+      <div class="kpi"><span>${isServ?'Atendimentos':'Unidades vendidas'}</span><b>${fmtQ(Math.round(qtd))}</b><i>${isServ?'serviços executados':'unidades / kg (granel)'}</i></div>
+      <div class="kpi o"><span>Venda de ${pdTipoLbl()}</span><b>${fmtK(venda)}</b><i>BI Global · varejo (sem venda institucional)</i></div>
+      <div class="kpi z"><span>Lucro bruto</span><b>${fmtK(lucro)}</b><i>${isServ?'serviço quase não tem custo registrado':'venda − custo registrado'}</i></div>
       <div class="kpi ${marg!=null&&marg<30?'a':''}"><span>Margem bruta média</span><b>${marg==null?'—':marg.toFixed(1).replace('.',',')+'%'}</b><i>sobre a venda total</i></div>`+v2Aviso();
-    const opts='<option value="">Todos os grupos</option>'+grp.map(g=>`<option value="${esc(g.grupo)}"${g.grupo===PD.grupo?' selected':''}>${esc(g.grupo)} · ${fmtK(+g.venda)}</option>`).join('');
+    const gmap=new Map();grp.forEach(g=>{const o=gmap.get(g.grupo)||{grupo:g.grupo,venda:0};o.venda+=+g.venda;gmap.set(g.grupo,o)});
+    const opts='<option value="">Todos os grupos</option>'+[...gmap.values()].sort((a,b)=>b.venda-a.venda).map(g=>`<option value="${esc(g.grupo)}"${g.grupo===PD.grupo?' selected':''}>${esc(g.grupo)} · ${fmtK(g.venda)}</option>`).join('');
     if(!grp.some(g=>g.grupo===PD.grupo))PD.grupo='';ctl.innerHTML=opts;ctl.value=PD.grupo;
     const mx=grp[0]?+grp[0].venda:1;
-    tabela(tg,[{h:'Grupo',v:r=>r.grupo,f:(v,r)=>`<b>${esc(v)}</b><br><small style="color:var(--mu)">${(+r.skus).toLocaleString('pt-BR')} SKUs · ${r.lojas} lojas</small>`},
+    $('#pdGrpTit').innerHTML=`Venda por grupo <small>${esc(pdTipoLbl())} · participação de cada grupo no período</small>`;
+    tabela(tg,[{h:'Grupo',v:r=>r.grupo,f:(v,r)=>`<b>${esc(v)}</b>${r.tipo==='Serviço'?' <span class="tag at">serviço</span>':''}<br><small style="color:var(--mu)">${(+r.skus).toLocaleString('pt-BR')} ${r.tipo==='Serviço'?'serviços':'SKUs'} · ${r.lojas} lojas</small>`},
       {h:'Quantidade',n:1,v:r=>+r.qtd,f:fmtQ},{h:'Venda',n:1,v:r=>+r.venda,f:fmtK},{h:'Share',n:1,v:r=>venda?+r.venda/venda*100:0,f:v2Pc},
       {h:'Lucro',n:1,v:r=>+r.lucro,f:fmtK},{h:'Margem',n:1,v:r=>r.margem_pct==null?-9999:+r.margem_pct,f:v=>v<=-9999?'—':`<span class="tag ${v>=35?'ok':v>=20?'at':'no'}">${v2Pc(v)}</span>`},
       {h:'',v:r=>+r.venda,f:v=>barCell(v,mx)}],grp,{sort:2,onClick:r=>{PD.grupo=r.grupo;ctl.value=r.grupo;pdCarregarLista()}});
@@ -1783,20 +1797,21 @@ async function pdCarregarLista(){
   const tb=$('#tbProd'),sub=$('#pdRankSub');const seq=++PD.seq;
   tb.innerHTML='<div class="empty">Buscando os produtos…</div>';
   try{
-    const {data:rows,error}=await sb.rpc('v2_produtos',{...v2Filtros(),p_grupo:PD.grupo||null,p_busca:PD.busca||null,p_ordem:PD.ordem,p_limite:PD.top});
+    const {data:rows,error}=await sb.rpc('v2_produtos',{...v2Filtros(),p_grupo:PD.grupo||null,p_busca:PD.busca||null,p_ordem:PD.ordem,p_limite:PD.top,p_tipo:PD.tipo||null});
     if(error)throw error;if(seq!==PD.seq)return;
     PD.rows=rows||[];
     const ordLbl={venda:'venda',qtd:'quantidade',lucro:'lucro',margem:'margem',lojas:'nº de lojas',pedidos:'nº de pedidos'}[PD.ordem];
+    $('#pdRankTit').firstChild.textContent=`Ranking de ${pdTipoLbl()} da rede `;
     sub.textContent=`top ${PD.rows.length} por ${ordLbl}${PD.grupo?' · '+PD.grupo:''}${PD.busca?' · busca "'+PD.busca+'"':''} · ${v2Rec()} · clique para abrir o detalhe`;
     const mxV=Math.max(1,...PD.rows.map(r=>+r.venda)),mxQ=Math.max(1,...PD.rows.map(r=>+r.qtd));
     const cols=[
       {h:'#',n:1,v:(r)=>PD.rows.indexOf(r)+1},
-      {h:'Produto',v:r=>r.produto,f:(v,r)=>`<b>${esc(v||'(sem nome)')}</b>${r.chave===PD.chave?' <span class="tag ok">aberto</span>':''}<br><small style="color:var(--mu)">${esc(r.fabricante||'')}${r.grupo?' · '+esc(r.grupo):''}${r.ean?' · EAN '+esc(r.ean):' · sem EAN'}</small>`},
+      {h:PD.tipo==='Serviço'?'Serviço':PD.tipo?'Produto':'Produto / serviço',v:r=>r.produto,f:(v,r)=>`<b>${esc(v||'(sem nome)')}</b>${r.tipo==='Serviço'?' <span class="tag at">serviço</span>':''}${r.chave===PD.chave?' <span class="tag ok">aberto</span>':''}<br><small style="color:var(--mu)">${esc(r.fabricante||'')}${r.grupo?' · '+esc(r.grupo):''}${r.ean?' · EAN '+esc(r.ean):' · sem EAN'}</small>`},
       {h:'Quantidade',n:1,v:r=>+r.qtd,f:(v,r)=>`<b>${fmtQ(v)}</b><br><span class="vbar" style="display:block;height:4px;border-radius:2px;background:var(--ln);margin-top:4px;min-width:70px"><i style="display:block;height:100%;background:var(--az);width:${Math.max(2,Math.round(v/mxQ*100))}%"></i></span>`},
       {h:'Venda',n:1,v:r=>+r.venda,f:(v,r)=>`<b>${fmtK(v)}</b><br><small style="color:var(--mu)">${v2Pc(+r.share_pct)} do total</small><span class="vbar" style="display:block;height:4px;border-radius:2px;background:var(--ln);margin-top:4px;min-width:70px"><i style="display:block;height:100%;background:var(--v);width:${Math.max(2,Math.round(v/mxV*100))}%"></i></span>`},
       {h:'Preço médio',n:1,v:r=>+r.preco_medio||0,f:v=>v?fmt(v):'—'},
       {h:'Custo unit. (venda)',n:1,v:r=>+r.custo_unit||0,f:v=>v?fmt(v):'<span class="tag nt">sem custo</span>'},
-      {h:'Custo compra (NF)',n:1,v:r=>+r.compra_custo_unit||0,f:(v,r)=>v?`${fmt(v)}<br><small style="color:var(--mu)">${fmtQ(+r.compra_qtd)} un · ${r.compra_fornecedores} forn.</small>`:'<small style="color:var(--mu)">sem entrada no período</small>'},
+      {h:'Custo compra (NF)',n:1,v:r=>+r.compra_custo_unit||0,f:(v,r)=>v?`${fmt(v)}<br><small style="color:var(--mu)">${fmtQ(+r.compra_qtd)} un · ${r.compra_fornecedores} forn.</small>`:r.tipo==='Serviço'?'<small style="color:var(--mu)">não se aplica</small>':'<small style="color:var(--mu)">sem entrada no período</small>'},
       {h:'Margem',n:1,v:r=>r.margem_pct==null?-9999:+r.margem_pct,f:v=>v<=-9999?'—':`<span class="tag ${v>=35?'ok':v>=20?'at':'no'}">${v2Pc(v)}</span>`},
       {h:'Lucro',n:1,v:r=>+r.lucro,f:fmtK},
       {h:'Lojas',n:1,v:r=>+r.lojas,f:(v,r)=>`${v}<br><small style="color:var(--mu)">${(+r.pedidos).toLocaleString('pt-BR')} pedidos</small>`},
@@ -1806,7 +1821,7 @@ async function pdCarregarLista(){
 }
 async function pdAbrirDetalhe(r){
   PD.chave=r.chave;const card=$('#cardProdDet');card.style.display='';
-  $('#pdDetTit').innerHTML=`📦 ${esc(r.produto||'')} <small>${esc(r.fabricante||'')}${r.grupo?' · '+esc(r.grupo):''}${r.subgrupo?' / '+esc(r.subgrupo):''}${r.ean?' · EAN '+esc(r.ean):''} · <a href="#" id="pdFechar" style="color:var(--v)">fechar ✕</a></small>`;
+  $('#pdDetTit').innerHTML=`${r.tipo==='Serviço'?'🛁':'📦'} ${esc(r.produto||'')} <small>${r.tipo==='Serviço'?'<span class="tag at">serviço</span> · ':''}${esc(r.fabricante||'')}${r.grupo?' · '+esc(r.grupo):''}${r.subgrupo?' / '+esc(r.subgrupo):''}${r.ean?' · EAN '+esc(r.ean):''} · <a href="#" id="pdFechar" style="color:var(--v)">fechar ✕</a></small>`;
   $('#pdFechar').onclick=e=>{e.preventDefault();card.style.display='none';PD.chave=null};
   $('#kpisProdDet').innerHTML='<div class="empty">Carregando detalhe…</div>';$('#tbProdMes').innerHTML='';$('#tbProdLoja').innerHTML='';$('#tbProdComp').innerHTML='';$('#chProdMes').innerHTML='';
   card.scrollIntoView({behavior:'smooth',block:'start'});
