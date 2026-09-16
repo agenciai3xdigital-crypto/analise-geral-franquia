@@ -2996,6 +2996,7 @@ async function finSniffTipo(file){
       const chaves=Object.keys(linha1);
       if(chaves.some(k=>k.trim().toUpperCase()==='FRA')&&chaves.some(k=>k.trim().toUpperCase().startsWith('FATURAMENTO')))return'faturamento';
       if(chaves.includes('Identificador do fornecedor/cliente')&&chaves.includes('Data de competência'))return'recebidos';
+      if(chaves.includes('Identificador do cliente')&&chaves.some(k=>k.startsWith('Valor total da parcela em aberto')))return'inadimplencia'; // Visão Contas a Receber (atrasados)
     }
     const bruta=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,defval:null});
     if(bruta.some(row=>row&&row.some(c=>typeof c==='string'&&c.trim()==='Nome do cliente ou fornecedor')))return'inadimplencia';
@@ -3035,31 +3036,97 @@ async function processarUploadFaturamentoIC(file){
   await carregarFinanceiroIC();
 }
 const FIN_JUNK=new Set(['TOTAL GERAL','(EM BRANCO)','DIVERSOS','CREDITO A IDENTIFICAR']);
+/* Inadimplência aceita DOIS exports do Conta Azul:
+   (A) "Visão Contas a Receber" filtrada em atrasados — layout original do painel, uma linha por parcela,
+       com CNPJ (vínculo automático com a loja), categoria e vencimento. Faixas de atraso calculadas aqui.
+   (B) "Análise de inadimplência" — já vem resumida por cliente/faixa, sem CNPJ (vínculo por razão social).
+   Nos dois casos o mês informado é limpo antes de gravar, então re-enviar o mesmo mês reflete quem pagou. */
+function finParseDataBR(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date)return isNaN(v)?null:v;
+  if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v);return d?new Date(d.y,d.m-1,d.d):null;}
+  const m=String(v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m){const y=m[3].length===2?2000+Number(m[3]):Number(m[3]);return new Date(y,Number(m[2])-1,Number(m[1]));}
+  const d=new Date(v);return isNaN(d)?null:d;
+}
+function finLerContasAReceber(wb){
+  // devolve null se nenhuma aba tiver o layout (A)
+  for(const nome of wb.SheetNames){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[nome],{defval:null});if(!rows.length)continue;
+    const ch=Object.keys(rows[0]);
+    if(!ch.includes('Identificador do cliente'))continue;
+    const kAberto=ch.find(k=>k.startsWith('Valor total da parcela em aberto'))||ch.find(k=>k.startsWith('Valor da parcela em aberto'));
+    const kCat=ch.find(k=>/^Categoria\s*1$/i.test(k))||'Categoria 1';
+    if(!kAberto)continue;
+    return rows.map(r=>({
+      cnpj:String(r['Identificador do cliente']||'').replace(/\D/g,''),
+      nome:(r['Nome do cliente']||'').toString().trim(),
+      categoria:(r[kCat]||'').toString().trim(),
+      situacao:(r['Situação']||'').toString().trim(),
+      descricao:(r['Descrição']||'').toString().trim(),
+      venc:finParseDataBR(r['Data de vencimento']),
+      aberto:finNum(r[kAberto])
+    })).filter(p=>p.nome);
+  }
+  return null;
+}
 async function processarUploadInadimplenciaIC(file){
   if(!file)return;
-  if(!/\.xlsx$/i.test(file.name)){alert('Envie o arquivo .xlsx exportado do Conta Azul (Financeiro > Inadimplência > Relatório > Análise de inadimplência).');return;}
-  let wb;try{wb=XLSX.read(await file.arrayBuffer(),{type:'array'});}catch(e){alert('Não consegui ler esse arquivo. Confirme que é um .xlsx válido.');return;}
+  if(!/\.xlsx?$/i.test(file.name)){alert('Envie o arquivo .xls/.xlsx exportado do Conta Azul (Contas a Receber filtrado em atrasados, ou Análise de inadimplência).');return;}
+  let wb;try{wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});}catch(e){alert('Não consegui ler esse arquivo. Confirme que é um Excel válido.');return;}
+  const parcelas=finLerContasAReceber(wb);
   let brutas=null;
-  for(const nome of wb.SheetNames){
-    const tmp=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,defval:null});
-    const idx=tmp.findIndex(row=>row&&row.some(c=>typeof c==='string'&&c.trim()==='Nome do cliente ou fornecedor'));
-    if(idx>=0){brutas=tmp.slice(idx+1);break;}
+  if(!parcelas){
+    for(const nome of wb.SheetNames){
+      const tmp=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,defval:null});
+      const idx=tmp.findIndex(row=>row&&row.some(c=>typeof c==='string'&&c.trim()==='Nome do cliente ou fornecedor'));
+      if(idx>=0){brutas=tmp.slice(idx+1);break;}
+    }
+    if(!brutas){alert('Não reconheci o layout. Envie o export "Visão Contas a Receber" (filtrado em atrasados) ou a "Análise de inadimplência" do Conta Azul.');return;}
   }
-  if(!brutas){alert('Não encontrei a coluna "Nome do cliente ou fornecedor" em nenhuma aba. Confirme que é o export de Análise de inadimplência do Conta Azul.');return;}
   const mesSugestao=mesLocal()+'-01';
   const mesInformado=prompt('Confirme o mês de referência deste snapshot de inadimplência (formato AAAA-MM-01):',mesSugestao);
   if(!mesInformado||!/^\d{4}-\d{2}-01$/.test(mesInformado)){alert('Mês inválido, upload cancelado.');return;}
   const registros=[];
-  for(const r of brutas){
-    const nome=r[0];if(!nome||String(nome).trim().endsWith('Total'))continue;
-    const n=finNormCliente(nome);if(FIN_JUNK.has(n))continue;
-    const categoria=(r[1]||'').toString().trim();
-    const l=LOJAS.find(x=>finNormCliente(x.razao)===n);
-    registros.push({cliente_raw:String(nome).trim(),cliente_norm:n,categoria,fra:l?Number(l.fra):null,d31_60:finNum(r[2]),d61_90:finNum(r[3]),d91_180:finNum(r[4]),acima_180:finNum(r[5]),ate_30:finNum(r[6]),valor_vencido:finNum(r[7]),mes_referencia:mesInformado});
+  const digitos=v=>String(v||'').replace(/\D/g,'');
+  const lojaPorCnpj={};LOJAS.forEach(l=>{const d=digitos(l.cnpj);if(d.length===14)lojaPorCnpj[d]=l;});
+  const lojaPorRazao={};LOJAS.forEach(l=>{if(l.razao)lojaPorRazao[finNormCliente(l.razao)]=l;});
+  let resumo='';
+  if(parcelas){
+    const hoje=new Date();hoje.setHours(0,0,0,0);
+    const agreg={};let nParc=0,nIgnoradas=0,total=0;
+    for(const p of parcelas){
+      if(!(p.aberto>0)){nIgnoradas++;continue;}
+      const dias=p.venc?Math.floor((hoje-p.venc)/86400000):null;
+      if(dias==null||dias<=0){nIgnoradas++;continue;} // a vencer não é inadimplência
+      const n=finNormCliente(p.nome);if(FIN_JUNK.has(n))continue;
+      const key=n+'|'+p.categoria;
+      if(!agreg[key]){
+        const l=lojaPorCnpj[p.cnpj]||lojaPorRazao[n]||null;
+        agreg[key]={cliente_raw:p.nome,cliente_norm:n,categoria:p.categoria,fra:l?Number(l.fra):null,ate_30:0,d31_60:0,d61_90:0,d91_180:0,acima_180:0,valor_vencido:0,mes_referencia:mesInformado};
+      }
+      const a=agreg[key];
+      if(dias<=30)a.ate_30+=p.aberto;else if(dias<=60)a.d31_60+=p.aberto;else if(dias<=90)a.d61_90+=p.aberto;else if(dias<=180)a.d91_180+=p.aberto;else a.acima_180+=p.aberto;
+      a.valor_vencido+=p.aberto;nParc++;total+=p.aberto;
+    }
+    Object.values(agreg).forEach(a=>{['ate_30','d31_60','d61_90','d91_180','acima_180','valor_vencido'].forEach(k=>a[k]=Math.round(a[k]*100)/100);registros.push(a);});
+    const clientes=new Set(registros.map(r=>r.cliente_norm)).size;
+    resumo='Visão Contas a Receber: '+nParc+' parcelas vencidas de '+clientes+' clientes, '+finFmt(total)+' em aberto'+(nIgnoradas?' ('+nIgnoradas+' linhas a vencer/zeradas ignoradas)':'')+'.\nFaixas de atraso calculadas em relação a hoje ('+hoje.toLocaleDateString('pt-BR')+').';
+  }else{
+    for(const r of brutas){
+      const nome=r[0];if(!nome||String(nome).trim().endsWith('Total'))continue;
+      const n=finNormCliente(nome);if(FIN_JUNK.has(n))continue;
+      const categoria=(r[1]||'').toString().trim();
+      const l=lojaPorRazao[n]||null;
+      registros.push({cliente_raw:String(nome).trim(),cliente_norm:n,categoria,fra:l?Number(l.fra):null,d31_60:finNum(r[2]),d61_90:finNum(r[3]),d91_180:finNum(r[4]),acima_180:finNum(r[5]),ate_30:finNum(r[6]),valor_vencido:finNum(r[7]),mes_referencia:mesInformado});
+    }
+    resumo='Análise de inadimplência (resumo por cliente).';
   }
   if(!registros.length){alert('Nenhuma linha válida encontrada.');return;}
   const vinculados=registros.filter(r=>r.fra).length;
-  if(!confirm('Vou gravar '+registros.length+' linhas de inadimplência para '+finMesLabel(mesInformado)+'.\n\n'+vinculados+' de '+registros.length+' já batem automaticamente com uma loja — o resto você vincula manualmente na tela.\n\nConfirma?'))return;
+  if(!confirm(resumo+'\n\nVou gravar '+registros.length+' linhas de inadimplência para '+finMesLabel(mesInformado)+' (substituindo o que já existir nesse mês).\n\n'+vinculados+' de '+registros.length+' já batem automaticamente com uma loja'+(parcelas?' pelo CNPJ/razão social':'')+' — o resto você vincula manualmente na tela.\n\nConfirma?'))return;
+  const del=await sb.from('financeiro_inadimplencia').delete().eq('mes_referencia',mesInformado);
+  if(del.error){alert('Erro ao limpar o mês anterior: '+del.error.message);return;}
   const{error}=await sb.from('financeiro_inadimplencia').upsert(registros,{onConflict:'cliente_norm,categoria,mes_referencia'});
   if(error){alert('Erro ao salvar: '+error.message);return;}
   alert('✅ Inadimplência de '+finMesLabel(mesInformado)+' atualizada ('+registros.length+' linhas, '+vinculados+' já vinculadas)');
