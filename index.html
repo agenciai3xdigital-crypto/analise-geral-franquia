@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- v6.31 · 16/09/2026 · Financeiro: card Faturamento em largura total com busca por loja/FRA e versão empilhada no celular;
+     inadimplência volta a aceitar a "Visão Contas a Receber" do Conta Azul (vínculo por CNPJ, mês limpo antes de regravar);
+     extrato financeiro lido só com receita conciliada, separando lojas × indústrias e cruzando com a inadimplência (recebido / em aberto / recuperado).
+     Nova aba 📦 Produtos (ranking da rede por SKU com preço, custo, margem, lojas; detalhe por mês, fornecedor e loja) servida por v2_produtos*.
+     Visão geral: tabelas de fabricantes, fornecedores e categorias ganham drill-down (clique abre a composição por marca / fornecedor / indústria / categoria).
+     Versão visível no rodapé do menu lateral. -->
 <!-- v6.22 · 14/09/2026 · carga do BI passa a gravar telefone, especie, hora do pagamento, canal,
      delivery, avaliacao, operador de B&T, veterinario e desconto. Colunas que o arquivo ja trazia
      e o carregador descartava; sao a base do Raio-X dentro da Central POP.
@@ -264,6 +270,18 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 .cg-aplicar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border-radius:10px;padding:9px 11px;margin:10px 0}
 .cg-manut{margin-top:18px;border:1px solid var(--ln);border-radius:12px;padding:10px 16px;background:var(--card)}
 .cg-manut summary{cursor:pointer;font-weight:700;color:var(--vd);font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+/* ---- drill-down nas tabelas de share (Visão geral) ---- */
+tr.drill td:first-child{white-space:nowrap}
+.dr-caret{display:inline-block;width:12px;color:var(--la);font-size:11px}
+tr.dr-sub>td{padding:0 0 10px 0;background:#F7FBF9;border-bottom:2px solid var(--vc)}
+.dr-box{padding:8px 10px 4px 22px}
+.dr-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--mu);margin-bottom:6px}
+.dr-tabs{margin-left:auto;display:flex;gap:4px}
+.dr-tabs button{border:1px solid var(--ln);background:#fff;border-radius:14px;padding:2px 9px;font:inherit;font-size:11px;font-weight:700;color:var(--mu);cursor:pointer}
+.dr-tabs button.on{background:var(--v);border-color:var(--v);color:#fff}
+.dr-box table td{padding:5px 8px;font-size:12.5px;border-bottom:1px solid #E8EFEB}
+.dr-box table tr:last-child td{border-bottom:none}
+@media(max-width:700px){.dr-box{padding-left:10px}.dr-tabs{margin-left:0;width:100%}}
 /* ---- Receita recebida: lojas x industrias ---- */
 .fin-receb-grid{display:grid;grid-template-columns:3fr 2fr;gap:14px}
 .fin-receb-box h4{font-size:13px;font-weight:700;color:var(--vd);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -272,6 +290,7 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 #finRecebLoj.tw{max-height:520px}
 #finRecebTab th,#finRecebTab td,#finRecebInd th,#finRecebInd td,#finRecebLoj th,#finRecebLoj td{white-space:nowrap}
 #finRecebLoj td.loja{white-space:normal;font-weight:700;color:var(--vd)}
+#tbProd td,#tbProd th,#tbProdMes td,#tbProdMes th,#tbProdComp th,#tbProdComp td,#tbProdLoja th,#tbProdLoja td,#tbProdGrp th{white-space:nowrap}#tbProd td:nth-child(2),#tbProdLoja td:nth-child(2),#tbProdComp td:first-child{white-space:normal;min-width:220px}
 #finRecebTab tr.sel td{background:#E6F4EC}
 #finRecebTab tbody tr{cursor:pointer}
 .sbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--ln);min-width:120px}
@@ -437,9 +456,9 @@ body.filtrosOff .filters{display:none}
   <button id="btnLeitura" title="Alternar entre abas e rolagem única">📖 Leitura</button>
   <button id="btnMenu" title="Menu" aria-label="Abrir menu"><i></i><i></i><i></i></button>
 </header>
-<aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span></div></aside>
+<aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span><br><span title="versão do painel (histórico no início do index.html)">painel <b>v6.31</b> · 16/09/2026</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.30 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.31 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -462,6 +481,7 @@ body.filtrosOff .filters{display:none}
   <button data-t="precos">Evolução de preços</button>
   <button data-t="unid">Comparativo de unidades</button>
   <button data-t="mercado">Vendas: mercado por região</button>
+  <button data-t="produtos">📦 Produtos</button>
   <button data-t="qual">⚠ Qualidade de dados por loja</button>
   <button data-t="itens">Explorar itens</button>
   <button data-t="acordos">⚙ Cadastro de acordos</button>
@@ -495,9 +515,9 @@ body.filtrosOff .filters{display:none}
   <div class="grid">
     <div class="card full"><h3>Compras por mês <small>valor de entrada · clique num mês para filtrar</small></h3><div id="chMes"></div></div>
     <div class="card full"><h3>Sazonalidade · mesmo mês do ano anterior <small>compras e vendas do período comparadas com 12 meses antes · ignora o filtro de período</small></h3><div class="tw" id="tbSazon"></div></div>
-    <div class="card"><h3>Top fabricantes <small>share do período</small></h3><div id="tbFab"></div></div>
-    <div class="card"><h3>Top fornecedores <small>share do período</small></h3><div id="tbFor"></div></div>
-    <div class="card"><h3>Por categoria <small>inferida pelo nome do produto</small></h3><div id="tbCat"></div></div>
+    <div class="card"><h3>Top fabricantes <small>share do período · clique para ver por onde cada marca é comprada</small></h3><div id="tbFab"></div></div>
+    <div class="card"><h3>Top fornecedores <small>share do período · clique para ver o que cada fornecedor entrega</small></h3><div id="tbFor"></div></div>
+    <div class="card"><h3>Por categoria <small>inferida pelo nome do produto · clique para abrir marcas, fornecedores ou indústrias dentro da categoria</small></h3><div id="tbCat"></div></div>
     <div class="card"><h3>Curva ABC de produtos <small>concentração do gasto</small></h3><div id="abc"></div></div>
   </div>
 </section>
@@ -594,6 +614,29 @@ body.filtrosOff .filters{display:none}
   </div>
 </section>
 
+
+<section class="tab" id="t-produtos">
+  <div class="kpis" id="kpisProd"></div>
+  <div class="filters" style="padding:0 0 14px;border:none;background:none">
+    <div><label>Grupo de produto</label><select id="pdGrupo"><option value="">Todos os grupos</option></select></div>
+    <div><label>Ordenar por</label><select id="pdOrdem"><option value="venda">Venda (R$)</option><option value="qtd">Quantidade vendida</option><option value="lucro">Lucro (R$)</option><option value="margem">Margem %</option><option value="lojas">Nº de lojas que vendem</option><option value="pedidos">Nº de pedidos</option></select></div>
+    <div><label>Buscar produto, EAN ou marca</label><input id="pdBusca" placeholder="ex.: magnus 25kg · 7898363312822" autocomplete="off"></div>
+    <div><label>Top</label><select id="pdTop"><option>50</option><option selected>100</option><option>200</option><option>500</option></select></div>
+  </div>
+  <div class="grid">
+    <div class="card full"><h3>Ranking de produtos da rede <small id="pdRankSub">clique num produto para abrir o detalhe (evolução, lojas, fornecedores)</small></h3>
+      <div class="tw" id="tbProd" style="max-height:640px"></div>
+      <p class="note">Fonte: BI Global (vendas por SKU). <b>Preço médio</b> = venda ÷ quantidade. <b>Custo unit.</b> = custo registrado na venda ÷ quantidade (só linhas com custo). <b>Custo de compra</b> = média ponderada das notas de entrada do mesmo EAN no período. Margem sobre a venda com custo conhecido. Itens a granel são vendidos por kg e não têm EAN de compra próprio.</p></div>
+    <div class="card full" id="cardProdDet" style="display:none"><h3 id="pdDetTit">Detalhe do produto</h3>
+      <div class="kpis" id="kpisProdDet"></div>
+      <div class="grid">
+        <div class="card full"><h3>Evolução mensal <small>quantidade, venda, preço médio e custo — clique num mês para filtrar o painel nele</small></h3><div id="chProdMes" style="min-height:120px"></div><div class="tw" id="tbProdMes" style="max-height:360px"></div></div>
+        <div class="card full"><h3>Compras nas entradas <small>por fornecedor · custo unitário mín/méd/máx</small></h3><div class="tw" id="tbProdComp" style="max-height:360px"></div></div>
+        <div class="card full"><h3>Por loja <small>quem vende mais, a que preço e com que custo — dispersão de preço entre unidades</small></h3><div class="tw" id="tbProdLoja" style="max-height:480px"></div></div>
+      </div></div>
+    <div class="card full"><h3>Venda por grupo de produto <small>participação de cada grupo no período</small></h3><div class="tw" id="tbProdGrp"></div></div>
+  </div>
+</section>
 
 <section class="tab" id="t-qual">
   <div class="kpis" id="kpisQual"></div>
@@ -1180,7 +1223,7 @@ function _filtradoRaw(ignoreMes){return DATA.filter(r=>(ignoreMes||(r.m>=F.de&&r
 function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
-const LEI_SECS=['agir','visao','financeiro','precos','rebate','fornec','unid','mercado','itens'];
+const LEI_SECS=['agir','visao','financeiro','produtos','precos','rebate','fornec','unid','mercado','itens'];
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(VEND_TABS.has(b.dataset.t))garantirVendasDetalhe();if(document.body.classList.contains('leitura')){if(LEI_SECS.includes(b.dataset.t)){irPara(b.dataset.t);return}leitura(false)}document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));$('#t-'+b.dataset.t).classList.add('on');document.body.classList.toggle('fin-ativa',b.dataset.t==='financeiro');renderAbaSeNecessario(b.dataset.t);
   if(b.dataset.t==='param')carregarDistribuidores().catch(e=>console.warn('distribuidores',e));});
 
@@ -1203,6 +1246,27 @@ function tabela(el,cols,rows,opts={}){
 /* etiquetas explicaveis */
 const _cssDiag=document.createElement('style');_cssDiag.textContent='.diag{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}.diag:hover{filter:brightness(.85)}';document.head.appendChild(_cssDiag);
 const barCell=(v,max,cls='')=>`<div class="bar"><i class="${cls}" style="width:${max?Math.min(100,v/max*100):0}%"></i></div>`;
+/* ---- tabela de share com drill-down: clique na linha abre, logo abaixo, a composição daquele item
+   por outra dimensão (marca / fornecedor / indústria / categoria), com % dentro do item. 16/09/2026 ---- */
+const DRILL_DIM={fo:r=>r.fo||'(sem fornecedor)',cat:r=>r.cat||'(sem categoria)',fa:r=>r.fa||'(sem fabricante)',marca:r=>marcaCanon(r.fa)||'(sem marca)',ind:r=>industriaCanon(r.fa)||'(sem indústria)'};
+function drillTable(el,D,total,keyFn,dims,limit=12){
+  const st=el._drill||(el._drill={open:null,dim:dims[0][0]});
+  const map=by(D,keyFn,r=>r.t);
+  const rows=[...map.entries()].map(([k,v])=>({k,v,s:v/total*100})).sort((a,b)=>b.v-a.v).slice(0,limit);const mx=rows[0]?.v||1;
+  if(st.open&&!rows.some(r=>r.k===st.open))st.open=null;
+  let h='<table><thead><tr><th>Nome</th><th class="n">Valor</th><th class="n">Share</th><th></th></tr></thead><tbody>';
+  rows.forEach(r=>{const on=r.k===st.open;
+    h+=`<tr class="click drill${on?' sel':''}" data-k="${esc(r.k)}"><td><span class="dr-caret">${on?'▾':'▸'}</span> ${esc(r.k)}</td><td class="n">${fmt0(r.v)}</td><td class="n">${r.s.toFixed(1).replace('.',',')}%</td><td>${barCell(r.v,mx)}</td></tr>`;
+    if(on){
+      const sub=D.filter(x=>keyFn(x)===r.k);const subMap=by(sub,DRILL_DIM[st.dim],x=>x.t);
+      const subRows=[...subMap.entries()].map(([k,v])=>({k,v,s:v/r.v*100})).sort((a,b)=>b.v-a.v);const top=subRows.slice(0,12),resto=subRows.slice(12).reduce((a,x)=>a+x.v,0);const smx=top[0]?.v||1;
+      h+=`<tr class="dr-sub"><td colspan="4"><div class="dr-box"><div class="dr-head"><b>Dentro de ${esc(r.k)}</b> · ${fmt0(r.v)} · ${subRows.length} ${dims.find(d=>d[0]===st.dim)[1].toLowerCase()} <span class="dr-tabs">${dims.map(d=>`<button data-dim="${d[0]}" class="${d[0]===st.dim?'on':''}">${d[1]}</button>`).join('')}</span></div>
+        <table><tbody>${top.map(x=>`<tr><td>${esc(x.k)}</td><td class="n">${fmt0(x.v)}</td><td class="n"><b>${x.s.toFixed(1).replace('.',',')}%</b></td><td style="width:34%">${barCell(x.v,smx,'o')}</td></tr>`).join('')}${resto?`<tr><td style="color:var(--mu)">outros (${subRows.length-12})</td><td class="n" style="color:var(--mu)">${fmt0(resto)}</td><td class="n" style="color:var(--mu)">${(resto/r.v*100).toFixed(1).replace('.',',')}%</td><td></td></tr>`:''}</tbody></table></div></td></tr>`;
+    }});
+  el.innerHTML=h+'</tbody></table>';
+  el.querySelectorAll('tr.drill').forEach(tr=>tr.onclick=()=>{st.open=st.open===tr.dataset.k?null:tr.dataset.k;drillTable(el,D,total,keyFn,dims,limit)});
+  el.querySelectorAll('.dr-tabs button').forEach(b=>b.onclick=e=>{e.stopPropagation();st.dim=b.dataset.dim;drillTable(el,D,total,keyFn,dims,limit)});
+}
 function shareTable(el,map,total,limit=12){
   const rows=[...map.entries()].map(([k,v])=>({k,v,s:v/total*100})).sort((a,b)=>b.v-a.v).slice(0,limit);const mx=rows[0]?.v||1;
   tabela(el,[{h:'Nome',v:r=>r.k},{h:'Valor',n:1,v:r=>r.v,f:fmt0},{h:'Share',n:1,v:r=>r.s,f:v=>v.toFixed(1).replace('.',',')+'%'},{h:'',v:r=>r.v,f:v=>barCell(v,mx)}],rows,{sort:1});
@@ -1606,7 +1670,7 @@ function render(){
    <div class="kpi"><span>Marcas no cadastro</span><b>${(()=>{const m=by(D,r=>r.fa,r=>r.t);return [...m.values()].filter(v=>v>=10000).length})()}</b><i>com ≥ R$ 10 mil · ${new Set(D.map(r=>r.fa)).size} nomes no total · ${new Set(D.map(r=>r.fo)).size} fornecedores</i></div>`;
   const Dm=filtrado(true);const pm=by(Dm,r=>r.m,r=>r.t);
   barChart($('#chMes'),MESES,MESES.map(m=>pm.get(m)||0),m=>{F.de=F.ate=m;$('#fDe').value=$('#fAte').value=m;render()},m=>m>=F.de&&m<=F.ate);
-  shareTable($('#tbFab'),by(D,r=>r.fa,r=>r.t),tot);shareTable($('#tbFor'),by(D,r=>r.fo,r=>r.t),tot);shareTable($('#tbCat'),by(D,r=>r.cat,r=>r.t),tot,10);
+  drillTable($('#tbFab'),D,tot,r=>r.fa,[['fo','Fornecedores'],['cat','Categorias']]);drillTable($('#tbFor'),D,tot,r=>r.fo,[['marca','Marcas'],['cat','Categorias']]);drillTable($('#tbCat'),D,tot,r=>r.cat,[['marca','Marcas'],['fo','Fornecedores'],['ind','Indústrias']],10);
   const ps=[...by(D,r=>r.cod,r=>r.t).values()].sort((a,b)=>b-a);let acc=0,a=0,b=0;ps.forEach(v=>{acc+=v;if(acc<=tot*.8)a++;else if(acc<=tot*.95)b++});const cN=ps.length-a-b;
   $('#abc').innerHTML=`<table><thead><tr><th>Classe</th><th class="n">Produtos</th><th class="n">% dos SKUs</th><th class="n">% do gasto</th></tr></thead><tbody>
    <tr><td><span class="tag ok">A</span> até 80% do gasto</td><td class="n">${a}</td><td class="n">${(a/ps.length*100||0).toFixed(1)}%</td><td class="n">80%</td></tr>
@@ -1634,6 +1698,7 @@ const TAB_RENDER={
   unid:D=>renderUnid(D),
   precos:D=>renderPrecos(D),
   mercado:()=>renderMercado(),
+  produtos:()=>renderProdutos(),
   qual:()=>{renderSemCusto();renderIdent();renderQualidade()},
   itens:D=>renderItens(D),
   tv:()=>renderTV(),
@@ -1678,6 +1743,92 @@ function renderRebate(){
       {h:'Projeção',v:r=>+r.projecao||0,n:true,f:(v,r)=>`${fmtK(v)}<br><small style="color:var(--mu)">rebate ${fmtK(r.rebate_projetado)}</small>`},
       {h:'Próxima faixa',v:r=>+r.falta_proxima||0,n:true,f:(v,r)=>r.proxima_faixa?`${fmtK(r.proxima_faixa)}<br><small style="color:var(--mu)">faltam ${fmtK(v)}</small>`:'<span class="tag ok">máxima</span>'}],rows,{sort:1});
   }catch(e){kp.innerHTML=`<div class="empty">Não foi possível calcular o rebate: ${esc(e.message||e)}</div>`;tb.innerHTML='';ind.innerHTML=''}})();
+}
+
+/* ---- Produtos: ranking calculado no servidor (v2_produtos / v2_produtos_grupos / v2_produto_detalhe)
+   sobre mv_produto_mes (BI Global agregado). 16/09/2026 ---- */
+const PD={grupo:'',ordem:'venda',busca:'',top:100,chave:null,rows:[],seq:0};
+const fmtQ=n=>n==null?'—':(+n).toLocaleString('pt-BR',{maximumFractionDigits:Number.isInteger(+n)?0:1});
+function renderProdutos(){
+  const kp=$('#kpisProd'),tb=$('#tbProd'),tg=$('#tbProdGrp');if(!tb||!sb||!USER)return;
+  const ctl=$('#pdGrupo');
+  if(!ctl._ok){ctl._ok=true;
+    ctl.onchange=()=>{PD.grupo=ctl.value;pdCarregarLista()};
+    $('#pdOrdem').onchange=()=>{PD.ordem=$('#pdOrdem').value;pdCarregarLista()};
+    $('#pdTop').onchange=()=>{PD.top=+$('#pdTop').value;pdCarregarLista()};
+    let tmr;$('#pdBusca').oninput=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{PD.busca=$('#pdBusca').value.trim();pdCarregarLista()},350)};
+  }
+  kp.innerHTML='<div class="empty">Calculando no servidor…</div>';
+  (async()=>{try{
+    const {data:grp,error}=await sb.rpc('v2_produtos_grupos',v2Filtros());if(error)throw error;
+    const sum=k=>grp.reduce((s,r)=>s+(+r[k]||0),0);
+    const venda=sum('venda'),lucro=sum('lucro'),qtd=sum('qtd'),skus=sum('skus'),comCusto=grp.reduce((s,r)=>s+(r.margem_pct!=null?(+r.lucro||0)/(+r.margem_pct/100||1):0),0);
+    const marg=venda?100*lucro/venda:null;
+    kp.innerHTML=`<div class="kpi"><span>Produtos vendidos</span><b>${skus.toLocaleString('pt-BR')}</b><i>SKUs distintos · ${esc(v2Rec())}</i></div>
+      <div class="kpi"><span>Unidades vendidas</span><b>${fmtQ(Math.round(qtd))}</b><i>unidades / kg (granel)</i></div>
+      <div class="kpi o"><span>Venda de produtos</span><b>${fmtK(venda)}</b><i>BI Global · todos os grupos (inclui banho e tosa)</i></div>
+      <div class="kpi z"><span>Lucro bruto</span><b>${fmtK(lucro)}</b><i>venda − custo registrado</i></div>
+      <div class="kpi ${marg!=null&&marg<30?'a':''}"><span>Margem bruta média</span><b>${marg==null?'—':marg.toFixed(1).replace('.',',')+'%'}</b><i>sobre a venda total</i></div>`+v2Aviso();
+    const opts='<option value="">Todos os grupos</option>'+grp.map(g=>`<option value="${esc(g.grupo)}"${g.grupo===PD.grupo?' selected':''}>${esc(g.grupo)} · ${fmtK(+g.venda)}</option>`).join('');
+    if(!grp.some(g=>g.grupo===PD.grupo))PD.grupo='';ctl.innerHTML=opts;ctl.value=PD.grupo;
+    const mx=grp[0]?+grp[0].venda:1;
+    tabela(tg,[{h:'Grupo',v:r=>r.grupo,f:(v,r)=>`<b>${esc(v)}</b><br><small style="color:var(--mu)">${(+r.skus).toLocaleString('pt-BR')} SKUs · ${r.lojas} lojas</small>`},
+      {h:'Quantidade',n:1,v:r=>+r.qtd,f:fmtQ},{h:'Venda',n:1,v:r=>+r.venda,f:fmtK},{h:'Share',n:1,v:r=>venda?+r.venda/venda*100:0,f:v2Pc},
+      {h:'Lucro',n:1,v:r=>+r.lucro,f:fmtK},{h:'Margem',n:1,v:r=>r.margem_pct==null?-9999:+r.margem_pct,f:v=>v<=-9999?'—':`<span class="tag ${v>=35?'ok':v>=20?'at':'no'}">${v2Pc(v)}</span>`},
+      {h:'',v:r=>+r.venda,f:v=>barCell(v,mx)}],grp,{sort:2,onClick:r=>{PD.grupo=r.grupo;ctl.value=r.grupo;pdCarregarLista()}});
+    await pdCarregarLista();
+  }catch(e){kp.innerHTML=`<div class="empty">Não foi possível calcular: ${esc(e.message||e)}</div>`;tb.innerHTML='';tg.innerHTML=''}})();
+}
+async function pdCarregarLista(){
+  const tb=$('#tbProd'),sub=$('#pdRankSub');const seq=++PD.seq;
+  tb.innerHTML='<div class="empty">Buscando os produtos…</div>';
+  try{
+    const {data:rows,error}=await sb.rpc('v2_produtos',{...v2Filtros(),p_grupo:PD.grupo||null,p_busca:PD.busca||null,p_ordem:PD.ordem,p_limite:PD.top});
+    if(error)throw error;if(seq!==PD.seq)return;
+    PD.rows=rows||[];
+    const ordLbl={venda:'venda',qtd:'quantidade',lucro:'lucro',margem:'margem',lojas:'nº de lojas',pedidos:'nº de pedidos'}[PD.ordem];
+    sub.textContent=`top ${PD.rows.length} por ${ordLbl}${PD.grupo?' · '+PD.grupo:''}${PD.busca?' · busca "'+PD.busca+'"':''} · ${v2Rec()} · clique para abrir o detalhe`;
+    const mxV=Math.max(1,...PD.rows.map(r=>+r.venda)),mxQ=Math.max(1,...PD.rows.map(r=>+r.qtd));
+    const cols=[
+      {h:'#',n:1,v:(r)=>PD.rows.indexOf(r)+1},
+      {h:'Produto',v:r=>r.produto,f:(v,r)=>`<b>${esc(v||'(sem nome)')}</b>${r.chave===PD.chave?' <span class="tag ok">aberto</span>':''}<br><small style="color:var(--mu)">${esc(r.fabricante||'')}${r.grupo?' · '+esc(r.grupo):''}${r.ean?' · EAN '+esc(r.ean):' · sem EAN'}</small>`},
+      {h:'Quantidade',n:1,v:r=>+r.qtd,f:(v,r)=>`<b>${fmtQ(v)}</b><br><span class="vbar" style="display:block;height:4px;border-radius:2px;background:var(--ln);margin-top:4px;min-width:70px"><i style="display:block;height:100%;background:var(--az);width:${Math.max(2,Math.round(v/mxQ*100))}%"></i></span>`},
+      {h:'Venda',n:1,v:r=>+r.venda,f:(v,r)=>`<b>${fmtK(v)}</b><br><small style="color:var(--mu)">${v2Pc(+r.share_pct)} do total</small><span class="vbar" style="display:block;height:4px;border-radius:2px;background:var(--ln);margin-top:4px;min-width:70px"><i style="display:block;height:100%;background:var(--v);width:${Math.max(2,Math.round(v/mxV*100))}%"></i></span>`},
+      {h:'Preço médio',n:1,v:r=>+r.preco_medio||0,f:v=>v?fmt(v):'—'},
+      {h:'Custo unit. (venda)',n:1,v:r=>+r.custo_unit||0,f:v=>v?fmt(v):'<span class="tag nt">sem custo</span>'},
+      {h:'Custo compra (NF)',n:1,v:r=>+r.compra_custo_unit||0,f:(v,r)=>v?`${fmt(v)}<br><small style="color:var(--mu)">${fmtQ(+r.compra_qtd)} un · ${r.compra_fornecedores} forn.</small>`:'<small style="color:var(--mu)">sem entrada no período</small>'},
+      {h:'Margem',n:1,v:r=>r.margem_pct==null?-9999:+r.margem_pct,f:v=>v<=-9999?'—':`<span class="tag ${v>=35?'ok':v>=20?'at':'no'}">${v2Pc(v)}</span>`},
+      {h:'Lucro',n:1,v:r=>+r.lucro,f:fmtK},
+      {h:'Lojas',n:1,v:r=>+r.lojas,f:(v,r)=>`${v}<br><small style="color:var(--mu)">${(+r.pedidos).toLocaleString('pt-BR')} pedidos</small>`},
+      {h:'Última venda',n:1,v:r=>r.ultima||'',f:v=>v?new Date(v+'T00:00:00').toLocaleDateString('pt-BR'):'—'}];
+    tabela(tb,cols,PD.rows,{sort:PD.ordem==='qtd'?2:PD.ordem==='lucro'?8:PD.ordem==='margem'?7:PD.ordem==='lojas'?9:3,onClick:r=>pdAbrirDetalhe(r)});
+  }catch(e){if(seq===PD.seq)tb.innerHTML=`<div class="empty">Não foi possível listar: ${esc(e.message||e)}</div>`}
+}
+async function pdAbrirDetalhe(r){
+  PD.chave=r.chave;const card=$('#cardProdDet');card.style.display='';
+  $('#pdDetTit').innerHTML=`📦 ${esc(r.produto||'')} <small>${esc(r.fabricante||'')}${r.grupo?' · '+esc(r.grupo):''}${r.subgrupo?' / '+esc(r.subgrupo):''}${r.ean?' · EAN '+esc(r.ean):''} · <a href="#" id="pdFechar" style="color:var(--v)">fechar ✕</a></small>`;
+  $('#pdFechar').onclick=e=>{e.preventDefault();card.style.display='none';PD.chave=null};
+  $('#kpisProdDet').innerHTML='<div class="empty">Carregando detalhe…</div>';$('#tbProdMes').innerHTML='';$('#tbProdLoja').innerHTML='';$('#tbProdComp').innerHTML='';$('#chProdMes').innerHTML='';
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+  try{
+    const {data:d,error}=await sb.rpc('v2_produto_detalhe',{p_chave:r.chave,...v2Filtros()});if(error)throw error;
+    const serie=d.serie||[],lojas=d.lojas||[],comp=d.compras||[],cm=d.compras_mes||[];
+    const precos=lojas.filter(l=>+l.preco_medio>0).map(l=>+l.preco_medio);const pmin=precos.length?Math.min(...precos):null,pmax=precos.length?Math.max(...precos):null;
+    $('#kpisProdDet').innerHTML=`<div class="kpi"><span>Quantidade no período</span><b>${fmtQ(+r.qtd)}</b><i>${lojas.length} lojas · ${(+r.pedidos).toLocaleString('pt-BR')} pedidos</i></div>
+      <div class="kpi o"><span>Venda</span><b>${fmtK(+r.venda)}</b><i>preço médio ${r.preco_medio?fmt(+r.preco_medio):'—'}</i></div>
+      <div class="kpi"><span>Faixa de preço entre lojas</span><b>${pmin!=null?fmt(pmin)+' – '+fmt(pmax):'—'}</b><i>${pmin&&pmax?'diferença de '+Math.round((pmax/pmin-1)*100)+'% entre a mais barata e a mais cara':'sem preço'}</i></div>
+      <div class="kpi z"><span>Custo</span><b>${r.custo_unit?fmt(+r.custo_unit):'—'}</b><i>na venda · compra NF ${r.compra_custo_unit?fmt(+r.compra_custo_unit):'—'}${d.mediana_custo_rede?' · mediana rede '+fmt(+d.mediana_custo_rede):''}</i></div>
+      <div class="kpi ${r.margem_pct!=null&&+r.margem_pct<20?'a':''}"><span>Margem bruta</span><b>${r.margem_pct==null?'—':v2Pc(+r.margem_pct)}</b><i>lucro ${fmtK(+r.lucro)}</i></div>`;
+    if(serie.length){const labels=serie.map(x=>x.mes);barChart($('#chProdMes'),labels,serie.map(x=>+x.venda),m=>{F.de=F.ate=m;$('#fDe').value=$('#fAte').value=m;render()},m=>true);}
+    const cmMap={};cm.forEach(x=>cmMap[x.mes]=x);
+    tabela($('#tbProdMes'),[{h:'Mês',v:x=>x.mes,f:v=>mesLabel(v)},{h:'Qtd',n:1,v:x=>+x.qtd,f:fmtQ},{h:'Venda',n:1,v:x=>+x.venda,f:fmtK},{h:'Preço médio',n:1,v:x=>+x.preco_medio||0,f:v=>v?fmt(v):'—'},{h:'Custo (venda)',n:1,v:x=>+x.custo_unit||0,f:v=>v?fmt(v):'—'},{h:'Custo compra (NF)',n:1,v:x=>cmMap[x.mes]?+cmMap[x.mes].custo_unit:0,f:(v,x)=>v?`${fmt(v)}<br><small style="color:var(--mu)">${fmtQ(+cmMap[x.mes].qtd)} un compradas</small>`:'—'},{h:'Lojas',n:1,v:x=>+x.lojas}],serie,{sort:0,asc:true});
+    tabela($('#tbProdComp'),comp.length?[{h:'Fornecedor',v:x=>x.fornecedor||'(sem fornecedor)',f:(v,x)=>`${esc(v)}<br><small style="color:var(--mu)">${x.nfs} notas · ${x.lojas} lojas · última ${x.ultima?new Date(x.ultima+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</small>`},{h:'Qtd comprada',n:1,v:x=>+x.qtd,f:fmtQ},{h:'Custo médio',n:1,v:x=>+x.custo_unit,f:fmt},{h:'Mín',n:1,v:x=>+x.custo_min,f:fmt},{h:'Máx',n:1,v:x=>+x.custo_max,f:fmt}]:[{h:'',v:()=>''}],comp,{sort:1});
+    if(!comp.length)$('#tbProdComp').innerHTML='<div class="empty">Nenhuma nota de entrada com esse EAN no período (itens a granel e produtos sem EAN não cruzam com as compras).</div>';
+    const mxL=Math.max(1,...lojas.map(l=>+l.venda));
+    tabela($('#tbProdLoja'),[{h:'FRA',n:1,v:l=>+l.fra||0,f:v=>v||'—'},{h:'Loja',v:l=>l.loja,f:(v,l)=>`<b>${esc(v)}</b><small style="color:var(--mu)"> ${esc(l.uf||'')}</small>`},{h:'Qtd',n:1,v:l=>+l.qtd,f:fmtQ},{h:'Venda',n:1,v:l=>+l.venda,f:v=>`${fmtK(v)}${barCell(v,mxL)}`},
+      {h:'Preço médio',n:1,v:l=>+l.preco_medio||0,f:v=>v?`<span class="${pmin&&v===pmin?'tag ok':pmax&&v===pmax?'tag no':''}">${fmt(v)}</span>`:'—'},{h:'Custo (venda)',n:1,v:l=>+l.custo_unit||0,f:v=>v?fmt(v):'<span class="tag nt">sem custo</span>'},{h:'Última compra (NF)',n:1,v:l=>+l.custo_ultima_compra||0,f:v=>v?fmt(v):'—'},
+      {h:'Margem',n:1,v:l=>l.margem_pct==null?-9999:+l.margem_pct,f:v=>v<=-9999?'—':`<span class="tag ${v>=35?'ok':v>=20?'at':'no'}">${v2Pc(v)}</span>`},{h:'Última venda',n:1,v:l=>l.ultima||'',f:v=>v?new Date(v+'T00:00:00').toLocaleDateString('pt-BR'):'—'}],lojas,{sort:3});
+  }catch(e){$('#kpisProdDet').innerHTML=`<div class="empty">Não foi possível abrir o detalhe: ${esc(e.message||e)}</div>`}
 }
 
 function renderFornec(D){
@@ -2767,8 +2918,8 @@ $('#qExpTudo').onclick=()=>{if(!QROWS.length)return;const ks=Object.keys(QROWS[0
   $('#btnMenu').onclick=abrir;$('#drawerBg').onclick=fechar;$('#drawerClose').onclick=fechar;document.addEventListener('keydown',e=>{if(e.key==='Escape')fechar()});
   function ativar(id){navBtns.find(b=>b.dataset.t===id).click();montar();fechar()}
   function mover(id,dir){const i=ordem.indexOf(id);const j=i+dir;if(j<0||j>=ordem.length)return;[ordem[i],ordem[j]]=[ordem[j],ordem[i]];salvar();montar()}
-  const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','financeiro','precos','rebate','fornec','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
-  const ICO={agir:'🎯',tv:'📺',visao:'▦',financeiro:'💰',precos:'↗',rebate:'%',fornec:'🤝',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
+  const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','financeiro','produtos','precos','rebate','fornec','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
+  const ICO={agir:'🎯',tv:'📺',visao:'▦',financeiro:'💰',produtos:'📦',precos:'↗',rebate:'%',fornec:'🤝',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
   const rotulo=id=>navBtns.find(x=>x.dataset.t===id).textContent.replace(/^[^\wÀ-ú]+/,'').replace(/^Painel executivo \(TV\)$/,'Painel executivo · TV').trim();
   function montar(){const lei=document.body.classList.contains('leitura');
     const cur=document.querySelector('#side a.on')?.dataset.t;const atual=lei?(LEI_SECS.includes(cur)?cur:'agir'):document.querySelector('nav button.on')?.dataset.t;
