@@ -264,6 +264,23 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 .cg-aplicar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border-radius:10px;padding:9px 11px;margin:10px 0}
 .cg-manut{margin-top:18px;border:1px solid var(--ln);border-radius:12px;padding:10px 16px;background:var(--card)}
 .cg-manut summary{cursor:pointer;font-weight:700;color:var(--vd);font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+/* ---- Receita recebida: lojas x industrias ---- */
+.fin-receb-grid{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+.fin-receb-box h4{font-size:13px;font-weight:700;color:var(--vd);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.fin-receb-box h4 small{font-weight:500;color:var(--mu);font-size:11.5px}
+.fin-receb-box .tw{max-height:420px}
+#finRecebLoj.tw{max-height:520px}
+#finRecebTab th,#finRecebTab td,#finRecebInd th,#finRecebInd td,#finRecebLoj th,#finRecebLoj td{white-space:nowrap}
+#finRecebLoj td.loja{white-space:normal;font-weight:700;color:var(--vd)}
+#finRecebTab tr.sel td{background:#E6F4EC}
+#finRecebTab tbody tr{cursor:pointer}
+.sbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--ln);min-width:120px}
+.sbar i{display:block;height:100%}
+.sbar i.l{background:var(--v)}.sbar i.i{background:var(--la)}.sbar i.o{background:#B9C7C1}
+.fin-leg{display:flex;gap:12px;font-size:11px;color:var(--mu);margin:6px 0 2px;flex-wrap:wrap}
+.fin-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+@media(max-width:1100px){.fin-receb-grid{grid-template-columns:1fr}}
+@media(max-width:700px){#finRecebTab .hm,#finRecebLoj .hm,#finRecebInd .hm{display:none}#finRecebTab td small,#finRecebLoj .vbar{display:none}#finRecebTab th,#finRecebTab td,#finRecebLoj th,#finRecebLoj td{padding:8px 5px;font-size:12px}#finRecebLoj td.loja{font-size:12px}.fin-receb-box h4{flex-direction:column;align-items:flex-start}}
 /* ---- Faturamento: layout desktop + busca ---- */
 .fin-fat-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px 20px;flex-wrap:wrap;margin-bottom:12px}
 .fin-fat-head h3{margin-bottom:0;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
@@ -500,7 +517,20 @@ body.filtrosOff .filters{display:none}
       </div>
       <div class="tw" id="finFatTab"></div>
     </div>
-    <div class="card full" id="cardReceb"><h3>Receita recebida <small>Conta Azul · extrato financeiro</small></h3><div class="tw fin-receb" id="finRecebTab"></div></div>
+    <div class="card full" id="cardReceb">
+      <div class="fin-fat-head">
+        <h3>Receita recebida <small id="finRecebRef">Conta Azul · extrato financeiro · só receitas conciliadas (transferências, aportes e empréstimos ficam de fora)</small></h3>
+        <div class="fin-fat-tools"><label class="fin-search" style="width:auto;padding-right:10px"><span aria-hidden="true">📅</span><select id="finRecebMes" style="border:none;background:none;font:inherit;font-size:13px;padding:8px 0;outline:none;color:var(--tx)"></select></label></div>
+      </div>
+      <div class="fin-receb-grid">
+        <div class="fin-receb-box"><h4>Por mês <small>lojas × indústrias</small></h4><div class="tw fin-receb" id="finRecebTab"></div></div>
+        <div class="fin-receb-box"><h4 id="finRecebIndTit">Indústrias (mídia)</h4><div class="tw" id="finRecebInd"></div></div>
+      </div>
+      <div class="fin-receb-box" style="margin-top:14px">
+        <div class="fin-fat-head" style="margin-bottom:8px"><h4 id="finRecebLojTit">Lojas</h4><div class="fin-fat-tools"><label class="fin-search" id="finRecebSearch"><span aria-hidden="true">🔍</span><input type="search" id="finRecebBusca" placeholder="Buscar loja ou FRA…" autocomplete="off"></label><small id="finRecebCont"></small></div></div>
+        <div class="tw" id="finRecebLoj"></div>
+      </div>
+    </div>
     <div class="card full" id="cardInad"><h3>Inadimplência <small id="finInadMesRef">carregando…</small></h3><div class="tw" id="finInadTab"></div><div id="finInadNaoVinc"></div></div>
   </div>
 </section>
@@ -2786,7 +2816,7 @@ async function carregarFinanceiroIC(){
   const[fatData,inadData,recebData,mapaData]=await Promise.all([
     sb.from('financeiro_faturamento_mensal').select('fra,mes_ano,valor').order('mes_ano',{ascending:false}).order('fra'),
     sb.from('financeiro_inadimplencia').select('*').order('mes_referencia',{ascending:false}).order('id'),
-    sb.from('financeiro_recebidos_mensal').select('fra,cnpj,mes_ano,valor').order('mes_ano',{ascending:false}).order('cnpj'),
+    sb.from('financeiro_recebidos_mensal').select('fra,cnpj,mes_ano,valor,categoria,grupo,cliente,recuperado,qtd_lancamentos').order('mes_ano',{ascending:false}).order('cnpj'),
     sb.from('financeiro_mapa_clientes').select('cliente_norm,fra').order('cliente_norm')
   ]);
   if(fatData.error||inadData.error||recebData.error||mapaData.error){sbErr(fatData.error||inadData.error||recebData.error||mapaData.error,'Erro ao carregar Financeiro');return;}
@@ -2838,7 +2868,7 @@ function finDesenharKpis(infoFat,infoInad,infoReceb){
    +kv(recordistas.length?'o':'','🏆','Lojas com recorde no mês',String(recordistas.length),'histórico batido','finRecordeBanner')
    +kv('a','⚠️','Inadimplência vinculada',finFmt(inadVinculado),(infoInad.mesLabel||'—')+' · '+fmt0(inadTotalGeral)+' no total','cardInad')
    +kv(pctInad!=null&&pctInad>=7?'a':'','📊','% inadimplência s/ faturamento',pctInad==null?'—':pctInad.toFixed(1)+'%',pctInad==null?'sem loja com os dois dados no mês':'sobre as '+nInadBase+' loja'+(nInadBase===1?'':'s')+' com faturamento e inadimplência no mês','cardInad')
-   +kv('z','💰','Receita recebida (mês)',finFmt(recebMesAtual),(infoReceb.mesLabel||'—'),'cardReceb')
+   +kv('z','💰','Receita recebida (mês)',finFmt(recebMesAtual),(infoReceb.mesLabel||'—')+(infoReceb.industriasMes?' · lojas '+fmt0(infoReceb.lojasMes||0)+' · indústrias '+fmt0(infoReceb.industriasMes):'')+(infoReceb.recuperadoMes?' · ↩ '+fmt0(infoReceb.recuperadoMes)+' recuperados':''),'cardReceb')
    +kv(criticas.length?'a':'','🔴','Lojas em risco crítico (+180d)',String(criticas.length),'atraso severo','cardInad');
 }
 
@@ -2973,16 +3003,71 @@ function finDesenharInadimplencia(mapaLookup){
   return{totalVinculado,totalGeral,mesLabel:finMesLabel(mesRef),vinculadas};
 }
 
+/* ---- Receita recebida: agrupa por mês (lojas × indústrias × outros), detalha o mês escolhido
+   e cruza com a inadimplência (snapshot mais recente) pra dizer quem pagou e quem ainda deve. ---- */
+const FIN_RECEB_UI={mes:null,filtro:''};
+function finGrupoCategoria(cat){
+  const c=String(cat||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+  if(/TRANSFER|TRANSITORIO|APORTE|EMPRESTIMO|RENDIMENTO|APLICAC|RESGATE/.test(c))return null; // não é receita operacional
+  if(/MIDIA|REBATE|VERBA|BONIFIC/.test(c))return'industrias';
+  if(/ROYALT|ACORDO|RENEGOC|NEGOCIA|TAXA DE FRANQ|IMOBILIZADO|MULTA CONTRAT/.test(c))return'lojas';
+  return'outros';
+}
 function finDesenharReceita(){
-  if(!FIN_RECEB.length){$('#finRecebTab').innerHTML='';return{totalMesAtual:0,mesLabel:null};}
-  const porMes={};FIN_RECEB.forEach(r=>{porMes[r.mes_ano]=(porMes[r.mes_ano]||0)+Number(r.valor||0);});
+  const cont=$('#finRecebTab'),ind=$('#finRecebInd'),loj=$('#finRecebLoj'),sel=$('#finRecebMes');
+  if(!FIN_RECEB.length){cont.innerHTML='';ind.innerHTML='';loj.innerHTML='';if(sel)sel.innerHTML='';return{totalMesAtual:0,mesLabel:null};}
+  const porMes={};
+  FIN_RECEB.forEach(r=>{
+    const m=r.mes_ano,g=r.grupo||'lojas';
+    if(!porMes[m])porMes[m]={lojas:0,industrias:0,outros:0,total:0,recuperado:0};
+    porMes[m][g]=(porMes[m][g]||0)+Number(r.valor||0);porMes[m].total+=Number(r.valor||0);porMes[m].recuperado+=Number(r.recuperado||0);
+  });
   const mesesTodos=Object.keys(porMes).sort((a,b)=>b.localeCompare(a)),meses=mesesTodos.slice(0,13);
-  const maxV=Math.max(1,...meses.map(m=>porMes[m]));
-  $('#finRecebTab').innerHTML='<table><thead><tr><th>Mês</th><th class="n">Receita recebida</th><th></th></tr></thead><tbody>'
-    +meses.map(m=>'<tr><td>'+finMesLabel(m)+'</td><td class="n"><b>'+finFmt(porMes[m])+'</b></td><td style="width:40%">'+barCell(porMes[m],maxV)+'</td></tr>').join('')
-    +'</tbody></table>';
-  const mesAtual=mesesTodos[0];
-  return{totalMesAtual:porMes[mesAtual]||0,mesLabel:finMesLabel(mesAtual)};
+  if(!FIN_RECEB_UI.mes||!porMes[FIN_RECEB_UI.mes])FIN_RECEB_UI.mes=mesesTodos[0];
+  const mesSel=FIN_RECEB_UI.mes;
+  if(sel){sel.innerHTML=mesesTodos.map(m=>'<option value="'+m+'"'+(m===mesSel?' selected':'')+'>'+finMesLabel(m)+'</option>').join('');
+    if(!sel._ok){sel._ok=true;sel.onchange=()=>{FIN_RECEB_UI.mes=sel.value;finDesenharReceita();};}}
+  const maxV=Math.max(1,...meses.map(m=>porMes[m].total));
+  cont.innerHTML='<div class="fin-leg"><span><i style="background:var(--v)"></i>Lojas (royalties, acordos, taxas)</span><span><i style="background:var(--la)"></i>Indústrias (mídia)</span><span><i style="background:#B9C7C1"></i>Outros</span></div>'
+    +'<table><thead><tr><th>Mês</th><th class="n">Lojas</th><th class="n">Indústrias</th><th class="n hm">Outros</th><th class="n">Total</th><th class="hm"></th></tr></thead><tbody>'
+    +meses.map(m=>{const p=porMes[m];const w=x=>Math.round(x/maxV*100);
+      return'<tr data-mes="'+m+'"'+(m===mesSel?' class="sel"':'')+'><td>'+finMesLabel(m)+'</td><td class="n">'+finFmt(p.lojas)+(p.recuperado?'<br><small style="color:var(--mu)">↩ '+fmt0(p.recuperado)+' de meses anteriores</small>':'')+'</td><td class="n">'+finFmt(p.industrias)+'</td><td class="n hm">'+(p.outros?finFmt(p.outros):'—')+'</td><td class="n"><b>'+finFmt(p.total)+'</b></td><td class="hm" style="width:28%"><div class="sbar"><i class="l" style="width:'+w(p.lojas)+'%"></i><i class="i" style="width:'+w(p.industrias)+'%"></i><i class="o" style="width:'+w(p.outros)+'%"></i></div></td></tr>';
+    }).join('')+'</tbody></table>';
+  cont.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{FIN_RECEB_UI.mes=tr.dataset.mes;finDesenharReceita();});
+  const doMes=FIN_RECEB.filter(r=>r.mes_ano===mesSel),lab=finMesLabel(mesSel);
+  // indústrias
+  const porInd={};doMes.filter(r=>(r.grupo||'lojas')==='industrias').forEach(r=>{const k=r.cnpj||r.cliente;if(!porInd[k])porInd[k]={nome:r.cliente||r.cnpj,valor:0,n:0};porInd[k].valor+=Number(r.valor||0);porInd[k].n+=Number(r.qtd_lancamentos||0);});
+  const inds=Object.values(porInd).sort((a,b)=>b.valor-a.valor),totInd=inds.reduce((s,i)=>s+i.valor,0),maxInd=Math.max(1,...inds.map(i=>i.valor));
+  $('#finRecebIndTit').innerHTML='Indústrias (mídia) em '+lab+' <small>'+inds.length+' indústria'+(inds.length===1?'':'s')+' · '+finFmt(totInd)+'</small>';
+  ind.innerHTML=inds.length?'<table><thead><tr><th>Indústria</th><th class="n">Recebido</th><th class="hm"></th></tr></thead><tbody>'
+    +inds.map(i=>'<tr><td style="white-space:normal">'+esc(i.nome||'—')+'<br><small style="color:var(--mu)">'+i.n+' lançamento'+(i.n===1?'':'s')+'</small></td><td class="n"><b>'+finFmt(i.valor)+'</b></td><td class="hm" style="width:30%">'+barCell(i.valor,maxInd,'o')+'</td></tr>').join('')+'</tbody></table>'
+    :'<div class="empty">Nenhuma receita de indústria neste mês (uploads antigos não traziam a categoria).</div>';
+  // lojas × inadimplência
+  const porFra={};
+  doMes.filter(r=>(r.grupo||'lojas')==='lojas').forEach(r=>{const k=r.fra!=null?'F'+r.fra:'C'+(r.cnpj||r.cliente);if(!porFra[k])porFra[k]={fra:r.fra,nome:r.fra!=null?lojaNomeFra(Number(r.fra)):(r.cliente||('CNPJ '+r.cnpj)),recebido:0,recuperado:0,n:0,aberto:0,a180:0};porFra[k].recebido+=Number(r.valor||0);porFra[k].recuperado+=Number(r.recuperado||0);porFra[k].n+=Number(r.qtd_lancamentos||0);});
+  let inadLab=null;
+  if(FIN_INAD.length){
+    const mesInad=FIN_INAD[0].mes_referencia;inadLab=finMesLabel(mesInad);
+    const lookup={};FIN_MAPA.forEach(m=>lookup[m.cliente_norm]=m.fra);
+    FIN_INAD.filter(i=>i.mes_referencia===mesInad).forEach(i=>{const fra=i.fra||lookup[i.cliente_norm];if(!fra)return;const k='F'+fra;if(!porFra[k])porFra[k]={fra,nome:lojaNomeFra(Number(fra)),recebido:0,recuperado:0,n:0,aberto:0,a180:0};porFra[k].aberto+=finNum(i.valor_vencido);porFra[k].a180+=finNum(i.acima_180);});
+  }
+  const lojas=Object.values(porFra).sort((a,b)=>(b.recebido-a.recebido)||(b.aberto-a.aberto));
+  const totLoj=lojas.reduce((s,l)=>s+l.recebido,0),totRec=lojas.reduce((s,l)=>s+l.recuperado,0),nPag=lojas.filter(l=>l.recebido>0).length,nDeve=lojas.filter(l=>l.aberto>0).length,nNaoPag=lojas.filter(l=>!l.recebido&&l.aberto>0).length;
+  $('#finRecebLojTit').innerHTML='Lojas em '+lab+' <small>'+nPag+' pagaram · '+finFmt(totLoj)+(totRec?' · ↩ '+fmt0(totRec)+' recuperados de meses anteriores':'')+(inadLab?' · '+nDeve+' com saldo em aberto ('+nNaoPag+' sem nenhum pagamento no mês) · inadimplência de '+inadLab:'')+'</small>';
+  const inp=$('#finRecebBusca');if(inp&&!inp._ok){inp._ok=true;inp.addEventListener('input',()=>{FIN_RECEB_UI.filtro=finFatNorm(inp.value);finRecebRenderLojas();});}
+  FIN_RECEB_UI.lojas=lojas;FIN_RECEB_UI.inadLab=inadLab;finRecebRenderLojas();
+  const p0=porMes[mesesTodos[0]];
+  return{totalMesAtual:p0.total,lojasMes:p0.lojas,industriasMes:p0.industrias,recuperadoMes:p0.recuperado,mesLabel:finMesLabel(mesesTodos[0])};
+}
+function finRecebRenderLojas(){
+  const {lojas=[],filtro,inadLab}=FIN_RECEB_UI,loj=$('#finRecebLoj'),cont=$('#finRecebCont');
+  const vis=filtro?lojas.filter(l=>finFatNorm(l.nome).includes(filtro)||String(l.fra||'').startsWith(filtro)):lojas;
+  if(cont)cont.textContent=(filtro?vis.length+' de ':'')+lojas.length+' lojas';
+  const maxR=Math.max(1,...lojas.map(l=>l.recebido));
+  const sit=l=>!l.recebido&&l.aberto>0?'<span class="tag no">não pagou</span>':l.recebido>0&&l.aberto>0?'<span class="tag at">pagou, mas deve</span>':l.recebido>0?'<span class="tag ok">em dia</span>':'<span class="tag nt">—</span>';
+  loj.innerHTML=vis.length?'<table><thead><tr><th class="hm">FRA</th><th>Loja</th><th class="n">Recebido no mês</th><th class="n hm">↩ Recuperado</th><th class="n">Em aberto'+(inadLab?' <small>('+esc(inadLab)+')</small>':'')+'</th><th class="n hm">+180d</th><th class="n">Situação</th></tr></thead><tbody>'
+    +vis.map(l=>'<tr><td class="hm" style="color:var(--mu)">'+(l.fra??'—')+'</td><td class="loja">'+finFatHL(l.nome,filtro)+'</td><td class="n val"><b>'+(l.recebido?finFmt(l.recebido):'—')+'</b>'+(l.recebido?'<span class="vbar" style="display:block;height:4px;border-radius:2px;background:var(--ln);margin-top:5px;overflow:hidden"><i style="display:block;height:100%;background:var(--v);width:'+Math.max(2,Math.round(l.recebido/maxR*100))+'%"></i></span>':'')+'</td><td class="n hm">'+(l.recuperado?finFmt(l.recuperado):'—')+'</td><td class="n"'+(l.aberto?' style="color:#B34A0B;font-weight:700"':'')+'>'+(l.aberto?finFmt(l.aberto):'—')+'</td><td class="n hm"'+(l.a180?' style="color:#C0392B"':'')+'>'+(l.a180?finFmt(l.a180):'—')+'</td><td class="n">'+sit(l)+'</td></tr>').join('')+'</tbody></table>'
+    :'<div class="empty">Nenhuma loja encontrada.</div>';
 }
 
 /* ---------- uploads (mesma lógica de leitura do Central POP, gravando neste projeto) ---------- */
@@ -3132,41 +3217,59 @@ async function processarUploadInadimplenciaIC(file){
   alert('✅ Inadimplência de '+finMesLabel(mesInformado)+' atualizada ('+registros.length+' linhas, '+vinculados+' já vinculadas)');
   await carregarFinanceiroIC();
 }
+/* Extrato Financeiro do Conta Azul → receita recebida por cliente × mês × categoria.
+   Regras (16/09/2026): só Tipo=Receita com Situação Conciliado/Quitado; transferências entre contas,
+   aportes, empréstimos e rendimentos ficam de fora; CNPJ nunca é "herdado" da linha de cima; mês pela
+   data de movimento; 'recuperado' = parte cujo vencimento original era de mês anterior. Os meses
+   presentes no arquivo são limpos antes de gravar (o extrato de um mês é completo). */
 async function processarUploadRecebidosIC(file){
   if(!file)return;
   if(!/\.xlsx?$/i.test(file.name)){alert('Envie o arquivo .xls ou .xlsx exportado do Conta Azul (Extrato Financeiro).');return;}
-  let wb;try{wb=XLSX.read(await file.arrayBuffer(),{type:'array'});}catch(e){alert('Não consegui ler esse arquivo.');return;}
+  let wb;try{wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});}catch(e){alert('Não consegui ler esse arquivo.');return;}
   let linhas=null;
   for(const nome of wb.SheetNames){
     const tmp=XLSX.utils.sheet_to_json(wb.Sheets[nome],{defval:null});if(!tmp.length)continue;
     const chaves=Object.keys(tmp[0]);
-    if(chaves.includes('Identificador do fornecedor/cliente')&&chaves.includes('Data de competência')){linhas=tmp;break;}
+    if(chaves.includes('Identificador do fornecedor/cliente')&&chaves.includes('Data movimento')){linhas=tmp;break;}
   }
   if(!linhas){alert('Não encontrei as colunas esperadas. Confirme que é o Extrato Financeiro do Conta Azul.');return;}
-  let ultimoId=null;
-  for(const l of linhas){if(l['Identificador do fornecedor/cliente']!=null)ultimoId=l['Identificador do fornecedor/cliente'];else l['Identificador do fornecedor/cliente']=ultimoId;}
-  const cnpjPorFra={};LOJAS.forEach(l=>{if(l.cnpj)cnpjPorFra[String(l.cnpj).replace(/\D/g,'')]=Number(l.fra);});
-  const agregado={};let ignoradas=0,saneadas=0;
+  const kCat=Object.keys(linhas[0]).find(k=>/^Categoria\s*1$/i.test(k))||'Categoria 1';
+  const cnpjPorFra={};LOJAS.forEach(l=>{const d=String(l.cnpj||'').replace(/\D/g,'');if(d.length===14)cnpjPorFra[d]=Number(l.fra);});
+  const agregado={},st={total:0,receitas:0,naoConc:0,foraGrupo:0,semData:0,gravadas:0,valor:{lojas:0,industrias:0,outros:0},recuperado:0},meses=new Set();
   for(const l of linhas){
-    const idRaw=l['Identificador do fornecedor/cliente'];let dataComp=l['Data de competência'];const dataMov=l['Data movimento'];const valor=Number(l['Valor (R$)']);
-    if(idRaw==null||!dataComp||!Number.isFinite(valor)){ignoradas++;continue;}
-    if(dataMov){
-      const[dc,mc,ac]=String(dataComp).split('/').map(Number);const[dm,mm,am]=String(dataMov).split('/').map(Number);
-      if(dc&&dm){const diffDias=(new Date(ac,mc-1,dc)-new Date(am,mm-1,dm))/86400000;if(diffDias>30){dataComp=dataMov;saneadas++;}}
-    }
-    const cnpj=String(Math.round(Number(idRaw))).padStart(14,'0');
-    const partes=String(dataComp).split('/');if(partes.length!==3){ignoradas++;continue;}
-    const mesAno=partes[2]+'-'+partes[1]+'-01',fra=cnpjPorFra[cnpj]||null,key=cnpj+'|'+mesAno;
-    if(!agregado[key])agregado[key]={fra,cnpj,mes_ano:mesAno,valor:0,qtd_lancamentos:0};
-    agregado[key].valor+=valor;agregado[key].qtd_lancamentos+=1;
+    st.total++;
+    const tipo=String(l['Tipo']||'').trim().toUpperCase();if(tipo!=='RECEITA')continue;st.receitas++;
+    const sit=String(l['Situação']||'').trim().toUpperCase();if(!/^(CONCILIADO|QUITADO)$/.test(sit)){st.naoConc++;continue;}
+    const categoria=String(l[kCat]||'').trim(),grupo=finGrupoCategoria(categoria);if(!grupo){st.foraGrupo++;continue;}
+    const valor=finNum(l['Valor (R$)']);if(!(valor>0))continue;
+    const dMov=finParseDataBR(l['Data movimento']);if(!dMov){st.semData++;continue;}
+    const mesAno=dMov.getFullYear()+'-'+String(dMov.getMonth()+1).padStart(2,'0')+'-01';
+    const dVenc=finParseDataBR(l['Data original de vencimento']);
+    const recuperado=(dVenc&&dVenc<new Date(dMov.getFullYear(),dMov.getMonth(),1))?valor:0;
+    const idRaw=l['Identificador do fornecedor/cliente'],nomeCli=String(l['Nome do fornecedor/cliente']||'').trim();
+    let cnpj=idRaw!=null&&idRaw!==''?String(typeof idRaw==='number'?Math.round(idRaw):idRaw).replace(/\D/g,''):'';
+    if(cnpj&&cnpj.length<14&&cnpj.length>11)cnpj=cnpj.padStart(14,'0');
+    if(!cnpj)cnpj='SEM-ID:'+(finNormCliente(nomeCli)||categoria||'?');
+    const fra=grupo==='lojas'?(cnpjPorFra[cnpj]||null):null;
+    const key=cnpj+'|'+mesAno+'|'+categoria;
+    if(!agregado[key])agregado[key]={fra,cnpj,mes_ano:mesAno,categoria,grupo,cliente:nomeCli||null,valor:0,recuperado:0,qtd_lancamentos:0};
+    const a=agregado[key];a.valor+=valor;a.recuperado+=recuperado;a.qtd_lancamentos++;
+    st.gravadas++;st.valor[grupo]+=valor;st.recuperado+=recuperado;meses.add(mesAno);
   }
-  const registros=Object.values(agregado);
-  if(!registros.length){alert('Nenhum lançamento válido encontrado.');return;}
-  const vinculados=registros.filter(r=>r.fra).length;
-  if(!confirm('Vou gravar '+registros.length+' registros mensais de receita (de '+linhas.length+' lançamentos, '+ignoradas+' ignorados'+(saneadas?', '+saneadas+' com data corrigida':'')+').\n\n'+vinculados+' de '+registros.length+' vinculados a uma loja pelo CNPJ.\n\nConfirma?'))return;
-  const{error}=await sb.from('financeiro_recebidos_mensal').upsert(registros,{onConflict:'cnpj,mes_ano'});
+  const registros=Object.values(agregado).map(r=>({...r,valor:Math.round(r.valor*100)/100,recuperado:Math.round(r.recuperado*100)/100}));
+  if(!registros.length){alert('Nenhuma receita conciliada encontrada no arquivo.');return;}
+  const vinculados=registros.filter(r=>r.grupo==='lojas'&&r.fra).length,nLojas=registros.filter(r=>r.grupo==='lojas').length;
+  const mesesLab=[...meses].sort().map(finMesLabel).join(', ');
+  if(!confirm('Extrato lido: '+st.total+' linhas, '+st.receitas+' receitas.\n'
+    +'• Fora: '+st.naoConc+' não conciliadas (atrasadas/previstas), '+st.foraGrupo+' transferências/aportes/empréstimos/rendimentos.\n'
+    +'• Entram: '+st.gravadas+' lançamentos → '+registros.length+' registros em '+mesesLab+'.\n'
+    +'   Lojas '+finFmt(st.valor.lojas)+' ('+vinculados+' de '+nLojas+' vinculados pelo CNPJ)\n   Indústrias '+finFmt(st.valor.industrias)+'\n   Outros '+finFmt(st.valor.outros)+'\n   ↩ '+finFmt(st.recuperado)+' eram parcelas de meses anteriores.\n\n'
+    +'Os registros já existentes desses meses serão substituídos. Confirma?'))return;
+  const del=await sb.from('financeiro_recebidos_mensal').delete().in('mes_ano',[...meses]);
+  if(del.error){alert('Erro ao limpar os meses: '+del.error.message);return;}
+  const{error}=await sb.from('financeiro_recebidos_mensal').upsert(registros,{onConflict:'cnpj,mes_ano,categoria'});
   if(error){alert('Erro ao salvar: '+error.message);return;}
-  alert('✅ Receita recebida atualizada ('+registros.length+' registros)');
+  alert('✅ Receita recebida atualizada: '+registros.length+' registros em '+mesesLab);
   await carregarFinanceiroIC();
 }
 /* ================================================================
