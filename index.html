@@ -264,6 +264,49 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 .cg-aplicar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border-radius:10px;padding:9px 11px;margin:10px 0}
 .cg-manut{margin-top:18px;border:1px solid var(--ln);border-radius:12px;padding:10px 16px;background:var(--card)}
 .cg-manut summary{cursor:pointer;font-weight:700;color:var(--vd);font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+/* ---- Faturamento: layout desktop + busca ---- */
+.fin-fat-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px 20px;flex-wrap:wrap;margin-bottom:12px}
+.fin-fat-head h3{margin-bottom:0;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+.fin-fat-head h3 small{line-height:1.4}
+.fin-fat-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;justify-content:flex-end;min-width:260px}
+.fin-search{display:flex;align-items:center;gap:6px;background:var(--bg);border:1.5px solid var(--ln);border-radius:10px;padding:0 6px 0 10px;width:300px;max-width:100%;transition:border-color .15s,box-shadow .15s}
+.fin-search:focus-within{border-color:var(--v);background:#fff;box-shadow:0 0 0 3px rgba(0,145,80,.12)}
+.fin-search span{font-size:13px;opacity:.7}
+.fin-search input{border:none;background:none;font:inherit;font-size:13px;padding:8px 0;flex:1;min-width:0;outline:none;color:var(--tx)}
+.fin-search input::-webkit-search-cancel-button{display:none}
+.fin-search button{border:none;background:none;color:var(--mu);cursor:pointer;font-size:12px;padding:4px 6px;border-radius:6px;display:none;line-height:1}
+.fin-search button:hover{background:var(--ln);color:var(--tx)}
+.fin-search.has button{display:block}
+#finFatCont{font-size:12px;color:var(--mu);white-space:nowrap;font-variant-numeric:tabular-nums}
+#finFatTab.tw{max-height:640px}
+#finFatTab th,#finFatTab td{white-space:nowrap}
+#finFatTab td.fra{color:var(--mu);width:52px;font-variant-numeric:tabular-nums}
+#finFatTab td.loja{white-space:normal;min-width:200px;font-weight:700;color:var(--vd);line-height:1.3}
+#finFatTab td.val{min-width:150px}
+#finFatTab td.val b{font-size:13.5px}
+#finFatTab .vbar{display:block;height:4px;border-radius:2px;background:var(--ln);margin-top:5px;overflow:hidden}
+#finFatTab .vbar i{display:block;height:100%;background:var(--v);border-radius:2px}
+#finFatTab .vbar i.rec{background:var(--la)}
+#finFatTab td.rec small{color:var(--mu);font-weight:500;margin-left:4px}
+#finFatTab .mo{display:none}
+#finFatTab tbody tr:hover td{background:#F7FBF9}
+#finFatTab tbody tr.recorde td.loja::after{content:"🏆";margin-left:6px;font-size:11px}
+#finFatTab mark{background:#FFE9B8;color:inherit;border-radius:3px;padding:0 1px}
+#finFatTab .empty{padding:36px 20px}
+#finFatTab .empty b{display:block;color:var(--vd);margin-bottom:4px}
+.fin-receb table{max-width:760px}
+@media(max-width:1100px){#finFatTab .hm2{display:none}}
+@media(max-width:700px){
+  .fin-fat-head{gap:10px}.fin-fat-tools{justify-content:flex-start;min-width:0;width:100%}
+  .fin-search{width:100%}#finFatCont{width:100%}
+  #finFatTab.tw{max-height:70vh}
+  #finFatTab .hm{display:none}
+  #finFatTab .mo{display:block}#finFatTab td.loja .mo{font-size:11px;color:var(--mu);font-weight:600;margin-top:2px}
+  #finFatTab .mtag{margin-top:6px}#finFatTab .vbar{display:none}
+  #finFatTab td.loja{min-width:0;font-size:12.5px;padding-left:2px}#finFatTab td.val{min-width:0;width:1%;padding-right:2px}#finFatTab th,#finFatTab td{padding:9px 6px}
+  #finFatTab th:first-child,#finFatTab td:first-child{padding-left:2px}
+  .fin-receb table{max-width:none}
+}
 .fin-recorde-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
 .fin-recorde-item{background:#FFF6EC;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
 .fin-recorde-item b{font-size:13px;color:var(--vd)}
@@ -447,8 +490,17 @@ body.filtrosOff .filters{display:none}
   <div class="kpis" id="kpisFin"></div>
   <div id="finRecordeBanner"></div>
   <div class="grid">
-    <div class="card" id="cardFat"><h3>Faturamento <small id="finFatMesRef">carregando…</small></h3><div class="tw" id="finFatTab"></div></div>
-    <div class="card" id="cardReceb"><h3>Receita recebida <small>Conta Azul · extrato financeiro</small></h3><div class="tw" id="finRecebTab"></div></div>
+    <div class="card full fin-fat" id="cardFat">
+      <div class="fin-fat-head">
+        <h3>Faturamento <small id="finFatMesRef">carregando…</small></h3>
+        <div class="fin-fat-tools">
+          <label class="fin-search" id="finFatSearch"><span aria-hidden="true">🔍</span><input type="search" id="finFatBusca" placeholder="Buscar loja ou FRA…" autocomplete="off" spellcheck="false"><button type="button" id="finFatLimpar" title="Limpar busca" aria-label="Limpar busca">✕</button></label>
+          <small id="finFatCont"></small>
+        </div>
+      </div>
+      <div class="tw" id="finFatTab"></div>
+    </div>
+    <div class="card full" id="cardReceb"><h3>Receita recebida <small>Conta Azul · extrato financeiro</small></h3><div class="tw fin-receb" id="finRecebTab"></div></div>
     <div class="card full" id="cardInad"><h3>Inadimplência <small id="finInadMesRef">carregando…</small></h3><div class="tw" id="finInadTab"></div><div id="finInadNaoVinc"></div></div>
   </div>
 </section>
@@ -2804,6 +2856,42 @@ function finSerieFra(fra,porFraManual){
   }
   return hist;
 }
+/* ---- Faturamento: busca + render da tabela (separado pra filtrar sem recalcular) ---- */
+const FIN_FAT_UI={linhas:[],mesLabel:'',maxAtual:1,filtro:''};
+const finFatNormCh=c=>c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const finFatNorm=s=>[...String(s||'')].map(finFatNormCh).join('').replace(/\s+/g,' ').trim();
+function finFatHL(texto,termo){
+  const orig=String(texto);if(!termo)return esc(orig);
+  // normaliza char a char guardando o indice original de cada char normalizado
+  const idx=[];let nt='';[...orig].forEach((c,oi)=>{const n=finFatNormCh(c);for(let k=0;k<n.length;k++)idx.push(oi);nt+=n;});
+  const i=nt.indexOf(termo);if(i<0)return esc(orig);
+  const chars=[...orig],start=idx[i],end=idx[i+termo.length-1]+1;
+  return esc(chars.slice(0,start).join(''))+'<mark>'+esc(chars.slice(start,end).join(''))+'</mark>'+esc(chars.slice(end).join(''));
+}
+function finFatBindBusca(){
+  const inp=$('#finFatBusca'),wrap=$('#finFatSearch'),btn=$('#finFatLimpar');
+  if(!inp||inp._ok)return;inp._ok=true;
+  const aplicar=()=>{FIN_FAT_UI.filtro=finFatNorm(inp.value);wrap.classList.toggle('has',!!inp.value);finFatRenderTabela();};
+  inp.addEventListener('input',aplicar);
+  inp.addEventListener('keydown',e=>{if(e.key==='Escape'){inp.value='';aplicar();inp.blur();}});
+  btn.addEventListener('click',()=>{inp.value='';aplicar();inp.focus();});
+}
+function finFatRenderTabela(){
+  const {linhas,mesLabel,maxAtual,filtro}=FIN_FAT_UI,cont=$('#finFatCont'),tab=$('#finFatTab');
+  if(!tab)return;
+  const vis=filtro?linhas.filter(l=>finFatNorm(l.nome).includes(filtro)||String(l.fra)===filtro.replace(/\D/g,'')||String(l.fra).startsWith(filtro)):linhas;
+  if(cont)cont.textContent=filtro?vis.length+' de '+linhas.length+' lojas':linhas.length+' lojas · ordenado por faturamento';
+  if(!vis.length){tab.innerHTML='<div class="empty"><b>Nenhuma loja encontrada</b>Tente outro nome ou o número da FRA.</div>';return;}
+  tab.innerHTML='<table><thead><tr><th class="hm">FRA</th><th>Loja</th><th class="n">'+esc(mesLabel)+'</th><th class="n hm">vs. mês anterior</th><th class="n hm">Fonte</th><th class="n hm">Recorde histórico</th><th class="n hm hm2">Total (12 meses)</th></tr></thead><tbody>'
+    +vis.map(l=>{
+      const varPct=(l.valorAtual!=null&&l.valorAnterior)?Math.round((l.valorAtual-l.valorAnterior)/l.valorAnterior*100):null;
+      const tag=l.bateuRecorde?'<span class="tag ok">🏆 recorde</span>':(varPct==null?'<span class="tag nt">sem base</span>':'<span class="tag '+(varPct>=0?'dn':'up')+'">'+pct(varPct)+'</span>');
+      const fonteTag=l.fonteAtual==='bi'?'<span class="tag ok" title="Calculado automaticamente do BI Global, não precisa de upload manual">🔗 BI Global</span>':l.fonteAtual==='manual'?'<span class="tag nt">✍️ upload manual</span>':'<span class="tag nt" title="Sem dado no mês de referência">— sem dado</span>';
+      const w=l.valorAtual?Math.max(2,Math.round(l.valorAtual/maxAtual*100)):0;
+      const bar=l.valorAtual!=null?'<span class="vbar"><i class="'+(l.bateuRecorde?'rec':'')+'" style="width:'+w+'%"></i></span>':'';
+      return'<tr'+(l.bateuRecorde?' class="recorde"':'')+'><td class="fra hm">'+finFatHL(String(l.fra),filtro)+'</td><td class="loja">'+finFatHL(l.nome,filtro)+'<small class="mo">FRA '+finFatHL(String(l.fra),filtro)+'</small></td><td class="n val"><b>'+finFmt(l.valorAtual)+'</b>'+bar+'<span class="mo mtag">'+tag+'</span></td><td class="n hm">'+tag+'</td><td class="n hm">'+fonteTag+'</td><td class="n hm rec">'+finFmt(l.recordeValor)+(l.recordeMes?'<small>('+finMesLabel(l.recordeMes)+')</small>':'')+'</td><td class="n hm hm2"><b>'+finFmt(l.total12m)+'</b></td></tr>';
+    }).join('')+'</tbody></table>';
+}
 function finDesenharFaturamento(){
   const porFraManual={};FIN_FAT.forEach(f=>{(porFraManual[f.fra]=porFraManual[f.fra]||[]).push(f);});
   const frasBI=new Set(LOJAS.filter(l=>VMES[l.key]).map(l=>Number(l.fra)));
@@ -2813,7 +2901,7 @@ function finDesenharFaturamento(){
   LOJAS.forEach(l=>{if(VMES[l.key])Object.keys(VMES[l.key]).forEach(m=>todosMeses.add(m+'-01'));});
   if(!todosMeses.size){
     $('#finFatMesRef').textContent='Nenhum dado de faturamento carregado ainda.';
-    $('#finFatTab').innerHTML='';$('#finRecordeBanner').innerHTML='';
+    $('#finFatTab').innerHTML='';$('#finRecordeBanner').innerHTML='';const c0=$('#finFatCont');if(c0)c0.textContent='';
     return{linhas:[],mesLabel:null};
   }
   const mesAtualISO=[...todosMeses].sort().slice(-1)[0],mesAntISO=finMesAnterior(mesAtualISO);
@@ -2838,13 +2926,8 @@ function finDesenharFaturamento(){
     ?'<div class="card full" style="border-left:5px solid var(--la);margin-bottom:16px"><h3>🏆 Recorde histórico em '+finMesLabel(mesAtualISO)+' <small>'+recordistas.length+' loja'+(recordistas.length>1?'s':'')+'</small></h3>'
       +'<div class="fin-recorde-grid">'+recordistas.map(l=>'<div class="fin-recorde-item"><b>'+esc(l.nome)+'</b><span>'+finFmt(l.valorAtual)+'</span></div>').join('')+'</div></div>'
     :'';
-  $('#finFatTab').innerHTML='<table><thead><tr><th>FRA</th><th>Loja</th><th class="n">'+finMesLabel(mesAtualISO)+'</th><th class="n">vs. mês anterior</th><th class="n">Fonte</th><th class="n">Recorde histórico</th><th class="n">Total (12 meses)</th></tr></thead><tbody>'
-    +linhas.map(l=>{
-      const varPct=(l.valorAtual!=null&&l.valorAnterior)?Math.round((l.valorAtual-l.valorAnterior)/l.valorAnterior*100):null;
-      const tag=l.bateuRecorde?'<span class="tag ok">🏆 recorde</span>':(varPct==null?'':'<span class="tag '+(varPct>=0?'dn':'up')+'">'+pct(varPct)+'</span>');
-      const fonteTag=l.fonteAtual==='bi'?'<span class="tag ok" title="Calculado automaticamente do BI Global, não precisa de upload manual">🔗 BI Global</span>':l.fonteAtual==='manual'?'<span class="tag nt">✍️ upload manual</span>':'—';
-      return'<tr><td>'+l.fra+'</td><td>'+esc(l.nome)+'</td><td class="n"><b>'+finFmt(l.valorAtual)+'</b></td><td class="n">'+tag+'</td><td class="n">'+fonteTag+'</td><td class="n">'+finFmt(l.recordeValor)+(l.recordeMes?' <small style="color:var(--mu)">('+finMesLabel(l.recordeMes)+')</small>':'')+'</td><td class="n"><b>'+finFmt(l.total12m)+'</b></td></tr>';
-    }).join('')+'</tbody></table>';
+  FIN_FAT_UI.linhas=linhas;FIN_FAT_UI.mesLabel=finMesLabel(mesAtualISO);FIN_FAT_UI.maxAtual=Math.max(1,...linhas.map(l=>l.valorAtual||0));
+  finFatBindBusca();finFatRenderTabela();
   return{linhas,mesLabel:finMesLabel(mesAtualISO),mesAntLabel:finMesLabel(mesAntISO),nAtual,nAnterior,nAmbos};
 }
 
