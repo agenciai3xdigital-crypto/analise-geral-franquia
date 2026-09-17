@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- v6.32 · 17/09/2026 · Carga: relatório acusa BI Global com export incompleto (mês com < 80% dos pedidos da mediana dos 3 meses anteriores).
+     Qualidade: card "BI Global × faturamento declarado" por loja e mês (fora de 90–110% acende). Produtos: KPI de SKUs sem contagem dupla.
+     Produtos × serviços: seletor de tipo na aba Produtos e serviços. Visão geral: fabricantes/categoria e fornecedores/ABC em 2 colunas largas, números sem quebra. -->
 <!-- v6.31 · 16/09/2026 · Financeiro: card Faturamento em largura total com busca por loja/FRA e versão empilhada no celular;
      inadimplência volta a aceitar a "Visão Contas a Receber" do Conta Azul (vínculo por CNPJ, mês limpo antes de regravar);
      extrato financeiro lido só com receita conciliada, separando lojas × indústrias e cruzando com a inadimplência (recebido / em aberto / recuperado).
@@ -272,8 +275,18 @@ body.fin-ativa .filters,body.fin-ativa #fonteBar{display:none!important}
 .cg-aplicar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border-radius:10px;padding:9px 11px;margin:10px 0}
 .cg-manut{margin-top:18px;border:1px solid var(--ln);border-radius:12px;padding:10px 16px;background:var(--card)}
 .cg-manut summary{cursor:pointer;font-weight:700;color:var(--vd);font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+/* ---- Visão geral: cards de share em 2 colunas, sem quebra de valor ---- */
+.vg-2{grid-column:1/-1;display:grid;grid-template-columns:3fr 2fr;gap:16px;align-items:start}
+.vg-2:nth-of-type(2){grid-template-columns:3fr 2fr}
+.share-card h3{flex-direction:column;align-items:flex-start;gap:2px}
+.share-card .tw{max-height:560px}
+.share-card table th:first-child,.share-card table td:first-child{width:auto}
+.share-card table td:nth-child(2),.share-card table th:nth-child(2),.share-card table td:nth-child(3),.share-card table th:nth-child(3){white-space:nowrap;font-variant-numeric:tabular-nums}
+.share-card table td:nth-child(4){width:26%;min-width:110px}
+.share-card tr.drill td:first-child{white-space:normal;max-width:none}
+@media(max-width:1100px){.vg-2{grid-template-columns:1fr}}
 /* ---- drill-down nas tabelas de share (Visão geral) ---- */
-tr.drill td:first-child{white-space:nowrap}
+tr.drill td:first-child{white-space:normal;min-width:160px}
 .dr-caret{display:inline-block;width:12px;color:var(--la);font-size:11px}
 tr.dr-sub>td{padding:0 0 10px 0;background:#F7FBF9;border-bottom:2px solid var(--vc)}
 .dr-box{padding:8px 10px 4px 22px}
@@ -292,6 +305,7 @@ tr.dr-sub>td{padding:0 0 10px 0;background:#F7FBF9;border-bottom:2px solid var(-
 #finRecebLoj.tw{max-height:520px}
 #finRecebTab th,#finRecebTab td,#finRecebInd th,#finRecebInd td,#finRecebLoj th,#finRecebLoj td{white-space:nowrap}
 #finRecebLoj td.loja{white-space:normal;font-weight:700;color:var(--vd)}
+#tbBiPl td,#tbBiPl th{white-space:nowrap}#tbBiPl td:nth-child(2),#tbBiPl td:last-child{white-space:normal;min-width:180px}
 #tbProd td,#tbProd th,#tbProdMes td,#tbProdMes th,#tbProdComp th,#tbProdComp td,#tbProdLoja th,#tbProdLoja td,#tbProdGrp th{white-space:nowrap}#tbProd td:nth-child(2),#tbProdLoja td:nth-child(2),#tbProdComp td:first-child{white-space:normal;min-width:220px}
 #finRecebTab tr.sel td{background:#E6F4EC}
 #finRecebTab tbody tr{cursor:pointer}
@@ -458,9 +472,9 @@ body.filtrosOff .filters{display:none}
   <button id="btnLeitura" title="Alternar entre abas e rolagem única">📖 Leitura</button>
   <button id="btnMenu" title="Menu" aria-label="Abrir menu"><i></i><i></i><i></i></button>
 </header>
-<aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span><br><span title="versão do painel (histórico no início do index.html)">painel <b>v6.31</b> · 16/09/2026</span></div></aside>
+<aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span><br><span title="versão do painel (histórico no início do index.html)">painel <b>v6.32</b> · 17/09/2026</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.31 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.32 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -517,10 +531,14 @@ body.filtrosOff .filters{display:none}
   <div class="grid">
     <div class="card full"><h3>Compras por mês <small>valor de entrada · clique num mês para filtrar</small></h3><div id="chMes"></div></div>
     <div class="card full"><h3>Sazonalidade · mesmo mês do ano anterior <small>compras e vendas do período comparadas com 12 meses antes · ignora o filtro de período</small></h3><div class="tw" id="tbSazon"></div></div>
-    <div class="card"><h3>Top fabricantes <small>share do período · clique para ver por onde cada marca é comprada</small></h3><div id="tbFab"></div></div>
-    <div class="card"><h3>Top fornecedores <small>share do período · clique para ver o que cada fornecedor entrega</small></h3><div id="tbFor"></div></div>
-    <div class="card"><h3>Por categoria <small>inferida pelo nome do produto · clique para abrir marcas, fornecedores ou indústrias dentro da categoria</small></h3><div id="tbCat"></div></div>
-    <div class="card"><h3>Curva ABC de produtos <small>concentração do gasto</small></h3><div id="abc"></div></div>
+    <div class="vg-2">
+      <div class="card share-card"><h3>Top fabricantes <small>share do período · clique para ver por onde cada marca é comprada</small></h3><div class="tw" id="tbFab"></div></div>
+      <div class="card share-card"><h3>Por categoria <small>inferida pelo nome do produto · clique para abrir marcas, fornecedores ou indústrias dentro da categoria</small></h3><div class="tw" id="tbCat"></div></div>
+    </div>
+    <div class="vg-2">
+      <div class="card share-card"><h3>Top fornecedores <small>share do período · clique para ver o que cada fornecedor entrega</small></h3><div class="tw" id="tbFor"></div></div>
+      <div class="card"><h3>Curva ABC de produtos <small>concentração do gasto</small></h3><div id="abc"></div></div>
+    </div>
   </div>
 </section>
 
@@ -649,6 +667,7 @@ body.filtrosOff .filters{display:none}
       <p class="note">O <b>índice de problemas</b> soma cada verificação pela gravidade × percentual de linhas afetadas (limitado a 10 pontos por verificação). Serve para ordenar as lojas, não como nota absoluta. <button class="btn g" id="qExpTudo" style="padding:5px 10px">Exportar resumo (CSV)</button></p></div>
     <div class="card full" id="cardQ" style="display:none"><h3 id="qTitulo"></h3><p class="note" id="qDesc"></p><div class="tw" id="tbQ"></div><p style="margin-top:10px"><button class="btn g" id="qExp">Exportar esta lista (CSV)</button></p></div>
     <div class="card full"><h3>Entradas sem custo por loja <small>lançamento de entrada sem valor pelo franqueado · evolução mensal para acompanhar a correção</small></h3><div class="tw" id="tbSemCusto"></div></div>
+    <div class="card full"><h3>BI Global × faturamento declarado <small>venda do BI Global contra a planilha mensal de faturamento · abaixo de 90% = export do BI provavelmente cortado · acima de 110% = declaração menor que a venda registrada</small></h3><div class="tw" id="tbBiPl"></div><p class="note" id="tbBiPlNota">Compara mês a mês, dentro do período do filtro, só onde as duas fontes existem. O BI Global é a base de ranking, Raio-X e Produtos; a planilha é a base do royalty. Quando divergem, um dos dois está errado.</p></div>
     <div class="card full"><h3>Identificação de cliente por loja <small>% da venda com cliente cadastrado no cupom · base para fidelidade, recorrência e churn</small></h3><div class="tw" id="tbIdent"></div><p class="note">Meta da rede: 80% da venda identificada (tabela <b>metas</b>). Cliente "SEM CADASTRO" (código 1) não conta. Lojas com identificação baixa não entram em nenhuma análise de cliente.</p></div>
     <div class="card full"><h3>O que cada verificação significa</h3><div id="qualLegenda"></div></div>
   </div>
@@ -1709,7 +1728,7 @@ const TAB_RENDER={
   precos:D=>renderPrecos(D),
   mercado:()=>renderMercado(),
   produtos:()=>renderProdutos(),
-  qual:()=>{renderSemCusto();renderIdent();renderQualidade()},
+  qual:()=>{renderSemCusto();renderIdent();renderQualidade();renderBiPlanilha()},
   itens:D=>renderItens(D),
   tv:()=>renderTV(),
   agir:D=>{if(ABAS_SUJAS.has('precos'))renderAba('precos',D);renderAgir()},  // agir depende de PRE_ROWS, calculado em renderPrecos
@@ -3628,7 +3647,8 @@ function abrirRelCarga(REL,tot){
       ${r.filial?`<div class="rs">filial no arquivo: <b>${esc(r.filial)}</b></div>`:''}
       <div class="relnum"><div>lidas<b>${(r.lidas||0).toLocaleString('pt-BR')}</b></div>
       <div>gravadas<b style="color:var(--v)">${(r.ins||0).toLocaleString('pt-BR')}</b></div>
-      <div>já existiam<b style="color:var(--mu)">${(r.dup||0).toLocaleString('pt-BR')}</b></div></div></div>`).join('')}
+      <div>já existiam<b style="color:var(--mu)">${(r.dup||0).toLocaleString('pt-BR')}</b></div></div>
+      ${r.parcialBI?`<div class="relav ruim"><b>Possível export incompleto do BI Global.</b> ${r.parcialBI.map(a=>`<b>${relMes(a.mes)}</b> veio com ${a.pedidos.toLocaleString('pt-BR')} pedidos, ${a.pct}% da mediana de ${a.mediana.toLocaleString('pt-BR')} dos meses anteriores`).join('; ')}. O OnePet corta pedidos quando o período exportado é longo — reexporte só esse mês e suba de novo (o painel completa sem duplicar).</div>`:''}</div>`).join('')}
     ${nm.length?`<div class="relf"><div class="rt">🔔 ${nm.length} marca(s) nova(s) sem indústria</div>
       <div class="rs">Entraram por esta carga e ainda não estão relacionadas. Sem indústria, não somam no card de indústrias nem no rebate.</div>
       <div style="margin-top:8px;font-size:13px">${nm.slice(0,20).map(r=>`<b>${esc(r.exemplo||r.rotulo)}</b> <span style="color:var(--mu)">${fmt0(+r.relevancia||0)}${r.pct_racao>=50?' · ração':''}</span>`).join(' · ')}</div>
@@ -3690,7 +3710,17 @@ async function cgGravar(){
           if(!loja){const _m='filial "'+(filial||'(coluna Filial vazia)')+'" não encontrada no cadastro — confira o número da FRA na aba Lojas';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
           const r=await enviarVendas(loja,linhas,i.file.name);
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
-          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,filial,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup});
+          /* v6.32: export incompleto do BI Global — o OnePet corta pedidos quando o período exportado é longo.
+             Compara pedidos distintos por mês no arquivo com a mediana dos 3 meses anteriores já no banco. */
+          const parcialBI=(()=>{try{
+            const pm={};linhas.forEach(l=>{const m=String(l.d||'').slice(0,7);if(!m)return;(pm[m]=pm[m]||new Set()).add(l.ped)});
+            const meses=Object.keys(pm).sort();const hoje=mesLocal();const hist=VMES[loja.key]||{};const av=[];
+            meses.forEach(m=>{if(m>=hoje)return;const ant=Object.keys(hist).filter(x=>x<m&&!pm[x]).sort().slice(-3).map(x=>+hist[x].pedidos||0).filter(x=>x>0);
+              if(ant.length<2)return;const med=[...ant].sort((a,b)=>a-b)[Math.floor(ant.length/2)];const n=pm[m].size;const pct=Math.round(100*n/med);
+              if(pct<80)av.push({mes:m,pedidos:n,mediana:med,pct})});
+            return av.length?av:null}catch(e){return null}})();
+          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,filial,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup,parcialBI});
+          if(parcialBI)msgs.push('⚠ '+esc(i.file.name)+': possível export incompleto — '+parcialBI.map(a=>relMes(a.mes)+' com '+a.pedidos+' pedidos ('+a.pct+'% do normal)').join(', ')+'. Reexporte o mês no OnePet.');
           msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(RECARGA?' gravadas ou atualizadas (recarga)':(r.dup?' ('+r.dup+' já existiam)':''))+' · filial no arquivo: "'+esc(filial)+'"');
         }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
@@ -3958,6 +3988,28 @@ async function importarHomologCSV(text){const rows=parseCSV(text);if(rows.length
   const g=(r,k)=>I[k]>=0?String(r[I[k]]||'').trim():'';const recs=[];for(const r of rows.slice(1)){const pr=money(g(r,'pr'));if(!(pr>0))continue;recs.push({fornecedor:g(r,'fo'),fabricante:g(r,'fa')||null,ean:g(r,'ean')||null,cod_produto:g(r,'cod')||null,produto:g(r,'p')||null,preco:pr,unidade:g(r,'un')||'un',inicio:dt(g(r,'ini')),fim:dt(g(r,'fim')),condicao:g(r,'cond')||null,obs:g(r,'obs')||null})}
   for(let i=0;i<recs.length;i+=500){const {error}=await sb.from('precos_homologados').insert(recs.slice(i,i+500));if(error)throw error}await carregarHomolog();return recs.length}
 /* ---------- identificação de cliente por loja ---------- */
+/* v6.32: BI Global × planilha de faturamento, por loja, no período do filtro. */
+async function renderBiPlanilha(){
+  const el=$('#tbBiPl');if(!el||!sb||!USER)return;
+  if(!FIN_FAT.length){el.innerHTML='<div class="empty">Carregando faturamento declarado…</div>';
+    try{const{data,error}=await sb.from('financeiro_faturamento_mensal').select('fra,mes_ano,valor');if(error)throw error;FIN_FAT=data||[]}catch(e){el.innerHTML='<div class="empty">Não foi possível ler a planilha de faturamento: '+esc(e.message||e)+'</div>';return}}
+  const pl={};FIN_FAT.forEach(f=>{pl[f.fra+'|'+String(f.mes_ano).slice(0,7)]=+f.valor||0});
+  const rows=[];
+  Object.keys(VMES).forEach(u=>{const l=lojaDe(u);if(!l||(F.u&&u!==F.u)||(F.uf&&l.uf!==F.uf)||(F.cons&&l.consultor!==F.cons))return;
+    const meses=[];let bi=0,plt=0;
+    Object.entries(VMES[u]).forEach(([m,r])=>{if(m<F.de||m>F.ate)return;const p=pl[Number(l.fra)+'|'+m];if(!p)return;const v=+r.venda||0;bi+=v;plt+=p;meses.push({m,bi:v,pl:p,pct:Math.round(100*v/p)})});
+    if(!meses.length||!plt)return;
+    const pct=100*bi/plt;const fora=meses.filter(x=>x.pct<90||x.pct>110).sort((a,b)=>a.m.localeCompare(b.m));
+    rows.push({u,fra:l.fra,nome:l.nome,cons:l.consultor||'',n:meses.length,bi,pl:plt,pct,dif:bi-plt,fora})});
+  const alerta=rows.filter(r=>r.pct<90||r.pct>110).length;
+  $('#tbBiPlNota').innerHTML=`${rows.length} loja(s) com as duas fontes em <b>${esc(mesLabel(F.de))} – ${esc(mesLabel(F.ate))}</b> · <b>${alerta}</b> fora da faixa 90–110%. Compara mês a mês só onde as duas fontes existem. O BI Global é a base de ranking, Raio-X e Produtos; a planilha é a base do royalty. Quando divergem, um dos dois está errado.`;
+  const st=v=>v<90?`<span class="tag no">${Math.round(v)}% · BI cortado?</span>`:v>110?`<span class="tag at">${Math.round(v)}% · planilha menor</span>`:`<span class="tag ok">${Math.round(v)}%</span>`;
+  tabela(el,[{h:'FRA',n:1,v:r=>+r.fra||0},{h:'Loja',v:r=>r.nome,f:(v,r)=>`<b>${esc(v)}</b><small style="color:var(--mu)"> · ${esc(r.cons)} · ${r.n} mês(es)</small>`},
+    {h:'BI Global',n:1,v:r=>r.bi,f:fmtK},{h:'Planilha',n:1,v:r=>r.pl,f:fmtK},{h:'Diferença',n:1,v:r=>r.dif,f:v=>`<span style="color:${v<0?'#B34A0B':'var(--mu)'}">${v<0?'−':'+'}${fmtK(Math.abs(v))}</span>`},
+    {h:'BI ÷ planilha',n:1,v:r=>r.pct,f:st},
+    {h:'Meses fora da faixa',v:r=>r.fora.length,f:(v,r)=>r.fora.length?r.fora.map(x=>`<span class="tag ${x.pct<90?'no':'at'}" title="BI ${fmt0(x.bi)} · planilha ${fmt0(x.pl)}">${mesLabel(x.m)} ${x.pct}%</span>`).join(' '):'<span style="color:var(--mu)">—</span>'}],
+    rows.sort((a,b)=>Math.abs(b.dif)-Math.abs(a.dif)),{sort:4,asc:true});
+}
 function renderIdent(){const el=$('#tbIdent');if(!el)return;const rows=[];Object.keys(VMES).forEach(u=>{if((F.u&&u!==F.u)||(F.uf&&lojaDe(u).uf!==F.uf)||(F.cons&&lojaDe(u).consultor!==F.cons))return;const o=somaV(vmesRows(false,u));if(!o.venda)return;
     const meses=vmesRows(false,u).sort((a,b)=>a.m<b.m?-1:1).slice(-6);const serie=meses.map(x=>+x.r.venda?100-(+x.r.venda_sem_cadastro)/(+x.r.venda)*100:null);
     rows.push({u,venda:o.venda,ident:100-o.vsem/o.venda*100,pedIdent:o.ped?100-o.pedsem/o.ped*100:0,cliMes:o.meses?o.cli/o.meses:0,serv:o.ped?o.pedserv/o.ped*100:0,serie,meses})});
