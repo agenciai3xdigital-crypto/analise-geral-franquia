@@ -1,4 +1,14 @@
 <!DOCTYPE html>
+<!-- v6.33 · 17/09/2026 · Carga confiável e rápida:
+     · BI Global com várias filiais no mesmo arquivo passa a gravar cada filial na sua loja (antes ia tudo para a 1ª filial).
+     · Recálculo do resumo só dos meses que receberam linha nova (0,6 s em vez de 10–26 s) e nenhum recálculo quando o arquivo não trouxe nada novo.
+     · Deadlock / lock timeout / queda de rede: nova tentativa automática (3x). Se o resumo ainda falhar, os dados ficam gravados,
+       o mês fica marcado como pendente no banco e é recalculado no fim da carga.
+     · Botão "Verificar contra o banco": compara cada arquivo BI (loja × mês: linhas, pedidos, valor) com o banco bruto,
+       o resumo e o painel TV, sem gravar nada. A mesma verificação roda sozinha no fim de toda carga.
+     · Faixa de saúde na aba de carga: atualização noturna falhou, views atrasadas, resumos pendentes.
+     · Contador "preço bruto corrigido" zera a cada carga (antes acumulava da sessão).
+     RPCs novas: conferir_carga_bi, saude_carga, processar_resumos_pendentes, sync_rotulos_vendas; refresh_vendas_agg(p_loja, p_meses). -->
 <!-- v6.32 · 17/09/2026 · Carga: relatório acusa BI Global com export incompleto (mês com < 80% dos pedidos da mediana dos 3 meses anteriores).
      Qualidade: card "BI Global × faturamento declarado" por loja e mês (fora de 90–110% acende). Produtos: KPI de SKUs sem contagem dupla.
      Produtos × serviços: seletor de tipo na aba Produtos e serviços. Visão geral: fabricantes/categoria e fornecedores/ABC em 2 colunas largas, números sem quebra. -->
@@ -795,6 +805,7 @@ body.filtrosOff .filters{display:none}
     <span class="note" id="cgUltima"></span>
   </div>
 
+  <div id="cgSaude"></div>
   <div id="cgZona" class="cg-zona">
     <div style="font-size:26px;line-height:1">⬆️</div>
     <div style="font-size:16px;font-weight:700;color:var(--vd);margin-top:6px">Arraste os arquivos ou clique para escolher</div>
@@ -815,6 +826,7 @@ body.filtrosOff .filters{display:none}
     <div class="tw" id="cgTab"></div>
     <p style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn o" id="cgGravar">Gravar</button>
+      <button class="btn g" id="cgVerificar" title="Compara os arquivos BI Global da lista com o que já está no banco (linhas, pedidos e valor por loja e mês). Não grava nada.">🔎 Verificar contra o banco</button>
       <label class="note" style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer" title="Marque só para recarregar arquivos que já foram enviados antes e preencher as colunas novas (telefone, hora do pagamento, espécie…). Sem isso, linha repetida é ignorada.">
         <input type="checkbox" id="cgRecarga" style="width:auto;margin:0"> recarga: atualizar linhas que já existem
       </label>
@@ -2268,6 +2280,7 @@ function renderConferencia(){
     : `${carregadas.length} conferida(s), tudo batendo${naoCarreg?` · ${naoCarreg} não carregada(s)`:''}`;
 }
 function renderCarga(){
+  checarSaudeCarga(false); // v6.33
   // conta pelo BANCO (RESUMO/RESUMO_V), não pelo que está na memória do navegador.
   // No modo de carga em lote os itens não são trazidos, então UNIDADES fica vazio
   // e a cobertura mostraria menos lojas do que existe de fato.
@@ -2409,9 +2422,9 @@ function biParaLinhas(text){
     const dm=g(r,'d').match(/(\d{2})\/(\d{2})\/(\d{4})/)||g(r,'d').match(/(\d{4})-(\d{2})-(\d{2})/);if(!dm)continue;
     const d=dm[0].includes('/')?`${dm[3]}-${dm[2]}-${dm[1]}`:dm[0];const p=g(r,'p');if(!p)continue;
     const q=money(g(r,'q')),t=money(g(r,'t')),c=money(g(r,'c')),l=I.l>=0?money(g(r,'l')):t-c;
-    const key=[d,g(r,'ped'),g(r,'cod'),q,t].join('|');const seq=(seqMap.get(key)||0)+1;seqMap.set(key,seq);
-    if(!filial&&g(r,'fi'))filial=g(r,'fi');
-    out.push({d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:saneiaPreco(money(g(r,'pb')),money(g(r,'pl'))),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve'),
+    const fi=g(r,'fi');const key=[fi,d,g(r,'ped'),g(r,'cod'),q,t].join('|');const seq=(seqMap.get(key)||0)+1;seqMap.set(key,seq);
+    if(!filial&&fi)filial=fi;
+    out.push({fi,d,m:d.slice(0,7),ped:g(r,'ped'),seq,cod:g(r,'cod'),ean:g(r,'ean'),p,gr:g(r,'gr').toUpperCase(),sg:g(r,'sg').toUpperCase(),faL:normFab(g(r,'fa')),fo:g(r,'fo'),tipo:g(r,'ti')||'Produto',bal:/BALANCA|BALANÇA/i.test(g(r,'ia'))||/GRANEL/i.test(g(r,'gr')),q,pb:saneiaPreco(money(g(r,'pb')),money(g(r,'pl'))),pl:money(g(r,'pl')),t,c,l,cc:g(r,'cc'),cl:g(r,'cl'),ba:g(r,'ba'),ve:g(r,'ve'),
       tel:(t=>/\d{8,}/.test(t.replace(/\D/g,''))?t:'')((g(r,'tel')||g(r,'tel2')).split('/')[0].trim()),esp:g(r,'esp'),pag:dtHora(g(r,'pag')),
       can:g(r,'can'),dlv:I.dlv>=0?/^(s|sim|1|true)$/i.test(g(r,'dlv')):null,av:g(r,'av'),
       opbt:(g(r,'bt1')||g(r,'bt2')||g(r,'bt3')),vet:g(r,'vet'),
@@ -2524,6 +2537,92 @@ async function carregarVendasDetalhe(){
 function garantirVendasDetalhe(){if(VDET==='nao')carregarVendasDetalhe()}
 function recomporVendas(){invalidarFiltro();VDATA=[];Object.keys(VENDAS).sort().forEach(u=>VDATA.push(...VENDAS[u].rows));VDATA.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);construirMapa();enriquecer()}
 let RECARGA=false; // v6.22 — ligado pelo checkbox "recarga" na tela de carga
+/* v6.33: nova tentativa para erros passageiros do banco/rede. 40P01 deadlock · 55P03 lock timeout ·
+   57014 statement timeout · 40001 serialização · 5xx/queda de rede. Erro de dado (formato, permissão) não repete. */
+const ERR_PASSAGEIRO=e=>{const c=String(e?.code||''),m=String(e?.message||e||'');
+  return ['40P01','55P03','57014','40001','08006','08003'].includes(c)||/deadlock|lock timeout|statement timeout|Failed to fetch|NetworkError|Load failed|502|503|504|fetch failed/i.test(m)};
+async function comRetry(fn,rotulo,tentativas=3){let ult;
+  for(let k=1;k<=tentativas;k++){
+    try{const r=await fn();if(r&&r.error)throw r.error;return r}
+    catch(e){ult=e;if(!ERR_PASSAGEIRO(e)||k===tentativas)break;
+      const esp=(k===1?1500:4000)+Math.random()*1500;console.warn('[carga] '+rotulo+': '+(e.message||e)+' · nova tentativa em '+Math.round(esp)+' ms');
+      $('#status').textContent=rotulo+': banco ocupado, tentando de novo ('+(k+1)+'/'+tentativas+')…';await new Promise(r=>setTimeout(r,esp))}}
+  throw ult}
+/* resumo loja × mês de um conjunto de linhas do BI (mesma conta que o banco faz) */
+function resumoBI(linhas){const o={};linhas.forEach(l=>{const m=l.m||String(l.d).slice(0,7);const x=o[m]=o[m]||{linhas:0,ped:new Set(),total:0};x.linhas++;x.ped.add(l.ped);x.total+=l.t});
+  const r={};Object.keys(o).sort().forEach(m=>r[m]={linhas:o[m].linhas,pedidos:o[m].ped.size,total:Math.round(o[m].total*100)/100});return r}
+/* separa um BI Global por filial; linha sem filial vai para a filial dominante do arquivo */
+function biPorFilial(linhas){const g=new Map();linhas.forEach(l=>{const k=l.fi||'';if(!g.has(k))g.set(k,[]);g.get(k).push(l)});
+  if(g.has('')&&g.size>1){const vazias=g.get('');g.delete('');const dom=[...g.entries()].sort((a,b)=>b[1].length-a[1].length)[0][1];vazias.forEach(l=>dom.push(l))}
+  return [...g.entries()].map(([filial,ls])=>({filial,linhas:ls,loja:lojaPorFilial(filial)}))}
+async function verificarBI(itens){const out=[];
+  for(let i=0;i<itens.length;i+=300){const {data}=await comRetry(()=>sb.rpc('conferir_carga_bi',{p_itens:itens.slice(i,i+300)}),'Verificação');out.push(...(data||[]))}
+  return out}
+const VER_ROT={ok:['ok','bate'],faltam_no_banco:['no','faltam no banco'],banco_tem_mais:['warn','banco tem a mais'],valores_diferentes:['no','valor diferente'],resumo_desatualizado:['warn','resumo desatualizado'],loja_nao_encontrada:['no','loja não encontrada']};
+function htmlVerificacao(rows){
+  if(!rows||!rows.length)return '';
+  const ruins=rows.filter(r=>r.situacao!=='ok');
+  const cor=s=>s==='ok'?'var(--v)':(s==='banco_tem_mais'||s==='resumo_desatualizado')?'#a34608':'#B3241A';
+  const n=v=>v==null?'—':(+v).toLocaleString('pt-BR');
+  return `<div class="relf"><div class="rt">🔎 Verificação arquivo × banco · ${rows.length} loja×mês · ${ruins.length?`<span style="color:#B3241A">${ruins.length} com diferença</span>`:'<span style="color:var(--v)">tudo bate</span>'}</div>
+    <div class="rs">Compara cada arquivo com o banco bruto (vendas), o resumo das telas e o painel TV. Nada é gravado nesta conferência.</div>
+    <div class="tw" style="margin-top:8px"><table><thead><tr><th>Arquivo</th><th>Loja</th><th>Mês</th><th style="text-align:right">linhas arq.</th><th style="text-align:right">linhas banco</th><th style="text-align:right">resumo</th><th style="text-align:right">valor arq.</th><th style="text-align:right">valor banco</th><th>Situação</th></tr></thead><tbody>
+    ${[...ruins,...rows.filter(r=>r.situacao==='ok')].map(r=>`<tr${r.situacao!=='ok'?' style="background:#FFF6E8"':''}><td><small>${esc(r.arquivo||'')}</small></td><td><small>${esc((r.fra?r.fra+' · ':'')+(r.loja||''))}</small></td><td>${relMes(r.mes)}</td>
+      <td style="text-align:right">${n(r.arq_linhas)}</td><td style="text-align:right">${n(r.db_linhas)}</td><td style="text-align:right">${n(r.res_linhas)}</td>
+      <td style="text-align:right">${fmt0(+r.arq_total||0)}</td><td style="text-align:right">${fmt0(+r.db_total||0)}</td>
+      <td><b style="color:${cor(r.situacao)}">${(VER_ROT[r.situacao]||['',r.situacao])[1]}</b>${r.situacao!=='ok'?`<br><small>${esc(r.detalhe||'')}</small>`:''}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${ruins.some(r=>r.situacao==='resumo_desatualizado')?'<div class="relav">Resumo desatualizado: os dados brutos estão certos, só as telas não refletem ainda. Use <b>Recalcular pendentes</b> na faixa de saúde da carga.</div>':''}
+    ${ruins.some(r=>r.situacao==='faltam_no_banco')?'<div class="relav ruim">Faltam linhas no banco: grave o arquivo de novo (o painel completa sem duplicar). Se persistir, me mande o arquivo.</div>':''}
+    ${ruins.some(r=>r.situacao==='banco_tem_mais')?'<div class="relav">Banco com linhas a mais que o arquivo: se o arquivo é do mês inteiro, algum pedido foi alterado ou cancelado no OnePet depois da carga anterior e a versão antiga continua no banco. Confira a loja/mês antes de confiar no valor.</div>':''}
+  </div>`}
+/* faixa de saúde da carga (no máximo uma consulta a cada 3 min) */
+let SAUDE_T=0;
+async function checarSaudeCarga(forcar){
+  const el=document.getElementById('cgSaude');if(!el||!sb||!USER)return;
+  if(!forcar&&Date.now()-SAUDE_T<180000)return;SAUDE_T=Date.now();
+  try{const {data:s,error}=await sb.rpc('saude_carga');if(error)throw error;
+    const av=[];const h=s.views_atualizadas_em?(Date.now()-new Date(s.views_atualizadas_em))/36e5:999;
+    const falhas=(s.noturno||[]).filter(j=>j.status==='failed');
+    if((s.noturno||[])[0]?.status==='failed')av.push(`<b>Atualização noturna falhou</b> em ${new Date(s.noturno[0].inicio).toLocaleString('pt-BR')}${falhas.length>1?` (${falhas.length} das últimas ${s.noturno.length})`:''}.`);
+    if(h>26)av.push(`Produtos, rebate, ranking e qualidade estão com dados de <b>${new Date(s.views_atualizadas_em).toLocaleString('pt-BR')}</b> (${Math.round(h)} h atrás).`);
+    const pend=s.resumos_pendentes||[];
+    if(pend.length)av.push(`<b>${pend.length} loja(s) com resumo pendente</b> (${pend.slice(0,6).map(p=>esc((p.fra||'')+' '+p.meses.map(relMes).join('/'))).join(' · ')}${pend.length>6?'…':''}) — dados gravados, telas ainda sem eles. <a id="cgPendBtn" style="color:var(--v);font-weight:700;cursor:pointer;text-decoration:underline">Recalcular pendentes</a>`);
+    el.innerHTML=av.length?`<div class="relav ruim" style="margin:0 0 12px">⚠ ${av.join('<br>')}</div>`:'';
+    const b=document.getElementById('cgPendBtn');
+    if(b)b.onclick=async()=>{b.textContent='recalculando…';try{let n=0,volta=0;do{const {data}=await comRetry(()=>sb.rpc('processar_resumos_pendentes',{p_max:5}),'Resumos');n=+data||0;volta++}while(n>=5&&volta<40);
+      await carregarVMes();checarSaudeCarga(true)}catch(e){sbErr(e,'Recalcular pendentes')}};
+  }catch(e){console.warn('saude_carga',e);el.innerHTML=''}
+}
+/* botão "Verificar contra o banco": lê os BI da fila e compara, sem gravar */
+async function cgVerificar(){
+  const fila=cgProntos().filter(i=>i.tipo==='bi');
+  if(!fila.length){alert('A verificação cobre arquivos BI Global. Nenhum na lista.');return}
+  const bt=$('#cgVerificar');bt.disabled=true;const txt0=bt.textContent;
+  try{const itens=[],erros=[];
+    for(const [k,i] of fila.entries()){bt.textContent='Lendo '+(k+1)+'/'+fila.length+'…';await respira();
+      try{const {linhas}=biParaLinhas(await i.file.text());
+        for(const g of biPorFilial(linhas)){
+          if(!g.loja){erros.push({arquivo:i.file.name,erro:'filial "'+(g.filial||'(vazia)')+'" não encontrada no cadastro'});continue}
+          const rs=resumoBI(g.linhas);Object.entries(rs).forEach(([mes,x])=>itens.push({arquivo:i.file.name,loja_id:g.loja.id,mes,...x}))}
+      }catch(e){erros.push({arquivo:i.file.name,erro:e.message||String(e)})}}
+    bt.textContent='Consultando o banco…';
+    const rows=await verificarBI(itens);
+    abrirRelVerificacao(rows,erros);
+  }catch(e){sbErr(e,'Verificação')}
+  finally{bt.disabled=false;bt.textContent=txt0}
+}
+function abrirRelVerificacao(rows,erros){
+  const box=$('#relBox');if(!box)return;
+  box.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px"><h3 style="flex:1">Verificação antes de gravar</h3>
+    <button class="btn g" id="relCopy" style="padding:6px 11px;font-size:12px">Copiar</button><button class="btn o" id="relX" style="padding:6px 13px;font-size:13px">Fechar</button></div>
+    <p class="note">"faltam no banco" é o esperado para arquivo novo: é o que a gravação vai completar. Arquivo com tudo "bate" já está carregado e pode sair da lista.</p>
+    ${erros.map(e=>`<div class="relf"><div class="rt">${esc(e.arquivo)}</div><div class="relav ruim">${esc(e.erro)}</div></div>`).join('')}
+    ${htmlVerificacao(rows)}`;
+  box.classList.add('on');$('#relBg').classList.add('on');$('#relX').onclick=fecharRel;
+  $('#relCopy').onclick=()=>{navigator.clipboard.writeText(box.innerText).then(()=>{$('#relCopy').textContent='copiado ✓'})};
+}
+
 async function enviarVendas(loja,linhas,arquivo){
   const rows=linhas.map(r=>({loja_id:loja.id,data:r.d,pedido:r.ped,seq:r.seq,cod_produto:r.cod,ean:r.ean||null,produto:r.p,grupo:r.gr||null,subgrupo:r.sg||null,fabricante_loja:r.faL||null,fornecedor:r.fo||null,tipo:r.tipo,balanca:r.bal,qtd:r.q,preco_bruto:r.pb,preco_liq:r.pl,total:r.t,custo:r.c,lucro:r.l,cliente_cod:r.cc||null,cliente:r.cl||null,bairro:r.ba||null,vendedor:r.ve||null,
     cliente_tel:r.tel||null,especie:r.esp||null,pago_em:r.pag,canal:r.can||null,delivery:r.dlv,
@@ -2537,10 +2636,19 @@ async function enviarVendas(loja,linhas,arquivo){
       const n=+r.count||0;exist+=n;det.push(relMes(m)+': '+n.toLocaleString('pt-BR'))}
     const novas=Math.max(0,rows.length-exist);
     if(!confirm('Recarga · '+loja.key+'\n'+arquivo+'\n\n'+rows.length.toLocaleString('pt-BR')+' linhas no arquivo\n≈ '+novas.toLocaleString('pt-BR')+' linhas novas · '+exist.toLocaleString('pt-BR')+' linhas já existentes no banco serão SOBRESCRITAS\n(já no banco por mês: '+det.join(' · ')+')\n\nContinuar?'))throw new Error('recarga cancelada — nada foi gravado para este arquivo')}
-  let ins=0;for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);const {data,error}=await sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:!RECARGA}).select('id');if(error)throw error;ins+=data.length;const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
+  let ins=0;const mesesNovos=new Set();
+  for(let i=0;i<rows.length;i+=1000){const lote=rows.slice(i,i+1000);
+    const {data}=await comRetry(()=>sb.from('vendas').upsert(lote,{onConflict:'loja_id,data,pedido,cod_produto,qtd,total,seq',ignoreDuplicates:!RECARGA}).select('id,data'),'Enviando '+loja.key);
+    ins+=data.length;data.forEach(r=>mesesNovos.add(String(r.data).slice(0,7)));const feito=Math.min(i+1000,rows.length);$('#status').textContent=`Enviando vendas ${loja.key}: ${feito}/${rows.length}…`;
     PROG.set(PROG._tit||('Enviando vendas '+loja.key),`${feito.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas`,PROG._base+(PROG._fatia||0)*feito/rows.length);await respira()}
-  $('#status').textContent='Atualizando resumos de '+loja.key+'…';const rf=await sb.rpc('refresh_vendas_agg',{p_loja:loja.id});if(rf.error)throw rf.error;
-  $('#status').textContent='';return {ins,dup:rows.length-ins}}
+  /* v6.33: recalcula só os meses que mudaram. Sem linha nova, não recalcula nada (antes: 10–26 s por arquivo, sempre). */
+  const meses=[...mesesNovos].sort();let resumoPendente=false,erroResumo='';
+  if(meses.length){
+    $('#status').textContent='Atualizando resumos de '+loja.key+' ('+meses.map(relMes).join(', ')+')…';
+    try{await comRetry(()=>sb.rpc('refresh_vendas_agg',{p_loja:loja.id,p_meses:meses}),'Resumo '+loja.key)}
+    catch(e){resumoPendente=true;erroResumo=e.message||String(e);console.warn('resumo pendente',loja.key,e)}
+  }
+  $('#status').textContent='';return {ins,dup:rows.length-ins,meses,resumoPendente,erroResumo}}
 async function salvarMestre(ean,campos){const rec={ean,...campos,atualizado_em:new Date().toISOString()};const {error}=await sb.from('produtos_mestre').upsert(rec,{onConflict:'ean'});if(error)throw error;MESTRE[ean]={...(MESTRE[ean]||{}),...rec}}
 
 /* ---- carga (UI) ---- */
@@ -3642,12 +3750,15 @@ function abrirRelCarga(REL,tot){
       <div>repetidas ignoradas<b style="color:var(--mu)">${(tot.dupE+tot.dupV).toLocaleString('pt-BR')}</b></div>
       <div>arquivos<b>${REL.length}</b></div>${PB_SANEADOS?`<div title="linhas em que o One Pet exportou o código de barras no lugar do preço bruto; ficou valendo o preço líquido">preço bruto corrigido<b style="color:#a34608">${PB_SANEADOS.toLocaleString('pt-BR')}</b></div>`:''}</div>
     ${err.map(e=>`<div class="relf"><div class="rt">${esc(e.arquivo)}</div><div class="relav ruim">${esc(e.erro)}</div></div>`).join('')}
+    ${htmlVerificacao(tot.VROWS)}
     ${ent.map(cartao).join('')}
     ${bi.map(r=>`<div class="relf"><div class="rt">${esc(r.arquivo)}</div><div class="rs">${esc(r.loja)} · BI Global</div>
       ${r.filial?`<div class="rs">filial no arquivo: <b>${esc(r.filial)}</b></div>`:''}
       <div class="relnum"><div>lidas<b>${(r.lidas||0).toLocaleString('pt-BR')}</b></div>
       <div>gravadas<b style="color:var(--v)">${(r.ins||0).toLocaleString('pt-BR')}</b></div>
       <div>já existiam<b style="color:var(--mu)">${(r.dup||0).toLocaleString('pt-BR')}</b></div></div>
+      ${r.meses&&r.meses.length?`<div class="relav bom">Resumo recalculado só de ${r.meses.map(relMes).join(', ')}.</div>`:''}
+      ${r.resumoPendente?`<div class="relav ruim"><b>Resumo não recalculou na hora</b> (${esc(r.erroResumo||'')}). Os dados estão gravados; o painel tentou de novo no fim da carga — confira a verificação abaixo.</div>`:''}
       ${r.parcialBI?`<div class="relav ruim"><b>Possível export incompleto do BI Global.</b> ${r.parcialBI.map(a=>`<b>${relMes(a.mes)}</b> veio com ${a.pedidos.toLocaleString('pt-BR')} pedidos, ${a.pct}% da mediana de ${a.mediana.toLocaleString('pt-BR')} dos meses anteriores`).join('; ')}. O OnePet corta pedidos quando o período exportado é longo — reexporte só esse mês e suba de novo (o painel completa sem duplicar).</div>`:''}</div>`).join('')}
     ${nm.length?`<div class="relf"><div class="rt">🔔 ${nm.length} marca(s) nova(s) sem indústria</div>
       <div class="rs">Entraram por esta carga e ainda não estão relacionadas. Sem indústria, não somam no card de indústrias nem no rebate.</div>
@@ -3673,8 +3784,9 @@ async function cgGravar(){
   const fila=cgProntos();if(!fila.length)return;
   RECARGA=!!(document.getElementById('cgRecarga')||{}).checked; // v6.22
   if(RECARGA&&!confirm('Recarga ligada: as linhas que já estão no banco serão ATUALIZADAS com o conteúdo destes arquivos, não ignoradas.\n\nUse isso só para completar colunas novas a partir dos mesmos arquivos. Continuar?')){RECARGA=false;return}
-  const log=$('#cgLog');log.innerHTML='';
+  const log=$('#cgLog');log.innerHTML='';PB_SANEADOS=0;
   const msgs=[];let addE=0,dupE=0,addV=0,dupV=0;const REL=[];
+  const VERIF=[];const ROT_TOC=new Map();let PEND_RES=0; // v6.33
   const pendAntes=new Set(ROT_PEND.map(r=>r.rotulo));
   const tocadasE=new Set(),tocadasV=new Set();const FALHOU=new Set();
   try{
@@ -3705,10 +3817,22 @@ async function cgGravar(){
           REL.push({tipo:'entradas',arquivo:i.file.name,loja:loja.key,filial:filialArq,filialDiverge:!!(lojaArq&&lojaArq.id!==loja.id),filialLoja:lojaArq?lojaArq.key:'',...r});
           msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' itens'+(r.dup?' ('+r.dup+' já existiam)':'')+filialNota+(r.parcial?' · ⚠ '+relMes(r.parcial.mes)+' veio com '+r.parcial.pct+'% do esperado — confira o export':''));
         }else if(i.tipo==='bi'){
-          const txt=await i.file.text();const{linhas,filial}=biParaLinhas(txt);
-          const loja=lojaPorFilial(filial);
-          if(!loja){const _m='filial "'+(filial||'(coluna Filial vazia)')+'" não encontrada no cadastro — confira o número da FRA na aba Lojas';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
-          const r=await enviarVendas(loja,linhas,i.file.name);
+          const txt=await i.file.text();const{linhas:todas}=biParaLinhas(txt);
+          /* v6.33: um BI Global pode trazer várias filiais. Antes tudo ia para a loja da 1ª filial. */
+          const grupos=biPorFilial(todas);
+          const semLoja=grupos.filter(g=>!g.loja);
+          if(semLoja.length){const _m='filial '+semLoja.map(g=>'"'+(g.filial||'(coluna Filial vazia)')+'"').join(', ')+' não encontrada no cadastro — confira o número da FRA na aba Lojas'+(grupos.length>1?' (arquivo com '+grupos.length+' filiais: nada foi gravado)':'');msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
+          const lojasG=new Set(grupos.map(g=>g.loja.id));
+          if(lojasG.size<grupos.length){const _m='duas filiais do arquivo caem na mesma loja do cadastro — confira a aba Lojas';msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});FALHOU.add(i.id);return;}
+          if(grupos.length>1)msgs.push('ℹ '+esc(i.file.name)+': '+grupos.length+' filiais no arquivo — cada uma gravada na sua loja');
+          let falhouAlguma=false;
+          for(const {filial,linhas,loja} of grupos){
+          Object.entries(resumoBI(linhas)).forEach(([mes,x])=>VERIF.push({arquivo:i.file.name,loja_id:loja.id,mes,...x}));
+          let r;
+          try{r=await enviarVendas(loja,linhas,i.file.name);}
+          catch(e){falhouAlguma=true;const _m=(grupos.length>1?loja.key+': ':'')+(e.message||String(e));msgs.push('✖ '+esc(i.file.name)+': '+esc(_m));REL.push({tipo:'erro',arquivo:i.file.name,erro:_m});continue;}
+          if(r.meses.length)ROT_TOC.set(loja.id,[...new Set([...(ROT_TOC.get(loja.id)||[]),...r.meses])]);
+          if(r.resumoPendente){PEND_RES++;msgs.push('⚠ '+esc(i.file.name)+' → '+esc(loja.key)+': dados gravados, mas o resumo não recalculou ('+esc(r.erroResumo)+'). Vai ser recalculado no fim da carga.');}
           addV+=r.ins;dupV+=r.dup;tocadasV.add(loja.key);
           /* v6.32: export incompleto do BI Global — o OnePet corta pedidos quando o período exportado é longo.
              Compara pedidos distintos por mês no arquivo com a mediana dos 3 meses anteriores já no banco. */
@@ -3719,9 +3843,11 @@ async function cgGravar(){
               if(ant.length<2)return;const med=[...ant].sort((a,b)=>a-b)[Math.floor(ant.length/2)];const n=pm[m].size;const pct=Math.round(100*n/med);
               if(pct<80)av.push({mes:m,pedidos:n,mediana:med,pct})});
             return av.length?av:null}catch(e){return null}})();
-          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,filial,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup,parcialBI});
+          REL.push({tipo:'bi',arquivo:i.file.name,loja:loja.key,filial,ins:r.ins,dup:r.dup,lidas:r.ins+r.dup,parcialBI,meses:r.meses,resumoPendente:r.resumoPendente,erroResumo:r.erroResumo});
           if(parcialBI)msgs.push('⚠ '+esc(i.file.name)+': possível export incompleto — '+parcialBI.map(a=>relMes(a.mes)+' com '+a.pedidos+' pedidos ('+a.pct+'% do normal)').join(', ')+'. Reexporte o mês no OnePet.');
           msgs.push('✔ '+esc(i.file.name)+' → '+esc(loja.key)+': '+r.ins+' linhas de venda'+(RECARGA?' gravadas ou atualizadas (recarga)':(r.dup?' ('+r.dup+' já existiam)':''))+' · filial no arquivo: "'+esc(filial)+'"');
+          }
+          if(falhouAlguma)FALHOU.add(i.id);
         }else if(i.tipo==='faturamento'){await processarUploadFaturamentoIC(i.file);msgs.push('✔ '+esc(i.file.name)+': faturamento atualizado');}
         else if(i.tipo==='inadimplencia'){await processarUploadInadimplenciaIC(i.file);msgs.push('✔ '+esc(i.file.name)+': inadimplência atualizada');}
         else if(i.tipo==='recebidos'){await processarUploadRecebidosIC(i.file);msgs.push('✔ '+esc(i.file.name)+': recebidos atualizados');}
@@ -3732,6 +3858,17 @@ async function cgGravar(){
       while(cursor<fila.length)await processar(fila[cursor++]);
     }));
     PROG._fatia=0;PROG._base=100;
+    /* v6.33: fim da carga, em série (sem disputa): resumos que falharam, rótulos de marca e verificação. */
+    if(PEND_RES||tocadasV.size){PROG.set('Conferindo resumos pendentes','',100);await respira();
+      try{let n=0,volta=0;do{const {data}=await comRetry(()=>sb.rpc('processar_resumos_pendentes',{p_max:5}),'Resumos pendentes');n=+data||0;volta++}while(n>=5&&volta<40);
+        if(PEND_RES)msgs.push('✔ resumos que tinham falhado foram recalculados');}
+      catch(e){msgs.push('⚠ resumos pendentes não recalcularam agora ('+esc(e.message||e)+'). Use "Recalcular pendentes" na faixa de saúde; o job noturno também recalcula.');}}
+    for(const [lid,ms] of ROT_TOC){try{await comRetry(()=>sb.rpc('sync_rotulos_vendas',{p_loja:lid,p_meses:ms}),'Rótulos')}catch(e){console.warn('rótulos',lid,e)}}
+    let VROWS=[];
+    if(VERIF.length){PROG.set('Verificando arquivo × banco',VERIF.length+' loja×mês',100);await respira();
+      try{VROWS=await verificarBI(VERIF);const ruins=VROWS.filter(r=>r.situacao!=='ok');
+        msgs.push(ruins.length?'⚠ verificação: '+ruins.length+' loja×mês com diferença entre arquivo e banco — veja o relatório':'✔ verificação: arquivo, banco e telas batem em '+VROWS.length+' loja×mês');}
+      catch(e){msgs.push('⚠ verificação não rodou: '+esc(e.message||e));}}
     const puxar=!LOTEAO&&tocadasE.size<=3;
     if(puxar){
       for(const k of tocadasE){$('#cgStatus').textContent='Recarregando '+k+'…';PROG.set('Recarregando compras · '+k,'',100);await respira();await carregarLoja(LJ[k]);}
@@ -3749,7 +3886,8 @@ async function cgGravar(){
     PROG.set('Atualizando o mapa de marcas','',100);await respira();
     try{await carregarMarcas()}catch(e){console.warn('marcas',e)}
     const novasMarcas=ROT_PEND.filter(r=>!pendAntes.has(r.rotulo));
-    if(REL.length||msgs.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas});
+    if(REL.length||msgs.length)abrirRelCarga(REL,{addE,dupE,addV,dupV,novasMarcas,VROWS});
+    checarSaudeCarga(true);
   }catch(e){$('#cgStatus').textContent='';sbErr(e,'Erro na carga');}
   /* A faixa amarela (#status) e escrita por carregarVendasLoja a cada pagina e ninguem
      a limpava ao fim da carga: ficava "Carregando vendas X…" com tudo ja gravado.
@@ -3784,6 +3922,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const fs=[...(ev.dataTransfer?.files||[])];if(fs.length)cgReceber(fs);});
   }
   const g=document.getElementById('cgGravar'); if(g)g.onclick=cgGravar;
+  const gv=document.getElementById('cgVerificar'); if(gv)gv.onclick=cgVerificar;
   const ap=document.getElementById('cgAplicaBtn');
   if(ap)ap.onclick=()=>{const v=document.getElementById('cgAplicaLoja').value.trim();if(!v)return;CG_FILAS.forEach(i=>{if(i.status!=='erro'&&i.tipo==='entradas'&&!i.lojaKey){i.lojaKey=v;i.auto=false;}});document.getElementById('cgAplicaLoja').value='';cgRender();};
   const cf=document.getElementById('cFiltro');
