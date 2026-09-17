@@ -1,4 +1,13 @@
 <!DOCTYPE html>
+<!-- v6.35 · 17/09/2026 · Aba nova "🚚 Distribuidores": quem entrega o quê, por estado e por produto, com busca
+     combinada (estado × distribuidor × produto/marca/indústria/EAN). Direto das notas de entrada, no banco:
+     mv_dist_uf_prod (distribuidor × UF × produto × mês) e mv_dist_ref_mes (referência da rede por produto/mês),
+     RPCs v2_dist_ufs / v2_dist_resumo / v2_dist_itens. Ambas entram na atualização noturna.
+     Travas contra leitura errada: "melhor preço da rede" só considera distribuidor com 2+ lojas, 3%+ do volume
+     do mês e custo >= 60% da mediana (tira bonificação e lançamento errado); produto cujo custo varia mais de
+     2,5× entre os distribuidores é marcado como "unidade divergente" e fica fora do cálculo de ganho.
+     Correção: em Parametrização, os campos de busca dos distribuidores tinham o mesmo id dos campos da aba
+     Produtos (pdBusca/pdModo/pdMin) — a busca de distribuidores nunca funcionou. Agora são pdiBusca/pdiModo/pdiMin. -->
 <!-- v6.34 · 17/09/2026 · Faixa de saúde da carga ganha o botão "Atualizar agora": dispara no servidor a atualização
      das views (Produtos, rebate, ranking, margem, qualidade, custo por EAN) sem esperar a madrugada, acompanha
      o andamento e avisa quando termina. RPCs v2_refresh_agendar / v2_refresh_agora_job. A chamada direta não serve:
@@ -91,6 +100,10 @@ header small{display:block;font-weight:500;opacity:.85;font-size:12px}
 .relnum{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0 4px}
 .relnum div{font-size:12px;color:var(--mu)}
 .relnum b{display:block;font-size:19px;color:var(--tx);font-weight:800;line-height:1.2}
+.dschips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
+.dschip{border:1px solid var(--bd);border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer;background:#fff;white-space:nowrap}
+.dschip.on{background:var(--vd);color:#fff;border-color:var(--vd)}
+.dschip b{font-weight:800}
 .relav{margin-top:8px;font-size:12px;padding:8px 10px;border-radius:8px;background:#FFF6E8;border-left:3px solid var(--la)}
 .relav.ruim{background:#FDECEC;border-left-color:#C0392B}
 .relav.bom{background:#EAF6EF;border-left-color:var(--v)}
@@ -508,6 +521,7 @@ body.filtrosOff .filters{display:none}
   <button data-t="tv">📺 Painel executivo (TV)</button>
   <button data-t="rebate">Rebate por indústria</button>
   <button data-t="fornec">Acordos comerciais</button>
+  <button data-t="dist">🚚 Distribuidores</button>
   <button data-t="precos">Evolução de preços</button>
   <button data-t="unid">Comparativo de unidades</button>
   <button data-t="mercado">Vendas: mercado por região</button>
@@ -609,6 +623,41 @@ body.filtrosOff .filters{display:none}
     <div class="card full"><h3>Aderência ao preço homologado <small>preço negociado pela franqueadora × preço efetivamente cobrado · por fornecedor e por loja</small></h3><div class="kpis" id="kpisHom" style="margin-bottom:10px"></div><div class="tw" id="tbHomFor"></div><div class="tw" id="tbHomLoja" style="margin-top:12px"></div><p class="note" id="homNote"></p></div>
     <div class="card full"><h3>Sobrepreço por fornecedor vs. preço de referência da rede <small>quanto cada distribuidor cobrou acima da mediana da rede no mesmo produto e mês</small></h3><div class="tw" id="tbSobreFor"></div></div>
     <div class="card full"><h3>Produtos comprados de mais de um fornecedor <small>diferença de custo entre a fonte mais cara e a mais barata</small></h3><div class="tw" id="tbMulti"></div></div>
+  </div>
+</section>
+
+<section class="tab" id="t-dist">
+  <div class="card full">
+    <h3>Distribuidores por estado <small>quem entrega em cada UF, direto das notas de entrada · clique num estado para filtrar</small></h3>
+    <div id="dsUFs" class="dschips"></div>
+    <div class="filters" style="padding:10px 0 0;border:none;background:none">
+      <div><label>Estado</label><select id="dsUF" style="min-width:120px"><option value="">Todos</option></select></div>
+      <div><label>Distribuidor</label><input id="dsDist" placeholder="parte do nome · ex.: adimax" autocomplete="off"></div>
+      <div><label>Produto, marca, indústria ou EAN</label><input id="dsProd" placeholder="ex.: magnus 25kg · 7898363312822" autocomplete="off"></div>
+      <div><label>Ordenar por</label><select id="dsOrd">
+        <option value="valor">maior valor comprado</option>
+        <option value="diferenca">maior diferença para o melhor preço</option>
+        <option value="custo">menor custo unitário</option>
+      </select></div>
+      <div><label>Linhas</label><select id="dsTop"><option>100</option><option selected>300</option><option>1000</option></select></div>
+      <div><label>&nbsp;</label><button class="btn g" id="dsLimpar">Limpar</button></div>
+    </div>
+    <p class="note" id="dsRec"></p>
+  </div>
+
+  <div class="card full">
+    <h3>Distribuidores <small>no recorte atual · clique para ver só ele</small></h3>
+    <div class="tw" id="tbDistLista"></div>
+  </div>
+
+  <div class="card full">
+    <h3>Produto por distribuidor e estado <small>custo unitário praticado, comparado com a rede</small></h3>
+    <div class="tw" id="tbDistItens"></div>
+    <p style="margin-top:10px"><button class="btn g" id="dsCsv">Exportar esta lista (CSV)</button></p>
+    <p class="note"><b>Referência da rede</b> = mediana do custo unitário do mesmo produto entre todos os distribuidores e estados, no período.
+      <b>Melhor preço</b> = menor custo entre distribuidores que atendem 2 ou mais lojas, respondem por pelo menos 3% do volume do mês e cobram ao menos 60% da mediana — as três travas existem para o preço de bonificação ou de lançamento errado não virar "oportunidade".
+      <b>Ganho potencial</b> = (custo praticado − melhor preço) × quantidade do período.
+      Produto marcado <span class="tag at">unidade divergente</span> tem lançamento em caixa e em unidade misturado (custo varia mais de 2,5× entre distribuidores): a comparação não vale e o ganho não é calculado — é caso de corrigir cadastro.</p>
   </div>
 </section>
 
@@ -734,11 +783,11 @@ body.filtrosOff .filters{display:none}
     <h3>Distribuidores por indústria <small>quem entrega o quê, direto da nota de entrada</small></h3>
     <p class="note">Sai de <b>fornecedor × fabricante</b> das notas dos últimos 12 meses, agrupado pela indústria. Marque o papel de cada um: <b>indústria direto</b> (venda direta da fábrica), <b>homologado</b>, <b>tolerado</b> ou <b>fora</b> (compra que não deveria acontecer). O papel é cadastro; o valor é o que a nota diz.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:12px 0">
-      <div><label class="note">Buscar</label><input id="pdBusca" placeholder="indústria, marca ou distribuidor" style="min-width:220px"></div>
-      <div><label class="note">Ver</label><select id="pdModo" style="min-width:200px">
+      <div><label class="note">Buscar</label><input id="pdiBusca" placeholder="indústria, marca ou distribuidor" style="min-width:220px"></div>
+      <div><label class="note">Ver</label><select id="pdiModo" style="min-width:200px">
         <option value="ind">Por indústria → distribuidores</option>
         <option value="dist">Por distribuidor → marcas</option></select></div>
-      <div><label class="note">Valor mínimo</label><select id="pdMin" style="min-width:120px">
+      <div><label class="note">Valor mínimo</label><select id="pdiMin" style="min-width:120px">
         <option value="0">Qualquer</option><option value="5000" selected>R$ 5 mil</option><option value="20000">R$ 20 mil</option></select></div>
     </div>
     <div class="tw" id="pmDist"></div>
@@ -1582,7 +1631,7 @@ function renderParam(){
 /* ---------- distribuidores por indústria ---------- */
 function renderDistrib(){
   const el=$('#pmDist');if(!el)return;
-  const q=rotNorm(($('#pdBusca')||{}).value||''),modo=(($('#pdModo')||{}).value)||'ind',min=+(($('#pdMin')||{}).value||0);
+  const q=rotNorm(($('#pdiBusca')||{}).value||''),modo=(($('#pdiModo')||{}).value)||'ind',min=+(($('#pdiMin')||{}).value||0);
   const PAPEIS=[['industria_direto','indústria direto'],['homologado','homologado'],['tolerado','tolerado'],['fora','fora do acordo'],['nao_cadastrado','—']];
   const cor=p=>p==='fora'?'no':p==='tolerado'?'at':p==='nao_cadastrado'?'nt':'ok';
   if(modo==='ind'){
@@ -1612,7 +1661,7 @@ function renderDistrib(){
 (()=>{const b=$('#btnSino');if(b)b.onclick=()=>$('#sinoBox').classList.contains('on')?fecharSino():abrirSino();
   ['#pmBusca','#pmFiltro','#pmMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pmBusca'?'oninput':'onchange']=()=>renderParam()});
   const sy=$('#pmSync');if(sy)sy.onclick=async()=>{sy.textContent='varrendo…';try{await sincronizarRotulos()}catch(e){alert(e.message)}sy.textContent='Revarrer arquivos'};
-  ['#pdBusca','#pdModo','#pdMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pdBusca'?'oninput':'onchange']=()=>renderDistrib()});
+  ['#pdiBusca','#pdiModo','#pdiMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pdiBusca'?'oninput':'onchange']=()=>renderDistrib()});
   const ca=$('#ciAdd');if(ca)ca.onclick=async()=>{const n=$('#ciNome');
     if(await criarIndustria(n.value,$('#ciCnpj').value,$('#ciObs').value)){n.value='';$('#ciCnpj').value='';$('#ciObs').value=''}};
   const g=$('#sinoBg');if(g)g.onclick=fecharSino;
@@ -1740,6 +1789,7 @@ function abaAtiva(){const b=document.querySelector('nav button.on');return b?b.d
 const TAB_RENDER={
   rebate:()=>renderRebate(),
   fornec:D=>{renderFornec(D);renderConc(D);renderSobreFor(D);renderHomolog(D)},
+  dist:()=>renderDist(),
   unid:D=>renderUnid(D),
   precos:D=>renderPrecos(D),
   mercado:()=>renderMercado(),
@@ -1955,6 +2005,101 @@ function diagPreco(tipo,cod){
 }
 document.addEventListener('click',e=>{const a=e.target&&e.target.closest&&e.target.closest('[data-diag]');if(!a)return;e.preventDefault();e.stopPropagation();diagPreco(a.dataset.diag,a.dataset.cod)},true);
 
+/* ======================= Distribuidores por estado × produto (v6.35) =======================
+   Fonte: mv_dist_uf_prod (notas de entrada agregadas por distribuidor × UF × produto × mês).
+   Nada aqui usa DATA em memória: a aba responde igual com a janela de 12 meses ou com o histórico todo. */
+const DS={uf:'',dist:'',prod:'',ordem:'valor',top:300,ufs:[]};
+function dsPar(extra){return Object.assign({p_desde:F.de,p_ate:F.ate},extra||{})}
+async function renderDist(){
+  const elU=$('#dsUFs');if(!elU)return;
+  $('#dsRec').innerHTML='recorte: <b>'+esc(mesLabel(F.de)+' – '+mesLabel(F.ate))+'</b> · compras (notas de entrada) '
+    +'<span style="color:var(--mu)">(os filtros de unidade, consultor, fabricante e categoria do topo não se aplicam aqui)</span>';
+  elU.innerHTML='<span class="note">carregando estados…</span>';
+  try{
+    const {data:ufs,error}=await sb.rpc('v2_dist_ufs',dsPar({p_dist:DS.dist||null,p_busca:DS.prod||null}));
+    if(error)throw error;
+    DS.ufs=ufs||[];
+    const tot=DS.ufs.reduce((a,b)=>a+(+b.valor||0),0);
+    elU.innerHTML=(DS.ufs.length?DS.ufs.map(u=>`<span class="dschip ${DS.uf===u.uf?'on':''}" data-uf="${esc(u.uf)}">
+        <b>${esc(u.uf)}</b> · ${u.distribuidores} distrib. · ${u.produtos.toLocaleString('pt-BR')} produtos · ${fmt0(+u.valor)}</span>`).join('')
+      :'<span class="note">Nenhuma compra no recorte.</span>')
+      +(DS.ufs.length>1?`<span class="note" style="align-self:center;margin:0 0 0 6px">total ${fmt0(tot)}</span>`:'');
+    elU.querySelectorAll('[data-uf]').forEach(c=>c.onclick=()=>{DS.uf=DS.uf===c.dataset.uf?'':c.dataset.uf;$('#dsUF').value=DS.uf;renderDist()});
+    const sel=$('#dsUF');const atual=sel.value;
+    sel.innerHTML='<option value="">Todos os estados</option>'+DS.ufs.map(u=>`<option value="${esc(u.uf)}">${esc(u.uf)}</option>`).join('');
+    sel.value=DS.uf||atual||'';
+  }catch(e){elU.innerHTML='<span class="note">'+esc(e.message||e)+'</span>'}
+  dsLista();dsItens();
+}
+async function dsLista(){
+  const el=$('#tbDistLista');if(!el)return;el.innerHTML='<p class="note">carregando…</p>';
+  try{
+    const {data,error}=await sb.rpc('v2_dist_resumo',dsPar({p_uf:DS.uf||null,p_dist:DS.dist||null,p_busca:DS.prod||null,p_limite:200}));
+    if(error)throw error;const rows=data||[];
+    el.innerHTML=`<table><thead><tr><th style="width:32%">Distribuidor</th><th>Estados</th><th style="text-align:right">Produtos</th>
+      <th style="text-align:right">Lojas</th><th style="text-align:right">NFs</th><th style="text-align:right">Valor comprado</th><th>Última compra</th><th>Indústrias</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr data-d="${esc(r.fornecedor)}" style="cursor:pointer">
+        <td><b>${esc(r.fornecedor)}</b></td>
+        <td>${(r.ufs||[]).map(u=>`<span class="tag ${DS.uf===u?'ok':''}">${esc(u)}</span>`).join(' ')}</td>
+        <td style="text-align:right">${(+r.produtos).toLocaleString('pt-BR')}</td>
+        <td style="text-align:right">${r.lojas}</td>
+        <td style="text-align:right">${(+r.nfs).toLocaleString('pt-BR')}</td>
+        <td style="text-align:right"><b>${fmt0(+r.valor)}</b></td>
+        <td>${r.ultima?new Date(r.ultima+'T12:00').toLocaleDateString('pt-BR'):'—'}</td>
+        <td><small>${esc((r.industrias||[]).join(', '))}</small></td></tr>`).join('')
+        ||'<tr><td colspan="8" class="note" style="padding:16px">Nenhum distribuidor neste recorte.</td></tr>'}
+      </tbody></table>`;
+    el.querySelectorAll('[data-d]').forEach(tr=>tr.onclick=()=>{DS.dist=DS.dist===tr.dataset.d?'':tr.dataset.d;$('#dsDist').value=DS.dist;renderDist()});
+  }catch(e){el.innerHTML='<p class="note">'+esc(e.message||e)+'</p>'}
+}
+let DS_ROWS=[];
+async function dsItens(){
+  const el=$('#tbDistItens');if(!el)return;el.innerHTML='<p class="note">carregando…</p>';
+  try{
+    const {data,error}=await sb.rpc('v2_dist_itens',dsPar({p_uf:DS.uf||null,p_dist:DS.dist||null,p_busca:DS.prod||null,p_ordem:DS.ordem,p_limite:DS.top}));
+    if(error)throw error;const rows=data||[];DS_ROWS=rows;
+    const cel=v=>v==null?'—':(+v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    el.innerHTML=`<table><thead><tr><th style="width:26%">Produto</th><th>Marca</th><th>UF</th><th style="width:18%">Distribuidor</th>
+      <th style="text-align:right">Qtd</th><th style="text-align:right">Valor</th><th style="text-align:right">Custo un.</th>
+      <th style="text-align:right">Ref. rede</th><th style="text-align:right">vs ref.</th><th style="text-align:right">Melhor preço</th>
+      <th>Quem pratica</th><th style="text-align:right">Ganho potencial</th></tr></thead><tbody>
+      ${rows.map(r=>{
+        const d=r.dif_pct==null?null:+r.dif_pct;
+        const cor=d==null?'':d>10?'#B3241A':d<-5?'var(--v)':'var(--mu)';
+        return `<tr>
+        <td><b>${esc(r.produto||'')}</b>${r.unidade_suspeita?' <span class="tag at" title="o mesmo produto aparece lançado em caixa e em unidade — a comparação de custo não vale">unidade divergente</span>':''}
+          <br><small style="color:var(--mu)">${esc(r.ean||r.cod_produto||'')} · ${r.dist_no_produto||0} distrib. · ${r.ufs_no_produto||0} UF</small></td>
+        <td><small>${esc(r.marca||'')}${r.industria?'<br><span style="color:var(--mu)">'+esc(r.industria)+'</span>':''}</small></td>
+        <td><span class="tag">${esc(r.uf)}</span></td>
+        <td><small>${esc(r.fornecedor||'')}</small></td>
+        <td style="text-align:right">${Math.round(+r.qtd).toLocaleString('pt-BR')}</td>
+        <td style="text-align:right">${fmt0(+r.valor)}</td>
+        <td style="text-align:right"><b>${cel(r.custo_med)}</b></td>
+        <td style="text-align:right">${cel(r.ref_rede)}</td>
+        <td style="text-align:right;color:${cor};font-weight:${d!=null&&Math.abs(d)>10?'800':'400'}">${d==null?'—':(d>0?'+':'')+d.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%'}</td>
+        <td style="text-align:right">${cel(r.melhor_rede)}</td>
+        <td><small>${r.melhor_forn?esc(r.melhor_forn)+(r.melhor_uf?' · '+esc(r.melhor_uf):''):'—'}</small></td>
+        <td style="text-align:right">${r.ganho>0?'<b style="color:#a34608">'+fmt0(+r.ganho)+'</b>':'—'}</td></tr>`}).join('')
+        ||'<tr><td colspan="12" class="note" style="padding:16px">Nada neste recorte. Tente limpar a busca de produto ou ampliar o período no topo.</td></tr>'}
+      </tbody></table>`;
+  }catch(e){el.innerHTML='<p class="note">'+esc(e.message||e)+'</p>'}
+}
+function dsEventos(){
+  const u=$('#dsUF');if(!u)return;
+  u.onchange=()=>{DS.uf=u.value;renderDist()};
+  let t1,t2;
+  $('#dsDist').oninput=()=>{clearTimeout(t1);t1=setTimeout(()=>{DS.dist=$('#dsDist').value.trim();renderDist()},400)};
+  $('#dsProd').oninput=()=>{clearTimeout(t2);t2=setTimeout(()=>{DS.prod=$('#dsProd').value.trim();renderDist()},400)};
+  $('#dsOrd').onchange=()=>{DS.ordem=$('#dsOrd').value;dsItens()};
+  $('#dsTop').onchange=()=>{DS.top=+$('#dsTop').value||300;dsItens()};
+  $('#dsLimpar').onclick=()=>{DS.uf='';DS.dist='';DS.prod='';$('#dsUF').value='';$('#dsDist').value='';$('#dsProd').value='';renderDist()};
+  $('#dsCsv').onclick=()=>{if(!DS_ROWS.length)return;
+    baixarCSV('distribuidores_'+F.de+'_a_'+F.ate+'.csv',DS_ROWS.map(r=>({
+      Produto:r.produto,EAN:r.ean||'',Codigo:r.cod_produto||'',Marca:r.marca||'',Industria:r.industria||'',UF:r.uf,
+      Distribuidor:r.fornecedor,Qtd:r.qtd,Valor:r.valor,CustoUnitario:r.custo_med,RefRede:r.ref_rede,
+      DifPct:r.dif_pct,MelhorPreco:r.melhor_rede,MelhorDistribuidor:r.melhor_forn||'',MelhorUF:r.melhor_uf||'',
+      GanhoPotencial:r.ganho,UnidadeDivergente:r.unidade_suspeita?'sim':'nao',UltimaCompra:r.ultima})))};
+}
 function renderPrecos(D){
   const ms=new Map();D.forEach(r=>{if(!ms.has(r.cod))ms.set(r.cod,{cod:r.cod,p:r.p,fa:r.fa,cat:r.cat,h:[],t:0,q:0});const o=ms.get(r.cod);o.h.push(r);o.t+=r.t;o.q+=r.q});
   const min=+$('#pMin').value||0,nmin=+$('#pN').value||2,dir=$('#pDir').value,modo=$('#pModo').value,limpo=$('#pLimpo').checked;
@@ -3094,8 +3239,8 @@ $('#qExpTudo').onclick=()=>{if(!QROWS.length)return;const ks=Object.keys(QROWS[0
   $('#btnMenu').onclick=abrir;$('#drawerBg').onclick=fechar;$('#drawerClose').onclick=fechar;document.addEventListener('keydown',e=>{if(e.key==='Escape')fechar()});
   function ativar(id){navBtns.find(b=>b.dataset.t===id).click();montar();fechar()}
   function mover(id,dir){const i=ordem.indexOf(id);const j=i+dir;if(j<0||j>=ordem.length)return;[ordem[i],ordem[j]]=[ordem[j],ordem[i]];salvar();montar()}
-  const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','financeiro','produtos','precos','rebate','fornec','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
-  const ICO={agir:'🎯',tv:'📺',visao:'▦',financeiro:'💰',produtos:'📦',precos:'↗',rebate:'%',fornec:'🤝',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
+  const GRUPOS=[{t:'Decisão',ids:['agir','tv']},{t:'Análise',ids:['visao','financeiro','produtos','precos','rebate','fornec','dist','unid','mercado']},{t:'Dados',ids:['itens','qual','carga']},{t:'Cadastros',ids:['acordos','lojas']}];
+  const ICO={agir:'🎯',tv:'📺',visao:'▦',financeiro:'💰',produtos:'📦',precos:'↗',rebate:'%',fornec:'🤝',dist:'🚚',unid:'🏬',mercado:'🗺',itens:'≡',qual:'⚠',carga:'📂',acordos:'⚙',lojas:'🏷'};
   const rotulo=id=>navBtns.find(x=>x.dataset.t===id).textContent.replace(/^[^\wÀ-ú]+/,'').replace(/^Painel executivo \(TV\)$/,'Painel executivo · TV').trim();
   function montar(){const lei=document.body.classList.contains('leitura');
     const cur=document.querySelector('#side a.on')?.dataset.t;const atual=lei?(LEI_SECS.includes(cur)?cur:'agir'):document.querySelector('nav button.on')?.dataset.t;
@@ -3957,6 +4102,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
   const g=document.getElementById('cgGravar'); if(g)g.onclick=cgGravar;
   const gv=document.getElementById('cgVerificar'); if(gv)gv.onclick=cgVerificar;
+  dsEventos(); // v6.35
   const ap=document.getElementById('cgAplicaBtn');
   if(ap)ap.onclick=()=>{const v=document.getElementById('cgAplicaLoja').value.trim();if(!v)return;CG_FILAS.forEach(i=>{if(i.status!=='erro'&&i.tipo==='entradas'&&!i.lojaKey){i.lojaKey=v;i.auto=false;}});document.getElementById('cgAplicaLoja').value='';cgRender();};
   const cf=document.getElementById('cFiltro');
