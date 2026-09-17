@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- v6.34 · 17/09/2026 · Faixa de saúde da carga ganha o botão "Atualizar agora": dispara no servidor a atualização
+     das views (Produtos, rebate, ranking, margem, qualidade, custo por EAN) sem esperar a madrugada, acompanha
+     o andamento e avisa quando termina. RPCs v2_refresh_agendar / v2_refresh_agora_job. A chamada direta não serve:
+     a sessão do site é cortada em 30 s e a atualização leva minutos — por isso o servidor roda num job de 1 tiro. -->
 <!-- v6.33 · 17/09/2026 · Carga confiável e rápida:
      · BI Global com várias filiais no mesmo arquivo passa a gravar cada filial na sua loja (antes ia tudo para a 1ª filial).
      · Recálculo do resumo só dos meses que receberam linha nova (0,6 s em vez de 10–26 s) e nenhum recálculo quando o arquivo não trouxe nada novo.
@@ -2585,14 +2589,44 @@ async function checarSaudeCarga(forcar){
     const av=[];const h=s.views_atualizadas_em?(Date.now()-new Date(s.views_atualizadas_em))/36e5:999;
     const falhas=(s.noturno||[]).filter(j=>j.status==='failed');
     if((s.noturno||[])[0]?.status==='failed')av.push(`<b>Atualização noturna falhou</b> em ${new Date(s.noturno[0].inicio).toLocaleString('pt-BR')}${falhas.length>1?` (${falhas.length} das últimas ${s.noturno.length})`:''}.`);
-    if(h>26)av.push(`Produtos, rebate, ranking e qualidade estão com dados de <b>${new Date(s.views_atualizadas_em).toLocaleString('pt-BR')}</b> (${Math.round(h)} h atrás).`);
+    if(h>26)av.push(`Produtos, rebate, ranking e qualidade estão com dados de <b>${new Date(s.views_atualizadas_em).toLocaleString('pt-BR')}</b> (${Math.round(h)} h atrás)`
+      +(s.atualizacao_em_andamento?' · <b>atualizando agora</b>, leva alguns minutos.':' · <a id="cgRefBtn" style="color:var(--v);font-weight:700;cursor:pointer;text-decoration:underline">Atualizar agora</a>'));
+    if(s.atualizacao_manual&&/^erro/.test(s.atualizacao_manual.resultado||''))av.push(`Última atualização manual: <b>${esc(s.atualizacao_manual.resultado)}</b> (${new Date(s.atualizacao_manual.em).toLocaleString('pt-BR')}).`);
+    SAUDE_VIEWS=s.views_atualizadas_em||'';
     const pend=s.resumos_pendentes||[];
     if(pend.length)av.push(`<b>${pend.length} loja(s) com resumo pendente</b> (${pend.slice(0,6).map(p=>esc((p.fra||'')+' '+p.meses.map(relMes).join('/'))).join(' · ')}${pend.length>6?'…':''}) — dados gravados, telas ainda sem eles. <a id="cgPendBtn" style="color:var(--v);font-weight:700;cursor:pointer;text-decoration:underline">Recalcular pendentes</a>`);
     el.innerHTML=av.length?`<div class="relav ruim" style="margin:0 0 12px">⚠ ${av.join('<br>')}</div>`:'';
+    const rb=document.getElementById('cgRefBtn');
+    if(rb)rb.onclick=async()=>{
+      if(!confirm('Atualizar agora as telas de Produtos, rebate, ranking, margem e qualidade?\n\nA atualização roda no servidor e leva de 3 a 5 minutos. Enquanto roda, essas telas ficam indisponíveis para quem estiver usando o painel. As telas de carga, comparativo e TV não são afetadas.'))return;
+      rb.textContent='agendando…';rb.onclick=null;
+      try{const {data,error}=await sb.rpc('v2_refresh_agendar');if(error)throw error;
+        const el2=document.getElementById('cgSaude');
+        if(el2)el2.innerHTML='<div class="relav" style="margin:0 0 12px">⏳ Atualização '+(data==='ja_agendado'?'já estava agendada':'agendada')+'. Começa em até 1 minuto e leva de 3 a 5. Pode continuar usando a carga — aviso aqui quando terminar.</div>';
+        acompanharRefresh();}
+      catch(e){sbErr(e,'Atualizar agora')}};
     const b=document.getElementById('cgPendBtn');
     if(b)b.onclick=async()=>{b.textContent='recalculando…';try{let n=0,volta=0;do{const {data}=await comRetry(()=>sb.rpc('processar_resumos_pendentes',{p_max:5}),'Resumos');n=+data||0;volta++}while(n>=5&&volta<40);
       await carregarVMes();checarSaudeCarga(true)}catch(e){sbErr(e,'Recalcular pendentes')}};
   }catch(e){console.warn('saude_carga',e);el.innerHTML=''}
+}
+let SAUDE_VIEWS='';
+/* acompanha a atualização das views disparada pelo botão (até 20 min) */
+async function acompanharRefresh(){
+  const antes=SAUDE_VIEWS;const el=document.getElementById('cgSaude');
+  for(let i=0;i<40;i++){
+    await new Promise(r=>setTimeout(r,30000));
+    let s;try{s=(await sb.rpc('saude_carga')).data}catch(e){continue}
+    if(!s)continue;
+    if(s.views_atualizadas_em&&s.views_atualizadas_em!==antes){
+      if(el)el.innerHTML='<div class="relav bom" style="margin:0 0 12px">✔ Atualização concluída '+new Date(s.views_atualizadas_em).toLocaleString('pt-BR')+'. Produtos, rebate, ranking e qualidade já estão com os dados novos — recarregue a página para vê-los.</div>';
+      SAUDE_T=0;return;
+    }
+    if(s.atualizacao_manual&&/^erro/.test(s.atualizacao_manual.resultado||'')&&new Date(s.atualizacao_manual.em)>Date.now()-25*60000){
+      if(el)el.innerHTML='<div class="relav ruim" style="margin:0 0 12px">✖ A atualização falhou: '+esc(s.atualizacao_manual.resultado)+'</div>';return;
+    }
+  }
+  SAUDE_T=0;checarSaudeCarga(true);
 }
 /* botão "Verificar contra o banco": lê os BI da fila e compara, sem gravar */
 async function cgVerificar(){
