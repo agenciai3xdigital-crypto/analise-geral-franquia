@@ -1,4 +1,42 @@
 <!DOCTYPE html>
+<!-- v6.40 · 18/09/2026 · A linha "(sem indústria) · sem de-para" do Resumo por indústria vira tela de trabalho.
+     Ela somava R$ 8.583.063 em 145 lojas e não levava a lugar nenhum. Agora é clicável.
+
+     A tela SEPARA dois problemas que estavam somados, e era isso que fazia o número parecer intratável:
+     · "sem marca informada" (DIVERSOS e afins) — R$ 1,57 mi, 18%. O fornecedor não informou o fabricante
+       na nota, então NÃO existe marca para relacionar e nenhum de-para alcança. Só sai identificando
+       produto a produto pelo código de barras. A tela diz isso em vez de deixar na lista de trabalho.
+     · marcas de verdade — R$ 7,01 mi, 1.343 rótulos, e é finito: 47 cobrem metade, 190 cobrem 80%.
+
+     A tela NÃO sugere indústria, de propósito. A primeira versão sugeria pelo nome do fornecedor e
+     errava com cara de certeza — TITUS→COMIGO (cooperativa distribuidora), PET SOCIETY→ANIMALISSIMO
+     (R$ 92 de R$ 193 mil), IDEXX→PREMIERPET. Boa parte do que está cadastrado como indústria é, na
+     verdade, distribuidor; aceitar essas sugestões em série corromperia o de-para. No lugar vai
+     EVIDÊNCIA: quem entrega, o que mais esse fornecedor entrega (rotulado como pista, não resposta),
+     os produtos, as lojas, e a pista por código de barras — mesmo EAN já comprado sob rótulo que tem
+     indústria, que é a única prova de verdade porque é o mesmo produto físico.
+
+     Detalhes que evitam mentira na tela: os totais dos KPIs vêm do banco, não da soma das 300 linhas
+     mostradas, senão o KPI não fecharia com o número de onde a pessoa clicou; e a gravação é conferida
+     no MARCAMAP relido do banco, porque relacionarRotulo avisa erro com alert sem lançar exceção.
+
+     RPCs novas: v2_depara_pendentes (lista + totais + contexto) e v2_depara_detalhe (produtos, lojas,
+     fornecedores e pista por EAN de um rótulo). -->
+<!-- v6.39 · 18/09/2026 · Explorar itens: conferir contra o sistema da loja.
+     Motivo: a tela ordenada por quantidade trazia para o topo linhas impossíveis — 24.000 sachês
+     de 85 g a R$ 0,05 na NF 2812509 (FOKUS GOIAS, FR 23). A mesma nota tem as caixas certas
+     (L20P16 a R$ 35,12); a rede paga R$ 1,46–1,51 nesse mesmo EAN, em 62 lojas. Não é erro de
+     cálculo do painel, é lançamento em unidade errada na origem.
+     1) Buscar por NF: o campo de busca passa a achar o número da nota, não só nome, código e EAN.
+     2) NF clicável: abre a nota inteira (todas as linhas daquela nota naquela loja, com o total),
+        SEM aplicar os filtros de fabricante/fornecedor/categoria/busca — senão a nota apareceria
+        pela metade e a conferência contra o sistema daria diferença de propósito. Exporta só ela.
+     3) Marca de unidade suspeita: custo unitário fora da faixa de 1/5 a 5× da mediana da rede para
+        o mesmo EAN (mínimo de 3 lojas), com o preço real da rede ao lado. Medido no banco em 18/09:
+        6.642 linhas abaixo de 1/5 (R$ 512 mil) e 4.033 acima de 5× (R$ 894 mil) — 3% das linhas,
+        mas contaminam todo cálculo por unidade (custo médio, sobrepreço, margem).
+        A mediana é sempre da base inteira, nunca do recorte filtrado.
+     4) O CSV da aba leva FRA, a mediana da rede e o alerta. -->
 <!-- v6.38 · 18/09/2026 · Fase 0 da auditoria de desempenho:
      1) 🔴 Financeiro deixava de ler o histórico: as quatro consultas não paginavam e o servidor corta em 1.000 linhas
         sem erro nenhum. Medido no banco em 18/09: faturamento tem 9.795 linhas / 115 meses e o painel enxergava
@@ -538,9 +576,9 @@ body.filtrosOff .filters{display:none}
   <button id="btnLeitura" title="Alternar entre abas e rolagem única">📖 Leitura</button>
   <button id="btnMenu" title="Menu" aria-label="Abrir menu"><i></i><i></i><i></i></button>
 </header>
-<aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span><br><span title="versão do painel (histórico no início do index.html)">painel <b>v6.38</b> · 18/09/2026</span></div></aside>
+<aside id="side"><div class="brand"><span class="hex"></span><span>Inteligência Comercial<small>Rede Pop Pet Center</small></span></div><div class="modo"><button id="modoAbas" title="Uma seção por vez">Abas</button><button id="modoLeitura" title="Rolagem única com índice">Leitura</button></div><div id="sideList"></div><div class="sfoot"><b id="sideUser">—</b> <a id="sideSair" style="color:var(--v);cursor:pointer;text-decoration:underline">sair</a><br><span id="sideDados">sem dados</span><br><span title="versão do painel (histórico no início do index.html)">painel <b>v6.40</b> · 18/09/2026</span></div></aside>
 <div id="drawerBg"></div>
-<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.38 · auditoria</span></div></aside>
+<aside id="drawer"><header><h2>Menu</h2><button id="drawerClose" aria-label="Fechar">×</button></header><ul id="menuList"></ul><div class="foot"><span>Ordem dos itens: <b>Unidades e carga de dados</b> · painel v6.40 · auditoria</span></div></aside>
 <div id="sinoBg"></div>
 <div id="relBg"></div>
 <div id="cgProg"><div class="l"><span id="cgProgTit">Carregando…</span><span id="cgProgSub"></span></div><div class="bar"><i id="cgProgBar"></i></div></div>
@@ -1382,7 +1420,7 @@ const _fkey=()=>[FSEQ,F.de,F.ate,F.u,F.uf,F.cons,F.fa,F.fo,F.cat,F.q,F.inst,DATA
 function _memo(sub,calc){const k=_fkey();if(_FC.k!==k)_FC={k,m:new Map()};
   if(_FC.m.has(sub))return _FC.m.get(sub);const v=calc();_FC.m.set(sub,v);return v}
 function filtrado(ignoreMes){return _memo('c'+(ignoreMes?1:0),()=>_filtradoRaw(ignoreMes))}
-function _filtradoRaw(ignoreMes){return DATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===F.fa)&&(!F.fo||r.fo===F.fo)&&(!F.cat||r.cat===F.cat)&&(!F.q||r.p.toLowerCase().includes(F.q)||String(r.cod).includes(F.q)||r.ean.includes(F.q)))}
+function _filtradoRaw(ignoreMes){return DATA.filter(r=>(ignoreMes||(r.m>=F.de&&r.m<=F.ate))&&(!F.u||r.u===F.u)&&(!F.uf||lojaDe(r.u).uf===F.uf)&&(!F.cons||lojaDe(r.u).consultor===F.cons)&&(!F.fa||r.fa===F.fa)&&(!F.fo||r.fo===F.fo)&&(!F.cat||r.cat===F.cat)&&(!F.q||r.p.toLowerCase().includes(F.q)||String(r.cod).includes(F.q)||r.ean.includes(F.q)||String(r.nf||'').includes(F.q)))}
 function nMeses(){return MESES.filter(m=>m>=F.de&&m<=F.ate).length}
 
 /* ---------- abas ---------- */
@@ -1889,9 +1927,13 @@ function renderRebate(){
       <div class="kpi o"><span>Rebate já garantido</span><b>${fmtK(sum(rows,'rebate_estimado'))}</b><i>pela faixa atingida até agora</i></div>
       <div class="kpi a"><span>Rebate projetado</span><b>${fmtK(sum(rows,'rebate_projetado'))}</b><i>mantendo o ritmo mensal até o fim</i></div>`+v2Aviso();
     const mx=rank[0]?+rank[0].valor:1;
-    tabela(ind,[{h:'Indústria',v:r=>r.dimensao,f:(v,r)=>esc(v)+(r.mapeado===false?' <span class="tag nt" title="rótulo sem de-para para indústria">sem de-para</span>':'')},
+    /* v6.39: a linha sem de-para deixa de ser beco sem saida e abre a tela de resolucao */
+    tabela(ind,[{h:'Indústria',v:r=>r.dimensao,f:(v,r)=>r.mapeado===false
+        ?`<a class="diag" data-depara="1"><b>${esc(v)}</b></a> <span class="tag nt">sem de-para</span><br><small style="color:var(--mu)">clique para relacionar</small>`
+        :esc(v)},
       {h:'Comprado',v:r=>+r.valor,n:true,f:v=>`<span style="display:inline-block;height:8px;width:${Math.max(2,Math.round(70*v/mx))}px;background:var(--vc);border-radius:4px;margin-right:6px;vertical-align:middle"></span>${fmtK(v)}`},
       {h:'Share',v:r=>+r.share_pct,n:true,f:v2Pc},{h:'Acum.',v:r=>+r.acumulado_pct,n:true,f:v2Pc},{h:'Lojas',v:r=>+r.lojas,n:true}],rank,{sort:1});
+    ind.querySelectorAll('[data-depara]').forEach(a=>a.onclick=ev=>{ev.stopPropagation();abrirDepara()});
     if(!rows.length){tb.innerHTML='<div class="empty">Nenhum acordo cadastrado no banco. Cadastre na aba <b>Cadastro de acordos</b>; o cálculo aparece aqui na hora.</div>';return}
     tabela(tb,[
       {h:'Acordo',v:r=>r.acordo,f:(v,r)=>`<b>${esc(v)}</b><br><small style="color:var(--mu)">${esc(r.industria)} · ${mesLabel(r.inicio)}–${mesLabel(r.fim)}${r.distribuidor?' · '+esc(r.distribuidor):''}</small>${r.aviso?`<br><span class="tag at">${esc(r.aviso)}</span>`:''}`},
@@ -2286,18 +2328,231 @@ $('#kpisPre').onclick=e=>{if(e.target.closest('.qh'))return;const c=e.target.clo
 
 let ITENS=[];
 function renderItens(D){
-  $('#itensCount').textContent=D.length.toLocaleString('pt-BR')+' itens';
-  ITENS=tabela($('#tbItens'),[{h:'Unidade',v:r=>r.u},{h:'Data',v:r=>r.d,f:v=>v.split('-').reverse().join('/')},{h:'NF',v:r=>r.nf},{h:'Fornecedor',v:r=>r.fo},{h:'Fabricante',v:r=>r.fa},{h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">cód ${r.cod} · ${r.ean}</small>`},{h:'Categoria',v:r=>r.cat},{h:'Qtd',n:1,v:r=>r.q},{h:'Custo',n:1,v:r=>r.c,f:fmt},{h:'Total',n:1,v:r=>r.t,f:fmt}],D,{sort:0,asc:false,pageSize:50,pager:$('#pgItens')});
+  const sus=D.reduce((a,r)=>a+(unidadeSuspeita(r)?1:0),0);
+  $('#itensCount').innerHTML=D.length.toLocaleString('pt-BR')+' itens'
+    +(sus?` · <b style="color:#B4342A">${sus.toLocaleString('pt-BR')}</b> com unidade suspeita`:'');
+  ITENS=tabela($('#tbItens'),[{h:'Unidade',v:r=>r.u},{h:'Data',v:r=>r.d,f:v=>v.split('-').reverse().join('/')},
+    /* v6.39: NF vira link — abre a nota inteira para conferir contra o sistema da loja */
+    {h:'NF',v:r=>r.nf,f:(v,r)=>v?`<a class="diag" data-nf="${esc(String(v))}" data-nfu="${esc(r.u)}" title="ver a nota inteira">${esc(String(v))}</a>`:'—'},
+    {h:'Fornecedor',v:r=>r.fo},{h:'Fabricante',v:r=>r.fa},
+    {h:'Produto',v:r=>r.p,f:(v,r)=>`${esc(v)}<br><small style="color:var(--mu)">cód ${r.cod} · ${r.ean}</small>`},
+    {h:'Categoria',v:r=>r.cat},{h:'Qtd',n:1,v:r=>r.q},
+    /* v6.39: custo fora de 1/5–5x da mediana da rede = lancamento em unidade errada */
+    {h:'Custo',n:1,v:r=>r.c,f:(v,r)=>{const u=unidadeSuspeita(r);if(!u)return fmt(v);
+      return `<b style="color:#B4342A">${fmt(v)}</b><br><span class="tag no" title="a rede paga ${fmt(u.med)} neste mesmo EAN, em ${u.lojas} lojas">${u.tipo==='baixo'?'qtd inflada?':'caixa como unidade?'}</span><br><small style="color:var(--mu)">rede: ${fmt(u.med)}</small>`}},
+    {h:'Total',n:1,v:r=>r.t,f:fmt}],D,{sort:0,asc:false,pageSize:50,pager:$('#pgItens')});
+  $('#tbItens').querySelectorAll('[data-nf]').forEach(a=>a.onclick=ev=>{
+    ev.stopPropagation();abrirNota(a.dataset.nf,a.dataset.nfu)});
 }
-$('#btnCsv').onclick=()=>{const h='Unidade;Data;NF;Fornecedor;Fabricante;Cod;EAN;Produto;Categoria;Qtd;Custo;Total\n';const b=ITENS.map(r=>[r.u,r.d,r.nf,r.fo,r.fa,r.cod,r.ean,r.p,r.cat,r.q,String(r.c).replace('.',','),String(r.t).replace('.',',')].map(csvCel).join(';')).join('\n');
+/* v6.39: a nota inteira, montada da base carregada, ignorando os filtros de produto —
+   senao a nota apareceria pela metade e a conferencia contra o sistema daria diferenca. */
+function abrirNota(nf,u){
+  const linhas=DATA.filter(r=>String(r.nf)===String(nf)&&r.u===u).sort((a,b)=>b.t-a.t);
+  if(!linhas.length)return alert('Não encontrei as linhas desta nota na janela carregada.');
+  const l0=linhas[0],lj=lojaDe(u)||{},tot=sum(linhas,r=>r.t),qtd=sum(linhas,r=>r.q);
+  const nSus=linhas.filter(r=>unidadeSuspeita(r)).length;
+  const corpo=linhas.map(r=>{const su=unidadeSuspeita(r);
+    return `<tr><td>${esc(r.p)}<br><small style="color:var(--mu)">cód ${esc(r.cod)} · EAN ${esc(r.ean)||'—'} · ${esc(r.fa)}</small></td>
+      <td class="n">${r.q.toLocaleString('pt-BR')}</td>
+      <td class="n">${su?`<b style="color:#B4342A">${fmt(r.c)}</b><br><span class="tag no">${su.tipo==='baixo'?'qtd inflada?':'caixa como unidade?'}</span><br><small style="color:var(--mu)">rede: ${fmt(su.med)} · ${su.lojas} lojas</small>`:fmt(r.c)}</td>
+      <td class="n"><b>${fmt(r.t)}</b></td></tr>`}).join('');
+  const html=`<div style="margin-bottom:12px">
+      <div style="font-size:13px;color:var(--mu)">Nota fiscal</div>
+      <div style="font-size:22px;font-weight:700">${esc(String(nf))}</div>
+      <div style="margin-top:6px">${esc(l0.fo||'(sem fornecedor)')} · ${esc(l0.d.split('-').reverse().join('/'))}</div>
+      <div style="color:var(--mu);font-size:13px">FRA ${esc(String(lj.fra||'?'))} · ${esc(lj.nome||u)}</div></div>
+    <div class="kpis" style="margin-bottom:12px">
+      <div class="kpi"><span>Total da nota</span><b>${fmt(tot)}</b><i>${linhas.length} linha(s)</i></div>
+      <div class="kpi"><span>Quantidade somada</span><b>${qtd.toLocaleString('pt-BR')}</b><i>como veio no arquivo</i></div>
+      ${nSus?`<div class="kpi a"><span>Linhas com unidade suspeita</span><b>${nSus}</b><i>confira estas no sistema primeiro</i></div>`:''}</div>
+    ${nSus?`<p class="note" style="margin:0 0 10px">Custo unitário fora da faixa de 1/5 a 5× da mediana da rede para o mesmo código de barras. Normalmente é caixa lançada como unidade, ou quantidade digitada em outra unidade. O <b>total</b> da linha costuma estar certo — quem erra é a quantidade e o custo unitário.</p>`:''}
+    <div class="tw"><table><thead><tr><th>Produto</th><th class="n">Qtd</th><th class="n">Custo un.</th><th class="n">Total</th></tr></thead>
+      <tbody>${corpo}</tbody>
+      <tfoot><tr><th>Total</th><th class="n">${qtd.toLocaleString('pt-BR')}</th><th></th><th class="n">${fmt(tot)}</th></tr></tfoot></table></div>
+    <p class="note" style="margin-top:10px">Montada com as compras carregadas no painel, sem aplicar os filtros de fabricante, fornecedor, categoria ou busca — para a nota bater com o sistema. Linhas fora do período carregado não aparecem.</p>
+    <button class="btn" id="nfCsv" style="margin-top:10px">Baixar esta nota em CSV</button>`;
+  const box=$('#relBox');if(!box)return;
+  box.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+      <h3 style="flex:1">Nota ${esc(String(nf))} · ${esc(lj.nome||u)}</h3>
+      <button class="btn o" id="relX" style="padding:6px 13px;font-size:13px">Fechar</button></div>`+html;
+  box.classList.add('on');$('#relBg').classList.add('on');$('#relX').onclick=fecharRel;
+  const b=document.getElementById('nfCsv');
+  if(b)b.onclick=()=>{const h='Unidade;FRA;Data;NF;Fornecedor;Fabricante;Cod;EAN;Produto;Categoria;Qtd;Custo;Total;Alerta\n';
+    const c=linhas.map(r=>{const su=unidadeSuspeita(r);
+      return [r.u,lj.fra||'',r.d,nf,r.fo,r.fa,r.cod,r.ean,r.p,r.cat,r.q,String(r.c).replace('.',','),String(r.t).replace('.',','),
+        su?(su.tipo==='baixo'?'qtd inflada? rede '+su.med:'caixa como unidade? rede '+su.med):''].map(csvCel).join(';')}).join('\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+h+c],{type:'text/csv'}));
+    a.download='nota_'+nf+'.csv';a.click()};
+}
+/* v6.39: o CSV leva FRA e o alerta de unidade — e o arquivo que a pessoa abre ao lado do sistema */
+$('#btnCsv').onclick=()=>{const h='Unidade;FRA;Data;NF;Fornecedor;Fabricante;Cod;EAN;Produto;Categoria;Qtd;Custo;Total;Mediana da rede;Alerta\n';
+  const b=ITENS.map(r=>{const su=unidadeSuspeita(r);
+    return [r.u,(lojaDe(r.u)||{}).fra||'',r.d,r.nf,r.fo,r.fa,r.cod,r.ean,r.p,r.cat,r.q,String(r.c).replace('.',','),String(r.t).replace('.',','),
+      su?String(su.med.toFixed(2)).replace('.',','):'',
+      su?(su.tipo==='baixo'?'qtd inflada?':'caixa como unidade?'):''].map(csvCel).join(';')}).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+h+b],{type:'text/csv'}));a.download='itens_filtrados.csv';a.click()};
 
+
+
+/* ====================== RESOLVER DE-PARA (v6.39) ======================
+   A linha "(sem industria)" do Resumo por industria somava R$ 8,58 mi em 145 lojas
+   e nao levava a lugar nenhum. Esta tela transforma isso em lista de trabalho.
+
+   Duas decisoes de desenho, as duas por causa do que os dados mostraram:
+
+   1) SEPARA rotulo de preenchimento (DIVERSOS, NAO INFORMADO, SEM FABRICANTE) das
+      marcas de verdade. DIVERSOS sozinho e 18% do total e NAO TEM de-para possivel:
+      e o fornecedor nao tendo informado a marca. Somar os dois na mesma linha e o
+      que fazia o numero parecer intratavel.
+
+   2) NAO sugere industria. A primeira versao sugeria pelo nome do fornecedor e
+      errava com cara de certeza (TITUS -> COMIGO, que e distribuidora; PET SOCIETY
+      -> ANIMALISSIMO, que responde por R$ 92 de R$ 193 mil). Boa parte do que esta
+      cadastrado como industria e, na verdade, distribuidor. Entao a tela mostra
+      EVIDENCIA — quem entrega, o que mais esse fornecedor entrega, quais produtos,
+      quais lojas, e a pista por codigo de barras — e quem decide e a pessoa.
+   ====================================================================== */
+let DEP_ROWS=[],DEP_ABERTO=null;
+async function abrirDepara(){
+  const box=$('#relBox');if(!box)return;
+  box.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+    <h3 style="flex:1">Relacionar marcas sem indústria</h3>
+    <button class="btn o" id="relX" style="padding:6px 13px;font-size:13px">Fechar</button></div>
+    <p class="note">consultando o banco…</p>`;
+  box.classList.add('on');$('#relBg').classList.add('on');$('#relX').onclick=fecharRel;
+  try{
+    const {data,error}=await sb.rpc('v2_depara_pendentes',{...v2Filtros(),p_limite:300});
+    if(error)throw error;
+    DEP_ROWS=data||[];DEP_ABERTO=null;desenharDepara();
+  }catch(e){box.querySelector('.note').innerHTML='<span style="color:#B4342A">Não consegui carregar: '+esc(e.message||e)+'</span>'}
+}
+function desenharDepara(){
+  const box=$('#relBox');if(!box)return;
+  const R=DEP_ROWS,pre=R.filter(r=>r.eh_preenchimento),mar=R.filter(r=>!r.eh_preenchimento);
+  const soma=a=>a.reduce((x,r)=>x+(+r.comprado||0),0);
+  /* v6.39: os totais vem do banco, nao da soma das linhas devolvidas. A lista traz os
+     maiores (300 de 1.344), entao somar o que veio mostraria menos que o Resumo por
+     industria — e e justamente aquele numero que a pessoa clicou para chegar aqui. */
+  const t0=R[0]||{};
+  const tot=+t0.tot_geral||soma(R), tPre=+t0.tot_preenchimento||soma(pre), tMar=tot-tPre;
+  const nTodos=+t0.n_rotulos||R.length, nOcultos=Math.max(0,nTodos-R.length);
+  const comValor=mar.filter(r=>+r.comprado>0).sort((a,b)=>b.comprado-a.comprado);
+  let ac=0,n50=0,n80=0;
+  comValor.forEach((r,i)=>{ac+=+r.comprado;if(!n50&&ac>=tMar*0.5)n50=i+1;if(!n80&&ac>=tMar*0.8)n80=i+1});
+
+  const cab=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+      <h3 style="flex:1">Relacionar marcas sem indústria</h3>
+      <button class="btn o" id="relX" style="padding:6px 13px;font-size:13px">Fechar</button></div>
+    <p class="note" style="margin-bottom:12px">${esc(v2Rec())} · o de-para é gravado por rótulo, então toda entrada futura com o mesmo rótulo já nasce relacionada.</p>
+    <div class="kpis" style="margin-bottom:14px">
+      <div class="kpi"><span>Fora da leitura por indústria</span><b>${fmtK(tot)}</b><i>${R.length} rótulo(s)</i></div>
+      <div class="kpi a"><span>Sem marca informada</span><b>${fmtK(tPre)}</b><i>${pre.map(r=>esc(r.rotulo)).join(', ')||'—'} · de-para não resolve</i></div>
+      <div class="kpi o"><span>Marcas de verdade</span><b>${fmtK(tMar)}</b><i>${(nTodos-pre.length).toLocaleString('pt-BR')} rótulo(s) · dá para relacionar</i></div>
+      ${n50?`<div class="kpi"><span>Para cobrir metade</span><b>${n50}</b><i>rótulo(s) · ${n80} cobrem 80%</i></div>`:''}
+    </div>`;
+
+  const avisoPre = pre.length?`<div class="card full" style="border-left:5px solid var(--am);margin-bottom:14px;padding:12px 14px">
+      <b>${pre.map(r=>esc(r.rotulo)).join(', ')} — ${fmtK(tPre)}, não é marca</b>
+      <p class="note" style="margin:6px 0 0">Aqui o fornecedor não informou o fabricante na nota, então não existe marca para relacionar e o de-para não alcança.
+      Só sai identificando produto a produto, pelo código de barras. ${pre.map(r=>`${esc(r.rotulo)}: ${(+r.lojas).toLocaleString('pt-BR')} loja(s), ${(+r.skus).toLocaleString('pt-BR')} SKU(s)`).join(' · ')}.</p></div>`:'';
+
+  const linhas=mar.map((r,i)=>{
+    const aberto=DEP_ABERTO===r.rotulo;
+    const ctx=r.forn_entrega_mais
+      ? `<small style="color:var(--mu)">contexto: ${esc(r.forn_entrega_mais)} é ${(+r.forn_entrega_pct)}% do que <b>${esc(r.forn_principal||'')}</b> entrega — pista, não resposta</small>`
+      : '';
+    return `<tr class="deplin" data-rot="${esc(r.rotulo)}">
+      <td style="white-space:nowrap">${i+1}</td>
+      <td><a class="diag" data-abrir="${esc(r.rotulo)}"><b>${esc(r.rotulo)}</b></a>
+        ${r.categoria?`<br><small style="color:var(--mu)">${esc(r.categoria)}</small>`:''}</td>
+      <td class="n"><b>${fmtK(+r.comprado)}</b><br><small style="color:var(--mu)">acum. ${v2Pc(+r.acumulado_pct)}</small></td>
+      <td class="n">${(+r.lojas).toLocaleString('pt-BR')}</td>
+      <td class="n">${(+r.skus).toLocaleString('pt-BR')}</td>
+      <td style="max-width:280px">${esc(r.fornecedores||'—')}<br>${ctx}</td>
+      <td style="white-space:nowrap">
+        <input list="dlIndDep" placeholder="indústria" data-di="${esc(r.rotulo)}" style="width:150px;padding:5px 8px">
+        <input list="dlMarDep" placeholder="marca (opcional)" data-dm="${esc(r.rotulo)}" style="width:150px;padding:5px 8px">
+        <button class="btn" data-drel="${esc(r.rotulo)}" style="padding:5px 10px">Relacionar</button></td></tr>
+      ${aberto?`<tr class="depdet"><td colspan="7" style="background:#F4F8F5;padding:0">
+        <div id="depDet" style="padding:12px 14px">carregando o detalhe…</div></td></tr>`:''}`}).join('');
+
+  box.innerHTML=cab+avisoPre+
+    `<datalist id="dlIndDep">${INDUSTRIAS_CAD.map(x=>`<option value="${esc(x.nome)}">`).join('')}</datalist>
+     <datalist id="dlMarDep">${MARCAS_CAD.map(x=>`<option value="${esc(x.nome)}">`).join('')}</datalist>
+     <div class="tw"><table><thead><tr><th>#</th><th>Rótulo como vem na nota</th><th class="n">Comprado</th>
+       <th class="n">Lojas</th><th class="n">SKUs</th><th>Quem entrega</th><th>Relacionar a</th></tr></thead>
+       <tbody>${linhas||'<tr><td colspan="7" class="empty">Nada pendente neste recorte.</td></tr>'}</tbody></table></div>
+     <p class="note" style="margin-top:10px">${nOcultos?`Mostrando os <b>${mar.length}</b> maiores de ${nTodos.toLocaleString('pt-BR')} rótulos — os ${nOcultos.toLocaleString('pt-BR')} restantes somam ${fmtK(tMar-soma(mar))}, pouco por rótulo. `:''}Clique no rótulo para ver os produtos, as lojas e a pista por código de barras antes de decidir.
+       Deixar a marca em branco cria uma marca com o nome do rótulo dentro da indústria escolhida.</p>`;
+  $('#relX').onclick=fecharRel;
+  box.querySelectorAll('[data-abrir]').forEach(a=>a.onclick=ev=>{ev.stopPropagation();
+    const r=a.dataset.abrir;DEP_ABERTO=(DEP_ABERTO===r?null:r);desenharDepara();
+    if(DEP_ABERTO)carregarDeparaDetalhe(DEP_ABERTO)});
+  box.querySelectorAll('[data-drel]').forEach(b=>b.onclick=async ev=>{ev.stopPropagation();
+    const rot=b.dataset.drel;
+    const ind=box.querySelector(`[data-di="${CSS.escape(rot)}"]`).value.trim();
+    const mar=box.querySelector(`[data-dm="${CSS.escape(rot)}"]`).value.trim();
+    if(!ind)return alert('Informe a indústria — ou o nome da própria marca, se ela é a fabricante.');
+    b.disabled=true;b.textContent='…';
+    /* relacionarRotulo avisa erro com alert e nao lanca excecao, entao nao da para
+       confiar no "deu certo" dela. Conferimos no MARCAMAP, que carregarMarcas()
+       acabou de reler do banco: se o rotulo ficou com marca, gravou mesmo. */
+    try{
+      await relacionarRotulo(rot,ind,mar);
+      const gravou=!!(MARCAMAP[rotNorm(rot)]||{}).marca;
+      if(!gravou){b.disabled=false;b.textContent='Relacionar';return}
+      DEP_ROWS=DEP_ROWS.filter(x=>x.rotulo!==rot);desenharDepara();
+    }catch(e){alert('Não consegui gravar: '+(e.message||e));b.disabled=false;b.textContent='Relacionar'}});
+  if(DEP_ABERTO)carregarDeparaDetalhe(DEP_ABERTO);
+}
+async function carregarDeparaDetalhe(rot){
+  const el=$('#depDet');if(!el)return;
+  try{
+    const {data,error}=await sb.rpc('v2_depara_detalhe',{p_rotulo:rot,p_desde:F.de,p_ate:F.ate,p_limite:15});
+    if(error)throw error;
+    const d=data||{},prod=d.produtos||[],lj=d.lojas||[],fo=d.fornecedores||[],pi=d.pista_ean||[];
+    const t=(tit,html)=>`<div style="margin-bottom:12px"><b style="font-size:13px">${tit}</b>${html}</div>`;
+    el.innerHTML=
+      (pi.length?`<div class="card full" style="border-left:5px solid var(--v);margin:0 0 12px;padding:10px 12px">
+         <b>Pista pelo código de barras</b>
+         <p class="note" style="margin:6px 0 0">O mesmo código já foi comprado sob outro rótulo que tem indústria — é o mesmo produto físico, então é a evidência mais forte que existe aqui.</p>
+         ${pi.map(x=>`<div style="margin-top:6px">→ <b>${esc(x.industria)}</b> (marca ${esc(x.marca)}, rótulo “${esc(x.rotulo)}”) · ${x.eans} código(s) em comum · ${fmtK(+x.rs_do_outro_rotulo)} comprados sob aquele rótulo</div>`).join('')}</div>`:'')
+      +t('Produtos deste rótulo',`<div class="tw"><table style="font-size:12.5px"><thead><tr><th>Produto</th><th class="n">Comprado</th><th class="n">Qtd</th><th class="n">Lojas</th><th class="n">Custo méd.</th></tr></thead><tbody>${
+        prod.map(x=>`<tr><td>${esc(x.produto||'(sem nome)')}<br><small style="color:var(--mu)">EAN ${esc(x.ean)||'—'}</small></td><td class="n"><b>${fmt0(+x.rs)}</b></td><td class="n">${(+x.qtd).toLocaleString('pt-BR')}</td><td class="n">${x.lojas}</td><td class="n">${fmt(+x.custo_medio)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">—</td></tr>'}</tbody></table></div>`)
+      +t('Quem entrega',`<div class="tw"><table style="font-size:12.5px"><thead><tr><th>Fornecedor</th><th class="n">Comprado</th><th class="n">Notas</th><th class="n">Lojas</th></tr></thead><tbody>${
+        fo.map(x=>`<tr><td>${esc(x.fornecedor)}</td><td class="n"><b>${fmt0(+x.rs)}</b></td><td class="n">${x.nfs}</td><td class="n">${x.lojas}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">—</td></tr>'}</tbody></table></div>`)
+      +t('Lojas que compram',`<p style="line-height:2;margin:6px 0 0">${
+        lj.map(x=>`<span class="tag ok" title="${esc(x.nome)} · ${x.nfs} nota(s)">FRA ${esc(String(x.fra))}${x.uf?' · '+esc(x.uf):''} · ${fmt0(+x.rs)}</span>`).join(' ')||'—'}</p>`);
+  }catch(e){el.innerHTML='<span style="color:#B4342A">Não consegui carregar o detalhe: '+esc(e.message||e)+'</span>'}
+}
 
 /* ---------- comparativo de unidades ---------- */
 /* v6.26: a referência é SEMPRE calculada sobre a base inteira (DATA), nunca sobre o recorte dos filtros — senão
    filtrar por UF/consultor mudava a referência e o sobrepreço. Chave por EAN quando existe (fallback código) + mês.
    Precisa de 3+ lojas no mês para valer (REF); com 2 lojas fica só em REFD, marcada fraca, para o detalhe mostrar
    "referência fraca" sem entrar no sobrepreço. Cacheada por identidade/tamanho de DATA. */
+/* v6.39: mediana de custo por EAN sobre a base inteira (nunca sobre o recorte do filtro,
+   senao filtrar por UF mudaria o que e considerado erro). Serve para acusar, na lista de
+   itens, linha lancada em unidade errada: 24.000 sachês a R$ 0,05 quando a rede paga R$ 1,46.
+   Medido em 18/09: 6.642 linhas abaixo de 1/5 da mediana (R$ 512 mil) e 4.033 acima de 5x
+   (R$ 894 mil) — 3% das linhas, mas contaminam todo calculo por unidade. */
+let MEDEAN={},_ME_SRC=null,_ME_N=-1;
+function calcMedEan(){
+  if(_ME_SRC===DATA&&_ME_N===DATA.length)return MEDEAN;
+  _ME_SRC=DATA;_ME_N=DATA.length;MEDEAN={};
+  const m=new Map();
+  DATA.forEach(r=>{if(!r.ean||r.ean.length<8||!(r.c>0))return;
+    let o=m.get(r.ean);if(!o){o={c:[],lj:new Set()};m.set(r.ean,o)}
+    o.c.push(r.c);o.lj.add(r.u)});
+  m.forEach((o,ean)=>{if(o.lj.size<3)return;MEDEAN[ean]={med:mediana(o.c),lojas:o.lj.size,n:o.c.length}});
+  return MEDEAN}
+/* devolve null quando nao da para julgar (sem EAN, sem custo, menos de 3 lojas) */
+function unidadeSuspeita(r){
+  if(!r.ean||!(r.c>0))return null;
+  const m=calcMedEan()[r.ean];if(!m||!(m.med>0))return null;
+  if(r.c < m.med/5) return {tipo:'baixo',med:m.med,lojas:m.lojas};
+  if(r.c > m.med*5) return {tipo:'alto', med:m.med,lojas:m.lojas};
+  return null}
 const refKey=r=>(r.ean?'e'+r.ean:'c'+r.cod)+'|'+r.m;
 let _REF_SRC=null,_REF_N=-1;
 function calcRef(){if(_REF_SRC===DATA&&_REF_N===DATA.length)return REF;_REF_SRC=DATA;_REF_N=DATA.length;
