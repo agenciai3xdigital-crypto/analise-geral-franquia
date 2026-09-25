@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://ltfsujeoliovesvtmrey.supabase.co https://klcxavgxonpsbsbzqcil.supabase.co; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://agenciai3xdigital-crypto.github.io; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Parceiros · Inteligência Comercial</title>
-<!-- parceiros v1.0 · 25/09/2026 · cadastro único de parceiros (indústria, importador, distribuidor) e seus CNPJs, com a ligação "nome na nota → CNPJ". Tema POP v1.0 + Barra POP v1.0.1 -->
+<!-- parceiros v1.1 · 25/09/2026 · + CNPJ com seleção múltipla · cadastro único de parceiros (indústria, importador, distribuidor) e seus CNPJs, com a ligação "nome na nota → CNPJ". Tema POP v1.0 + Barra POP v1.0.1 -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@110,500..900&family=Inter:wght@400;500;600;700&display=swap">
 <!-- ===== BARRA POP v1.0.1 · 21/09/2026 · cabeçalho único dos painéis da Rede POP =====
      Colado igual em: Central (index.html), raiox/index.html, raiox/dash.html, raiox/score.html,
@@ -197,7 +197,6 @@ window.BarraPop=(function(){
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--pop-fundo);color:var(--pop-tinta);font-size:14px;line-height:1.45}
 main{max-width:1320px;margin:0 auto;padding:16px 16px 60px}
-a{color:var(--pop-petroleo)}
 .oculto{display:none!important}
 .abas{display:flex;gap:18px;border-bottom:1px solid var(--pop-linha);margin:2px 0 14px;overflow-x:auto}
 .aba{background:none;border:0;font:inherit;font-weight:700;color:var(--pop-tinta-2);padding:10px 2px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
@@ -243,6 +242,13 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .checks{display:flex;gap:10px;flex-wrap:wrap}.checks label{display:flex;gap:5px;align-items:center;margin:0;font-weight:600;color:var(--pop-tinta)}
 .lista-busca{max-height:300px;overflow:auto;border:1px solid var(--pop-linha);border-radius:8px;margin-top:8px}
 .lista-busca div{padding:7px 10px;border-bottom:1px solid var(--pop-linha-2);cursor:pointer}.lista-busca div:hover{background:var(--pop-laranja-suave)}
+.lista-busca label.it{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid var(--pop-linha-2);cursor:pointer;margin:0;font-weight:400;color:var(--pop-tinta)}
+.lista-busca label.it:hover{background:var(--pop-laranja-suave)}.lista-busca label.it.sel{background:var(--pop-verde-suave,#e6f2ee)}.lista-busca label.it input{margin-top:3px;flex:none}
+.lista-busca label.it.ja{opacity:.55;cursor:default}
+.barra-sel{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px}.barra-sel .esp{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;max-height:96px;overflow:auto}
+.chips span{background:var(--pop-laranja-suave);border-radius:999px;padding:3px 9px;font-size:12px;display:inline-flex;gap:6px;align-items:center}
+.chips button{border:0;background:none;cursor:pointer;font-weight:800;padding:0;color:var(--pop-tinta)}
 .login{max-width:420px;margin:48px auto;background:var(--pop-papel);border:1px solid var(--pop-linha);border-top:5px solid var(--pop-verde);border-radius:var(--pop-r-lg);box-shadow:0 8px 30px rgba(0,87,63,.08);padding:28px}
 .login img{height:48px;display:block;margin-bottom:14px}.login h1{font-size:24px;font-weight:800;margin:0}.login .btn{width:100%;margin-top:16px;padding:11px}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--pop-tinta);color:#fff;padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .2s;z-index:90;pointer-events:none}#toast.on{opacity:1}
@@ -367,7 +373,8 @@ h1,h2,h3{font-family:var(--pop-fonte-titulo)}
 <div class="modal" id="mBusca" role="dialog" aria-modal="true">
   <h2 id="mbTit"></h2><p class="muted" id="mbSub"></p>
   <input id="mbQ" placeholder="Digite para buscar"><div class="lista-busca" id="mbLista"></div>
-  <div class="rod"><button class="btn" type="button" data-fechar>Cancelar</button></div>
+  <div id="mbSel" class="oculto"><div class="barra-sel"><b id="mbN">0 selecionado(s)</b><span class="esp"></span><button class="btn peq" type="button" id="mbTodos">Marcar todos da lista</button><button class="btn peq" type="button" id="mbRaiz">+ filiais da mesma raiz</button><button class="btn peq" type="button" id="mbLimpa">Limpar</button></div><div class="chips" id="mbChips"></div></div>
+  <div class="rod"><button class="btn" type="button" data-fechar>Cancelar</button><button class="btn pri oculto" type="button" id="mbLigar">Ligar selecionados</button></div>
 </div>
 <div id="toast"></div>
 
@@ -376,7 +383,7 @@ h1,h2,h3{font-family:var(--pop-fonte-titulo)}
 'use strict';
 const SB_URL='https://ltfsujeoliovesvtmrey.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0ZnN1amVvbGlvdmVzdnRtcmV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3ODg5OTYsImV4cCI6MjEwMzM2NDk5Nn0.ENF_DUG-Jt3XGhwvmPa0YgHyHQYOrBDiEkMuPza82lQ';
-const VERSAO='parceiros v1.0';
+const VERSAO='parceiros v1.1';
 const PAPEIS={fabricante:'Fabricante',importador:'Importador',distribuidor:'Distribuidor',prestador:'Prestador',loja_rede:'Loja da rede',outro:'Outro'};
 const STN={pendente:['Pendente','s-ambar'],sugerido:['Sugerido','s-azul'],confirmado:['Confirmado','s-verde'],ignorar:['Ignorado','s-cinza'],loja_rede:['Loja da rede','s-foco']};
 const $=id=>document.getElementById(id);
@@ -490,9 +497,7 @@ function desenharParceiros(){
       +'<td class="num">'+(p.valor_notas?brl(p.valor_notas):'—')+'</td>'
       +'<td><div class="acoes"><button class="btn peq" data-ed>Editar</button><button class="btn peq" data-cn>+ CNPJ</button></div></td>';
     tr.querySelector('[data-ed]').onclick=()=>editarParceiro(p);
-    tr.querySelector('[data-cn]').onclick=()=>buscarCnpj('Ligar CNPJ a '+p.nome,'Busque pela razão social, fantasia, CNPJ ou raiz.',p.industria_id?'':p.nome,async c=>{
-      if(c.parceiro_id&&c.parceiro_id!==p.id&&!confirm('Este CNPJ está ligado a '+c.parceiro+'. Mover para '+p.nome+'?'))return;
-      await rpc('parc_cnpj_vincular',{p_ids:[c.id],p_parceiro:p.id});toast('CNPJ ligado');carregarParceiros();carregarResumo();});
+    tr.querySelector('[data-cn]').onclick=()=>buscarCnpjsMulti(p);
     tb.appendChild(tr);});
   if(!lista.length)tb.innerHTML='<tr><td colspan="7" class="muted">Nenhum parceiro neste filtro.</td></tr>';
 }
@@ -536,12 +541,46 @@ function abrir(id){$('veu').classList.add('on');$(id).classList.add('on');}
 function fechar(){document.querySelectorAll('.modal.on').forEach(m=>m.classList.remove('on'));$('veu').classList.remove('on');}
 document.querySelectorAll('[data-fechar]').forEach(b=>b.onclick=fechar);$('veu').onclick=fechar;document.addEventListener('keydown',e=>{if(e.key==='Escape')fechar();});
 let bT=null;
-function buscarCnpj(tit,sub,ini,cb){$('mbTit').textContent=tit;$('mbSub').textContent=sub;$('mbQ').value=ini||'';abrir('mBusca');
+function modoMulti(on){$('mbSel').classList.toggle('oculto',!on);$('mbLigar').classList.toggle('oculto',!on);if(!on){$('mbLigar').onclick=null;}}
+/* "+ CNPJ" do parceiro: marca vários (inclusive em buscas diferentes) e liga todos de uma vez */
+function buscarCnpjsMulti(p){
+  const sel=new Map();let ultima=[];
+  $('mbTit').textContent='Ligar CNPJs a '+p.nome;
+  $('mbSub').textContent='Marque quantos quiser. A seleção fica guardada quando você troca a busca (razão social, fantasia, CNPJ ou raiz).';
+  $('mbQ').value=p.nome;modoMulti(true);abrir('mBusca');
+  const rot=c=>cnpjF(c.cnpj)+' · '+(c.razao||'');
+  const atualizar=()=>{const n=sel.size;$('mbN').textContent=n+' selecionado(s)';
+    $('mbLigar').textContent=n?'Ligar '+n+' CNPJ(s) a '+p.nome:'Ligar selecionados';$('mbLigar').disabled=!n;
+    $('mbChips').innerHTML=[...sel.values()].map(c=>'<span>'+esc(cnpjF(c.cnpj))+'<button type="button" data-rm="'+c.id+'" title="tirar">×</button></span>').join('');
+    $('mbChips').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{sel.delete(+b.dataset.rm);desenhar();});};
+  const desenhar=()=>{
+    $('mbLista').innerHTML=ultima.map((c,i)=>{const ja=c.parceiro_id===p.id;
+      return '<label class="it'+(ja?' ja':'')+(sel.has(c.id)?' sel':'')+'"><input type="checkbox" data-i="'+i+'"'+(ja?' disabled checked':'')+(sel.has(c.id)?' checked':'')+'><span><b>'+cnpjF(c.cnpj)+'</b> · '+esc(c.razao||'')+(c.fantasia&&c.fantasia!==c.razao?' ('+esc(c.fantasia)+')':'')+' · '+esc(c.uf||'')
+        +(ja?' · <span class="muted">já é deste parceiro</span>':c.parceiro?' · <span class="selo s-foco">ligado a '+c.parceiro_id+' '+esc(c.parceiro)+'</span>':'')+'</span></label>';}).join('')||'<div class="muted">Nada encontrado.</div>';
+    $('mbLista').querySelectorAll('input[data-i]:not([disabled])').forEach(i=>i.onchange=()=>{const c=ultima[+i.dataset.i];i.checked?sel.set(c.id,c):sel.delete(c.id);i.closest('label').classList.toggle('sel',i.checked);atualizar();});
+    atualizar();};
+  const run=async()=>{try{ultima=await rpc('parc_cnpjs',{p_q:$('mbQ').value,p_filtro:'todos',p_limite:100})||[];}catch(e){ultima=[];toast(e.message);}desenhar();};
+  $('mbQ').oninput=()=>{clearTimeout(bT);bT=setTimeout(run,300);};
+  $('mbTodos').onclick=()=>{ultima.forEach(c=>{if(c.parceiro_id!==p.id)sel.set(c.id,c);});desenhar();};
+  $('mbLimpa').onclick=()=>{sel.clear();desenhar();};
+  $('mbRaiz').onclick=async()=>{const raizes=[...new Set([...sel.values()].map(c=>c.raiz||String(c.cnpj).slice(0,8)))];
+    if(!raizes.length){toast('Marque ao menos um CNPJ primeiro');return;}
+    let add=0;for(const r of raizes){const lst=await rpc('parc_cnpjs',{p_q:r,p_filtro:'todos',p_limite:200})||[];
+      lst.forEach(c=>{if(String(c.cnpj).startsWith(r)&&c.parceiro_id!==p.id&&!sel.has(c.id)){sel.set(c.id,c);add++;}});}
+    toast(add?add+' filial(is) adicionada(s)':'Nenhuma filial nova nessas raízes');desenhar();};
+  $('mbLigar').onclick=async()=>{if(!sel.size)return;
+    const outros=[...sel.values()].filter(c=>c.parceiro_id&&c.parceiro_id!==p.id);
+    if(outros.length&&!confirm(outros.length+' CNPJ(s) já estão ligados a outro parceiro:\n\n'+outros.slice(0,12).map(c=>'• '+rot(c)+' → '+c.parceiro_id+' '+c.parceiro).join('\n')+(outros.length>12?'\n…':'')+'\n\nMover todos para '+p.nome+'?'))return;
+    $('mbLigar').disabled=true;
+    try{await rpc('parc_cnpj_vincular',{p_ids:[...sel.keys()],p_parceiro:p.id});fechar();modoMulti(false);toast(sel.size+' CNPJ(s) ligados a '+p.nome);
+      await Promise.all([carregarParceiros(),carregarResumo()]);}catch(e){$('mbLigar').disabled=false;alert(e.message);}};
+  run();}
+function buscarCnpj(tit,sub,ini,cb){modoMulti(false);$('mbTit').textContent=tit;$('mbSub').textContent=sub;$('mbQ').value=ini||'';abrir('mBusca');
   const run=async()=>{const r=await rpc('parc_cnpjs',{p_q:$('mbQ').value,p_filtro:'todos',p_limite:60})||[];
     $('mbLista').innerHTML=r.map((c,i)=>'<div data-i="'+i+'"><b>'+cnpjF(c.cnpj)+'</b> · '+esc(c.razao||'')+(c.fantasia&&c.fantasia!==c.razao?' ('+esc(c.fantasia)+')':'')+' · '+esc(c.uf||'')+(c.parceiro?' · <span class="muted">parceiro '+c.parceiro_id+' '+esc(c.parceiro)+'</span>':'')+'</div>').join('')||'<div class="muted">Nada encontrado.</div>';
     $('mbLista').querySelectorAll('[data-i]').forEach(d=>d.onclick=async()=>{try{await cb(r[+d.dataset.i]);fechar();}catch(e){alert(e.message);}});};
   $('mbQ').oninput=()=>{clearTimeout(bT);bT=setTimeout(run,300);};run();}
-function buscarParceiro(tit,cb){$('mbTit').textContent=tit;$('mbSub').textContent='Busque pelo código ou nome. Para um grupo novo, crie o parceiro antes na aba Parceiros.';$('mbQ').value='';abrir('mBusca');
+function buscarParceiro(tit,cb){modoMulti(false);$('mbTit').textContent=tit;$('mbSub').textContent='Busque pelo código ou nome. Para um grupo novo, crie o parceiro antes na aba Parceiros.';$('mbQ').value='';abrir('mBusca');
   const run=()=>{const q=$('mbQ').value.trim().toLowerCase();const r=PARC.filter(p=>!q||String(p.id)===q||p.nome.toLowerCase().includes(q)).slice(0,60);
     $('mbLista').innerHTML=r.map((p,i)=>'<div data-i="'+i+'"><span class="cod">'+p.id+'</span> · <b>'+esc(p.nome)+'</b> <span class="muted">'+esc((p.papeis||[]).map(x=>PAPEIS[x]||x).join(', '))+'</span></div>').join('')||'<div class="muted">Nenhum.</div>';
     $('mbLista').querySelectorAll('[data-i]').forEach(d=>d.onclick=async()=>{try{await cb(r[+d.dataset.i]);fechar();}catch(e){alert(e.message);}});};
