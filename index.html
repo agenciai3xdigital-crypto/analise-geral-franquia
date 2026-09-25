@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- v6.42 · 25/09/2026 · Código da indústria (industrias.id) à mostra; link para o cadastro de parceiros (parceiros.html).
+     O código é o elo com os outros sistemas (Portal do Fornecedor, acordos, rebate). Agora aparece:
+     coluna "Cód." no Cadastro de indústrias (com busca por nome ou código e CSV com todos os códigos)
+     e "#código" antes do nome da indústria em Distribuidores por indústria (nos dois modos).
+     Busca dos distribuidores também aceita o código. Nada muda no banco. -->
 <!-- v6.41 · 18/09/2026 · Granel separado do ranking, e quem NÃO trabalha o produto na própria linha.
 
      1) GRANEL FORA DO RANKING (padrão). Granel é fracionamento: a loja compra o saco e vende solto
@@ -1139,7 +1144,11 @@ select:focus,input:focus{outline:2px solid var(--pop-laranja)!important;border-c
       <div><label class="note">CNPJ (opcional)</label><input id="ciCnpj" placeholder="00.000.000/0000-00" style="min-width:160px"></div>
       <div><label class="note">Obs. (opcional)</label><input id="ciObs" placeholder="contato, condição comercial…" style="min-width:200px"></div>
       <button class="btn o" id="ciAdd">+ Cadastrar indústria</button>
+      <div style="margin-left:auto"><label class="note">Buscar por nome ou código</label><input id="ciBusca" placeholder="ex.: ADIMAX ou 47" style="min-width:190px"></div>
+      <button class="btn g" id="ciCsv">Baixar códigos (CSV)</button>
     </div>
+    <p class="note"><b>Distribuidores, importadores e CNPJs</b> (inclusive grupos com vários CNPJs, como a MUNDO PET) ficam no <a href="parceiros.html" style="font-weight:700">cadastro de parceiros →</a> — indústria mantém lá o mesmo código daqui.</p>
+    <p class="note"><b>Cód.</b> é o código fixo da indústria na IC. Ele não muda quando a indústria é renomeada e é o que liga a indústria aos outros sistemas da rede (Portal do Fornecedor, acordos, rebate).</p>
     <div class="tw" id="pmInd"></div>
   </div>
   <div class="card full">
@@ -1815,7 +1824,7 @@ async function carregarMarcas(){
     tudoDe('v_marca_mapa','rotulo,exemplo,marca,industria,confianca,status'),
     tudoDe('v_rotulos_param'),
     tudoDe('marcas','id,nome,industria_id','nome'),
-    tudoDe('industrias','id,nome','nome'),
+    tudoDe('industrias','id,nome,cnpj','nome'),
     tudoDe('v_integridade_marca')]);
   if(mp.error){console.warn('marca_mapa',mp.error.message);return}
   (mp.data||[]).forEach(r=>{MARCAMAP[r.rotulo]={marca:r.marca,industria:r.industria,conf:r.confianca,st:r.status}});
@@ -1992,10 +2001,13 @@ function renderParam(){
   if(pi){
     const dlI2=`<datalist id="dlIndM">${INDUSTRIAS_CAD.map(i=>`<option value="${esc(i.nome)}">`).join('')}</datalist>`;
     const valInd=id=>ROT_PARAM.filter(r=>r.industria_id===id).reduce((t,r)=>t+(+r.relevancia||0),0);
+    const qi=rotNorm(($('#ciBusca')||{}).value||'').trim();
     const arr=INDUSTRIAS_CAD.map(i=>({...i,ms:MARCAS_CAD.filter(m=>m.industria_id===i.id),v:valInd(i.id)}))
+      .filter(x=>!qi||String(x.id)===qi.replace(/^#/,'')||rotNorm(x.nome).includes(qi)||x.ms.some(m=>rotNorm(m.nome).includes(qi)))
       .sort((a,b)=>b.v-a.v);
-    pi.innerHTML=dlI2+`<table><thead><tr><th>Indústria</th><th style="text-align:right">Marcas</th><th style="text-align:right">Valor 12 m</th><th>Marcas incluídas · mover para outra indústria</th><th></th></tr></thead><tbody>
+    pi.innerHTML=dlI2+`<table><thead><tr><th style="text-align:right">Cód.</th><th>Indústria</th><th style="text-align:right">Marcas</th><th style="text-align:right">Valor 12 m</th><th>Marcas incluídas · mover para outra indústria</th><th></th></tr></thead><tbody>
      ${arr.map(x=>`<tr>
+       <td style="text-align:right;font-weight:800;font-variant-numeric:tabular-nums" title="código da indústria na IC">${x.id}</td>
        <td><input data-inome="${x.id}" value="${esc(x.nome)}" style="min-width:150px;font-weight:700"></td>
        <td style="text-align:right">${x.ms.length}</td>
        <td style="text-align:right">${fmt0(x.v)}</td>
@@ -2004,6 +2016,7 @@ function renderParam(){
           <button class="btn g" data-mv="${m.id}" title="mover para outra indústria" style="padding:1px 5px;font-size:11px;line-height:1.3">↦</button></span>`).join('')||'<small style="color:var(--mu)">nenhuma marca — esta indústria não soma nada</small>'}</div></td>
        <td style="white-space:nowrap"><button class="btn g" data-iren="${x.id}" style="padding:5px 9px;font-size:11px">Renomear</button>
        ${x.ms.length?'':`<button class="btn g" data-idel="${x.id}" data-inm="${esc(x.nome)}" style="padding:5px 8px;font-size:11px">Apagar</button>`}</td></tr>`).join('')}
+     ${arr.length?'':'<tr><td colspan="6" class="note" style="padding:16px">Nenhuma indústria com esse nome ou código.</td></tr>'}
      </tbody></table>`;
     pi.querySelectorAll('[data-iren]').forEach(b=>b.onclick=()=>{
       const id=+b.dataset.iren;renomearIndustria(id,pi.querySelector(`[data-inome="${id}"]`).value)});
@@ -2022,10 +2035,10 @@ function renderDistrib(){
   const PAPEIS=[['industria_direto','indústria direto'],['homologado','homologado'],['tolerado','tolerado'],['fora','fora do acordo'],['nao_cadastrado','—']];
   const cor=p=>p==='fora'?'no':p==='tolerado'?'at':p==='nao_cadastrado'?'nt':'ok';
   if(modo==='ind'){
-    const rows=IND_DIST.filter(r=>r.valor_12m>=min&&(!q||rotNorm(r.industria).includes(q)||rotNorm(r.fornecedor).includes(q)));
+    const rows=IND_DIST.filter(r=>r.valor_12m>=min&&(!q||String(r.industria_id)===q.replace(/^#/,'')||rotNorm(r.industria).includes(q)||rotNorm(r.fornecedor).includes(q)));
     el.innerHTML=`<table><thead><tr><th>Indústria</th><th>Distribuidor na nota</th><th style="text-align:right">Valor 12 m</th><th style="text-align:right">Share</th><th style="text-align:right">Lojas</th><th style="text-align:right">NFs</th><th>Papel</th></tr></thead><tbody>
      ${rows.slice(0,300).map(r=>`<tr>
-       <td><b>${esc(r.industria)}</b></td><td>${esc(r.fornecedor)}</td>
+       <td>${r.industria_id>0?`<span style="color:var(--mu);font-weight:700" title="código da indústria na IC">#${r.industria_id}</span> `:''}<b>${esc(r.industria)}</b></td><td>${esc(r.fornecedor)}</td>
        <td style="text-align:right">${fmt0(+r.valor_12m)}</td>
        <td style="text-align:right"><span class="tag ${r.share>=80?'ok':r.share>=30?'at':'nt'}">${r.share}%</span></td>
        <td style="text-align:right">${r.lojas}</td><td style="text-align:right">${r.nfs}</td>
@@ -2035,13 +2048,15 @@ function renderDistrib(){
     el.querySelectorAll('[data-pap]').forEach(sel=>sel.onchange=()=>{
       const [id,forn]=sel.dataset.pap.split('|');papelDistribuidor(+id,forn,sel.value)});
   }else{
+    const codInd=n=>{const i=INDUSTRIAS_CAD.find(x=>rotNorm(x.nome)===rotNorm(n||''));return i?i.id:null};
+    const qc=q.replace(/^#/,'');
     const por=new Map();
-    DIST_MARCA.filter(r=>r.valor_12m>=min&&(!q||rotNorm(r.distribuidor).includes(q)||rotNorm(r.marca).includes(q)||rotNorm(r.industria).includes(q)))
+    DIST_MARCA.filter(r=>r.valor_12m>=min&&(!q||rotNorm(r.distribuidor).includes(q)||rotNorm(r.marca).includes(q)||rotNorm(r.industria).includes(q)||(qc&&String(codInd(r.industria))===qc)))
       .forEach(r=>{const a=por.get(r.distribuidor)||{v:0,itens:[]};a.v+=+r.valor_12m;a.itens.push(r);por.set(r.distribuidor,a)});
     const arr=[...por.entries()].sort((a,b)=>b[1].v-a[1].v).slice(0,120);
     el.innerHTML=`<table><thead><tr><th>Distribuidor</th><th style="text-align:right">Valor 12 m</th><th style="text-align:right">Marcas</th><th>Entrega estas marcas</th></tr></thead><tbody>
      ${arr.map(([d,a])=>`<tr><td><b>${esc(d)}</b></td><td style="text-align:right">${fmt0(a.v)}</td><td style="text-align:right">${a.itens.length}</td>
-      <td><small>${a.itens.sort((x,y)=>y.valor_12m-x.valor_12m).slice(0,14).map(x=>`${esc(x.marca)} <span style="color:var(--mu)">(${esc(x.industria)} · ${fmt0(+x.valor_12m)})</span>`).join(' · ')}${a.itens.length>14?' …':''}</small></td></tr>`).join('')
+      <td><small>${a.itens.sort((x,y)=>y.valor_12m-x.valor_12m).slice(0,14).map(x=>`${esc(x.marca)} <span style="color:var(--mu)">(${codInd(x.industria)?'#'+codInd(x.industria)+' ':''}${esc(x.industria)} · ${fmt0(+x.valor_12m)})</span>`).join(' · ')}${a.itens.length>14?' …':''}</small></td></tr>`).join('')
        ||'<tr><td colspan="4" class="note" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody></table>`;
   }
 }
@@ -2051,6 +2066,13 @@ function renderDistrib(){
   ['#pdiBusca','#pdiModo','#pdiMin'].forEach(id=>{const e=$(id);if(e)e[id==='#pdiBusca'?'oninput':'onchange']=()=>renderDistrib()});
   const ca=$('#ciAdd');if(ca)ca.onclick=async()=>{const n=$('#ciNome');
     if(await criarIndustria(n.value,$('#ciCnpj').value,$('#ciObs').value)){n.value='';$('#ciCnpj').value='';$('#ciObs').value=''}};
+  const cb=$('#ciBusca');if(cb)cb.oninput=()=>renderParam();
+  const cc=$('#ciCsv');if(cc)cc.onclick=()=>{
+    const lin=['codigo;industria;cnpj;marcas'].concat(INDUSTRIAS_CAD.slice().sort((a,b)=>a.id-b.id).map(i=>{
+      const ms=MARCAS_CAD.filter(m=>m.industria_id===i.id).map(m=>m.nome).sort().join(', ');
+      return [i.id,i.nome,i.cnpj||'',ms].map(v=>{v=String(v==null?'':v);if(/^[=+\-@]/.test(v))v="'"+v;return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(';')}));
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+lin.join('\n')],{type:'text/csv;charset=utf-8'}));
+    a.download='codigos-industrias-ic-'+new Date().toISOString().slice(0,10)+'.csv';a.click()};
   const g=$('#sinoBg');if(g)g.onclick=fecharSino;
   const bc=$('#btnConf');if(bc)bc.onclick=()=>conferir();
   const rg=$('#relBg');if(rg)rg.onclick=fecharRel;
